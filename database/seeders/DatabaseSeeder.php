@@ -36,15 +36,24 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($permissions as $permissionName) {
-            Permission::create(['name' => $permissionName]);
+            Permission::firstOrCreate([
+                'name' => $permissionName,
+                'guard_name' => 'web',
+            ]);
         }
 
         // 2. Create Roles and Assign Permissions
-        $superAdminRole = Role::create(['name' => 'Super Admin']);
+        $superAdminRole = Role::firstOrCreate([
+            'name' => 'Super Admin',
+            'guard_name' => 'web',
+        ]);
         // Super Admin gets all permissions via gate wildcard, but let's assign explicitly too
         $superAdminRole->givePermissionTo(Permission::all());
 
-        $netAdminRole = Role::create(['name' => 'Network Administrator']);
+        $netAdminRole = Role::firstOrCreate([
+            'name' => 'Network Administrator',
+            'guard_name' => 'web',
+        ]);
         $netAdminRole->givePermissionTo([
             'manage master data',
             'manage devices',
@@ -52,14 +61,20 @@ class DatabaseSeeder extends Seeder
             'view reports',
         ]);
 
-        $technicianRole = Role::create(['name' => 'Technician']);
+        $technicianRole = Role::firstOrCreate([
+            'name' => 'Technician',
+            'guard_name' => 'web',
+        ]);
         $technicianRole->givePermissionTo([
             'manage maintenance',
             'view dashboard',
             'view reports',
         ]);
 
-        $viewerRole = Role::create(['name' => 'Viewer']);
+        $viewerRole = Role::firstOrCreate([
+            'name' => 'Viewer',
+            'guard_name' => 'web',
+        ]);
         $viewerRole->givePermissionTo([
             'view dashboard',
             'view reports',
@@ -90,7 +105,7 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($usersInfo as $userInfo) {
-            $user = User::create([
+            $user = User::firstOrCreate([
                 'name' => $userInfo['name'],
                 'email' => $userInfo['email'],
                 'password' => bcrypt('password'),
@@ -271,7 +286,7 @@ class DatabaseSeeder extends Seeder
         foreach ($devices as $dev) {
             for ($i = 24; $i >= 0; $i--) {
                 $checkTime = $now->copy()->subHours($i);
-                
+
                 // Add fluctuation to metrics
                 $latency = rand(5, 30);
                 $cpu = rand(15, 65);

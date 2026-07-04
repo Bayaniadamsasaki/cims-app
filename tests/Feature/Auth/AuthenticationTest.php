@@ -51,4 +51,33 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
         $response->assertRedirect('/');
     }
+
+    public function test_api_users_can_logout_and_revoke_their_token(): void
+    {
+        $user = User::factory()->create();
+
+        $loginResponse = $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $loginResponse->assertOk()->assertJsonStructure([
+            'access_token',
+            'token_type',
+            'user',
+        ]);
+
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+
+        $logoutResponse = $this->withHeader(
+            'Authorization',
+            'Bearer ' . $loginResponse->json('access_token')
+        )->postJson('/api/logout');
+
+        $logoutResponse->assertOk()->assertJson([
+            'message' => 'Logged out successfully',
+        ]);
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
 }
