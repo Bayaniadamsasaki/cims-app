@@ -38,6 +38,7 @@ const Trigger = ({ children }) => {
 const Content = ({
     align = 'right',
     width = '48',
+    placement = 'bottom',
     contentClasses = 'py-1 bg-white',
     children,
 }) => {
@@ -57,6 +58,8 @@ const Content = ({
         widthClasses = 'w-48';
     }
 
+    const placementClasses = placement === 'top' ? 'bottom-full mb-2' : 'mt-2';
+
     return (
         <>
             <Transition
@@ -69,7 +72,7 @@ const Content = ({
                 leaveTo="opacity-0 scale-95"
             >
                 <div
-                    className={`absolute z-50 mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
+                    className={`absolute z-50 rounded-md shadow-lg ${placementClasses} ${alignmentClasses} ${widthClasses}`}
                     onClick={() => setOpen(false)}
                 >
                     <div

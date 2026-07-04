@@ -209,7 +209,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                     </button>
                                 </Dropdown.Trigger>
 
-                                <Dropdown.Content>
+                                <Dropdown.Content placement="top">
                                     <Dropdown.Link href={route('profile.edit')}>
                                         Profile Settings
                                     </Dropdown.Link>
