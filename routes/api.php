@@ -22,20 +22,26 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Authenticated Sanctum Routes
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // Auth Profile Actions
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
     // User Management CRUD (Super Admin / Users with 'manage users' permission)
-    Route::middleware('can:manage users')->apiResource('users', UserController::class);
+    Route::middleware('can:manage users')->apiResource('users', UserController::class)->names([
+        'index'   => 'api.users.index',
+        'store'   => 'api.users.store',
+        'show'    => 'api.users.show',
+        'update'  => 'api.users.update',
+        'destroy' => 'api.users.destroy',
+    ]);
 
     // Master Data
     // Read-only endpoints available to all authenticated users
     Route::get('buildings', [BuildingController::class, 'index']);
     Route::get('buildings/{building}', [BuildingController::class, 'show']);
-    
+
     Route::get('floors', [FloorController::class, 'index']);
     Route::get('floors/{floor}', [FloorController::class, 'show']);
 
