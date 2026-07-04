@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +21,7 @@ class AuthController extends Controller
             ]);
         }
 
+        /** @var User $user */
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -32,6 +34,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        /** @var User|null $user */
         $user = $request->user();
 
         if ($user) {
@@ -51,11 +54,15 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
+        /** @var User $user */
+        $user = $request->user();
+
         return new UserResource($request->user()->load('roles'));
     }
 
     public function changePassword(ChangePasswordRequest $request)
     {
+        /** @var User $user */
         $user = $request->user();
         $user->update([
             'password' => bcrypt($request->password),
