@@ -21,12 +21,19 @@ class DeviceResource extends JsonResource
             
             'device_category_id' => $this->device_category_id,
             'category' => new DeviceCategoryResource($this->whenLoaded('category')),
+
+            'operating_system_id' => $this->operating_system_id,
+            'operating_system' => new OperatingSystemResource($this->whenLoaded('operatingSystem')),
+
+            'device_type_id' => $this->device_type_id,
+            'device_type' => new DeviceTypeResource($this->whenLoaded('deviceType')),
             
             'model' => $this->model,
             'serial_number' => $this->serial_number,
             'firmware' => $this->firmware,
             'purchase_date' => $this->purchase_date,
             'warranty' => $this->warranty,
+            'username' => $this->username,
             
             'building_id' => $this->building_id,
             'building' => new BuildingResource($this->whenLoaded('building')),
@@ -43,6 +50,10 @@ class DeviceResource extends JsonResource
             'status' => $this->status,
             'notes' => $this->notes,
             'image_url' => $this->image_path ? asset('storage/' . $this->image_path) : null,
+
+            'interfaces' => DeviceInterfaceResource::collection($this->whenLoaded('deviceInterfaces')),
+            'interfaces_count' => $this->whenCounted('deviceInterfaces'),
+
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -7,11 +7,15 @@ use App\Interface\DeviceRepositoryInterface;
 
 class DeviceRepository implements DeviceRepositoryInterface
 {
+    protected array $defaultRelations = [
+        'vendor', 'category', 'operatingSystem', 'deviceType',
+        'building', 'floor', 'room', 'rack',
+    ];
+
     public function paginate(int $perPage = 15, array $filters = [])
     {
-        $query = Device::query()->with([
-            'vendor', 'category', 'building', 'floor', 'room', 'rack'
-        ]);
+        $query = Device::query()->with($this->defaultRelations)
+            ->withCount('deviceInterfaces');
 
         if (!empty($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);
@@ -19,6 +23,14 @@ class DeviceRepository implements DeviceRepositoryInterface
 
         if (!empty($filters['device_category_id'])) {
             $query->where('device_category_id', $filters['device_category_id']);
+        }
+
+        if (!empty($filters['operating_system_id'])) {
+            $query->where('operating_system_id', $filters['operating_system_id']);
+        }
+
+        if (!empty($filters['device_type_id'])) {
+            $query->where('device_type_id', $filters['device_type_id']);
         }
 
         if (!empty($filters['building_id'])) {
@@ -58,25 +70,20 @@ class DeviceRepository implements DeviceRepositoryInterface
 
     public function find(int $id)
     {
-        return Device::with([
-            'vendor', 'category', 'building', 'floor', 'room', 'rack'
-        ])->findOrFail($id);
+        return Device::with(array_merge($this->defaultRelations, ['deviceInterfaces']))
+            ->findOrFail($id);
     }
 
     public function create(array $data)
     {
-        return Device::create($data)->load([
-            'vendor', 'category', 'building', 'floor', 'room', 'rack'
-        ]);
+        return Device::create($data)->load($this->defaultRelations);
     }
 
     public function update(int $id, array $data)
     {
         $device = Device::findOrFail($id);
         $device->update($data);
-        return $device->load([
-            'vendor', 'category', 'building', 'floor', 'room', 'rack'
-        ]);
+        return $device->load($this->defaultRelations);
     }
 
     public function delete(int $id)

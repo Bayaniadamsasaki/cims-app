@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Device extends Model
 {
@@ -19,11 +21,15 @@ class Device extends Model
         'mac_address',
         'vendor_id',
         'device_category_id',
+        'operating_system_id',
+        'device_type_id',
         'model',
         'serial_number',
         'firmware',
         'purchase_date',
         'warranty',
+        'username',
+        'password_encrypted',
         'building_id',
         'floor_id',
         'room_id',
@@ -31,6 +37,13 @@ class Device extends Model
         'status',
         'notes',
         'image_path',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     */
+    protected $hidden = [
+        'password_encrypted',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -48,6 +61,16 @@ class Device extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(DeviceCategory::class, 'device_category_id');
+    }
+
+    public function operatingSystem(): BelongsTo
+    {
+        return $this->belongsTo(OperatingSystem::class);
+    }
+
+    public function deviceType(): BelongsTo
+    {
+        return $this->belongsTo(DeviceType::class);
     }
 
     public function building(): BelongsTo
@@ -70,17 +93,22 @@ class Device extends Model
         return $this->belongsTo(Rack::class);
     }
 
-    public function metrics(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function deviceInterfaces(): HasMany
+    {
+        return $this->hasMany(DeviceInterface::class);
+    }
+
+    public function metrics(): HasOne
     {
         return $this->hasOne(DeviceMetric::class);
     }
 
-    public function monitoringLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function monitoringLogs(): HasMany
     {
         return $this->hasMany(MonitoringLog::class);
     }
 
-    public function maintenanceTickets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function maintenanceTickets(): HasMany
     {
         return $this->hasMany(MaintenanceTicket::class);
     }

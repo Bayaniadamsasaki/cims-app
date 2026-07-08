@@ -9,7 +9,10 @@ use App\Models\Room;
 use App\Models\Rack;
 use App\Models\Vendor;
 use App\Models\DeviceCategory;
+use App\Models\DeviceType;
+use App\Models\OperatingSystem;
 use App\Models\Device;
+use App\Models\DeviceInterface;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
@@ -114,6 +117,74 @@ class DatabaseSeeder extends Seeder
         }
 
         // 4. Seed Master Data
+
+        // Operating Systems (NEW - per TASK_001 spec)
+        $routerOS = OperatingSystem::create([
+            'name' => 'RouterOS',
+            'vendor' => 'MikroTik',
+            'version' => '7.14',
+            'description' => 'MikroTik RouterOS untuk perangkat router dan switch MikroTik.',
+        ]);
+
+        $iosXE = OperatingSystem::create([
+            'name' => 'IOS-XE',
+            'vendor' => 'Cisco',
+            'version' => '17.3.5',
+            'description' => 'Cisco IOS-XE untuk ISR dan Catalyst series.',
+        ]);
+
+        $ios = OperatingSystem::create([
+            'name' => 'IOS',
+            'vendor' => 'Cisco',
+            'version' => '15.9',
+            'description' => 'Cisco IOS klasik untuk perangkat legacy.',
+        ]);
+
+        $unifiOS = OperatingSystem::create([
+            'name' => 'UniFi OS',
+            'vendor' => 'Ubiquiti',
+            'version' => '3.2',
+            'description' => 'Ubiquiti UniFi OS untuk perangkat UniFi.',
+        ]);
+
+        $fortiOS = OperatingSystem::create([
+            'name' => 'FortiOS',
+            'vendor' => 'Fortinet',
+            'version' => '7.4',
+            'description' => 'Fortinet FortiOS untuk firewall FortiGate.',
+        ]);
+
+        // Device Types (NEW - per TASK_001 spec)
+        $coreRouterType = DeviceType::create([
+            'name' => 'Core Router',
+            'description' => 'Router utama backbone jaringan kampus.',
+        ]);
+
+        $distSwitchType = DeviceType::create([
+            'name' => 'Distribution Switch',
+            'description' => 'Switch layer distribusi untuk segmentasi jaringan.',
+        ]);
+
+        $accessSwitchType = DeviceType::create([
+            'name' => 'Access Switch',
+            'description' => 'Switch akses untuk endpoint pengguna.',
+        ]);
+
+        $indoorAPType = DeviceType::create([
+            'name' => 'Indoor Access Point',
+            'description' => 'Access point untuk penggunaan dalam ruangan.',
+        ]);
+
+        $outdoorAPType = DeviceType::create([
+            'name' => 'Outdoor Access Point',
+            'description' => 'Access point untuk penggunaan luar ruangan.',
+        ]);
+
+        $rackServerType = DeviceType::create([
+            'name' => 'Rack Server',
+            'description' => 'Server fisik berbentuk rack-mount.',
+        ]);
+
         // Buildings
         $rektorat = Building::create([
             'name' => 'Gedung Rektorat',
@@ -220,19 +291,22 @@ class DatabaseSeeder extends Seeder
             'description' => 'Perangkat komputer server.',
         ]);
 
-        // 5. Seed Devices
-        Device::create([
+        // 5. Seed Devices (with new fields)
+        $coreRouter = Device::create([
             'name' => 'Core Router Rektorat',
             'hostname' => 'cr-rek-01',
             'ip_address' => '10.10.10.1',
             'mac_address' => '00:1A:2B:3C:4D:5E',
             'vendor_id' => $cisco->id,
             'device_category_id' => $routerCat->id,
+            'operating_system_id' => $iosXE->id,
+            'device_type_id' => $coreRouterType->id,
             'model' => 'Cisco ISR 4451',
             'serial_number' => 'FTX1928A4X',
             'firmware' => 'IOS-XE 17.3.5',
             'purchase_date' => '2025-01-15',
             'warranty' => '3 Years',
+            'username' => 'admin',
             'building_id' => $rektorat->id,
             'floor_id' => $rekFloor1->id,
             'room_id' => $serverRoom->id,
@@ -241,18 +315,21 @@ class DatabaseSeeder extends Seeder
             'notes' => 'Router utama yang menghubungkan kampus ke ISP.',
         ]);
 
-        Device::create([
+        $distSwitch = Device::create([
             'name' => 'Distribution Switch Rektorat',
             'hostname' => 'sw-rek-dist-01',
             'ip_address' => '10.10.10.2',
             'mac_address' => '00:1A:2B:3C:4D:5F',
             'vendor_id' => $cisco->id,
             'device_category_id' => $switchCat->id,
+            'operating_system_id' => $iosXE->id,
+            'device_type_id' => $distSwitchType->id,
             'model' => 'Catalyst 9300',
             'serial_number' => 'FOC2345U9X',
             'firmware' => 'IOS-XE 17.6.1',
             'purchase_date' => '2025-02-10',
             'warranty' => '3 Years',
+            'username' => 'admin',
             'building_id' => $rektorat->id,
             'floor_id' => $rekFloor1->id,
             'room_id' => $serverRoom->id,
@@ -261,13 +338,15 @@ class DatabaseSeeder extends Seeder
             'notes' => 'Switch distribusi utama lantai 1 Rektorat.',
         ]);
 
-        $ap = Device::create([
+        $apLab = Device::create([
             'name' => 'Access Point Lab Jaringan',
             'hostname' => 'ap-lab-jaringan-01',
             'ip_address' => '10.20.10.50',
             'mac_address' => '24:A4:3C:D9:8A:F1',
             'vendor_id' => $ubiquiti->id,
             'device_category_id' => $apCat->id,
+            'operating_system_id' => $unifiOS->id,
+            'device_type_id' => $indoorAPType->id,
             'model' => 'UniFi U6 Pro',
             'serial_number' => '24A43CD98AF1',
             'firmware' => '6.5.64',
@@ -280,7 +359,153 @@ class DatabaseSeeder extends Seeder
             'notes' => 'Access point untuk kebutuhan praktikum mahasiswa.',
         ]);
 
-        // 6. Seed Historical Monitoring Logs (Past 24 Hours)
+        // 6. Seed Device Interfaces (NEW - per TASK_001 spec)
+        // Core Router Interfaces
+        DeviceInterface::create([
+            'device_id' => $coreRouter->id,
+            'interface_name' => 'GigabitEthernet0/0',
+            'ip_address' => '203.0.113.1',
+            'subnet' => '255.255.255.252',
+            'gateway' => '203.0.113.2',
+            'mac_address' => '00:1A:2B:3C:4D:01',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'WAN - Uplink ke ISP',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $coreRouter->id,
+            'interface_name' => 'GigabitEthernet0/1',
+            'ip_address' => '10.10.10.1',
+            'subnet' => '255.255.255.0',
+            'mac_address' => '00:1A:2B:3C:4D:02',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'LAN - Core Network',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $coreRouter->id,
+            'interface_name' => 'GigabitEthernet0/2',
+            'ip_address' => '10.10.20.1',
+            'subnet' => '255.255.255.0',
+            'mac_address' => '00:1A:2B:3C:4D:03',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'LAN - Distribution Segment',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $coreRouter->id,
+            'interface_name' => 'GigabitEthernet0/3',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'down',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'Reserved - Future expansion',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $coreRouter->id,
+            'interface_name' => 'Loopback0',
+            'ip_address' => '10.255.255.1',
+            'subnet' => '255.255.255.255',
+            'interface_type' => 'loopback',
+            'interface_status' => 'up',
+            'description' => 'Management Loopback',
+        ]);
+
+        // Distribution Switch Interfaces
+        DeviceInterface::create([
+            'device_id' => $distSwitch->id,
+            'interface_name' => 'GigabitEthernet1/0/1',
+            'ip_address' => '10.10.10.2',
+            'subnet' => '255.255.255.0',
+            'gateway' => '10.10.10.1',
+            'mac_address' => '00:1A:2B:3C:5D:01',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'Uplink to Core Router',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $distSwitch->id,
+            'interface_name' => 'GigabitEthernet1/0/2',
+            'ip_address' => '10.10.30.1',
+            'subnet' => '255.255.255.0',
+            'mac_address' => '00:1A:2B:3C:5D:02',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'Downlink to Access Switch Lt.1',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $distSwitch->id,
+            'interface_name' => 'GigabitEthernet1/0/3',
+            'mac_address' => '00:1A:2B:3C:5D:03',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'down',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'Reserved port',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $distSwitch->id,
+            'interface_name' => 'Vlan10',
+            'ip_address' => '10.10.10.2',
+            'subnet' => '255.255.255.0',
+            'interface_type' => 'vlan',
+            'interface_status' => 'up',
+            'description' => 'Management VLAN',
+        ]);
+
+        // Access Point Interfaces
+        DeviceInterface::create([
+            'device_id' => $apLab->id,
+            'interface_name' => 'eth0',
+            'ip_address' => '10.20.10.50',
+            'subnet' => '255.255.255.0',
+            'gateway' => '10.20.10.1',
+            'mac_address' => '24:A4:3C:D9:8A:F1',
+            'interface_type' => 'ethernet',
+            'interface_status' => 'up',
+            'speed' => '1Gbps',
+            'mtu' => 1500,
+            'description' => 'Wired uplink (PoE)',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $apLab->id,
+            'interface_name' => 'wlan0',
+            'mac_address' => '24:A4:3C:D9:8A:F2',
+            'interface_type' => 'wireless',
+            'interface_status' => 'up',
+            'speed' => '1.2Gbps',
+            'description' => '5GHz Radio - WiFi 6',
+        ]);
+
+        DeviceInterface::create([
+            'device_id' => $apLab->id,
+            'interface_name' => 'wlan1',
+            'mac_address' => '24:A4:3C:D9:8A:F3',
+            'interface_type' => 'wireless',
+            'interface_status' => 'up',
+            'speed' => '574Mbps',
+            'description' => '2.4GHz Radio - WiFi 6',
+        ]);
+
+        // 7. Seed Historical Monitoring Logs (Past 24 Hours)
         $devices = Device::all();
         $now = \Carbon\Carbon::now();
         foreach ($devices as $dev) {
@@ -334,11 +559,8 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // 7. Seed Maintenance Tickets
+        // 8. Seed Maintenance Tickets
         $tech = \App\Models\User::where('email', 'tech@cims.com')->first();
-        $coreRouter = Device::where('hostname', 'cr-rek-01')->first();
-        $distSwitch = Device::where('hostname', 'sw-rek-dist-01')->first();
-        $apLab = Device::where('hostname', 'ap-lab-jaringan-01')->first();
 
         if ($tech && $coreRouter && $distSwitch && $apLab) {
             \App\Models\MaintenanceTicket::create([

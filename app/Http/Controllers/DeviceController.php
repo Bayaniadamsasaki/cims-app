@@ -22,7 +22,8 @@ class DeviceController extends Controller
     {
         $perPage = $request->query('per_page', 15);
         $filters = $request->only([
-            'vendor_id', 'device_category_id', 'building_id', 'floor_id', 'room_id', 'rack_id', 'status', 'search'
+            'vendor_id', 'device_category_id', 'operating_system_id', 'device_type_id',
+            'building_id', 'floor_id', 'room_id', 'rack_id', 'status', 'search'
         ]);
 
         $devices = $this->deviceRepository->paginate($perPage, $filters);

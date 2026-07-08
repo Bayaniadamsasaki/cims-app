@@ -21,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(\App\Interface\VendorRepositoryInterface::class, \App\Repositories\VendorRepository::class);
         $this->app->bind(\App\Interface\DeviceCategoryRepositoryInterface::class, \App\Repositories\DeviceCategoryRepository::class);
         $this->app->bind(\App\Interface\DeviceRepositoryInterface::class, \App\Repositories\DeviceRepository::class);
+        $this->app->bind(\App\Interface\OperatingSystemRepositoryInterface::class, \App\Repositories\OperatingSystemRepository::class);
+        $this->app->bind(\App\Interface\DeviceTypeRepositoryInterface::class, \App\Repositories\DeviceTypeRepository::class);
+        $this->app->bind(\App\Interface\DeviceInterfaceRepositoryInterface::class, \App\Repositories\DeviceInterfaceRepository::class);
     }
 
     /**
