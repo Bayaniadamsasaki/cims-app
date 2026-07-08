@@ -61,6 +61,9 @@ export default function AuthenticatedLayout({ header, children }) {
 
     const masterItems = [
         { name: 'Buildings', route: 'buildings.index' },
+        { name: 'Floors', route: 'floors.index' },
+        { name: 'Rooms', route: 'rooms.index' },
+        { name: 'Racks', route: 'racks.index' },
         { name: 'Vendors', route: 'vendors.index' },
         { name: 'Device Categories', route: 'device-categories.index' }
     ];
@@ -142,7 +145,7 @@ export default function AuthenticatedLayout({ header, children }) {
                             </button>
                             
                             <div className={`mt-1 pl-8 space-y-1 overflow-hidden transition-all duration-250 ${
-                                showingMasterDropdown ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+                                showingMasterDropdown ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                             }`}>
                                 {masterItems.map((item, idx) => {
                                     const active = route().current(item.route);

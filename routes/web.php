@@ -65,6 +65,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/buildings/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'buildingsUpdate'])->name('buildings.update');
     Route::delete('/buildings/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'buildingsDestroy'])->name('buildings.destroy');
 
+    Route::get('/floors', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsIndex'])->name('floors.index');
+    Route::post('/floors', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsStore'])->name('floors.store');
+    Route::post('/floors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsUpdate'])->name('floors.update');
+    Route::delete('/floors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsDestroy'])->name('floors.destroy');
+
+    Route::get('/rooms', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsIndex'])->name('rooms.index');
+    Route::post('/rooms', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsStore'])->name('rooms.store');
+    Route::post('/rooms/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsUpdate'])->name('rooms.update');
+    Route::delete('/rooms/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsDestroy'])->name('rooms.destroy');
+
+    Route::get('/racks', [\App\Http\Controllers\Web\MasterWebController::class, 'racksIndex'])->name('racks.index');
+    Route::post('/racks', [\App\Http\Controllers\Web\MasterWebController::class, 'racksStore'])->name('racks.store');
+    Route::post('/racks/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'racksUpdate'])->name('racks.update');
+    Route::delete('/racks/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'racksDestroy'])->name('racks.destroy');
+
     Route::get('/vendors', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsIndex'])->name('vendors.index');
     Route::post('/vendors', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsStore'])->name('vendors.store');
     Route::post('/vendors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsUpdate'])->name('vendors.update');
