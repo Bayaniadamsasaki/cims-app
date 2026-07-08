@@ -268,8 +268,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
             {/* Create/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-3xl rounded-2xl bg-brand-card border border-brand-border p-6 shadow-2xl">
-                        <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
+                    <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-brand-card border border-brand-border shadow-2xl">
+                        {/* Modal Header — fixed */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border shrink-0">
                             <h3 className="text-lg font-bold text-white">
                                 {editingDevice ? 'Modify Network Node' : 'Register New Device Node'}
                             </h3>
@@ -283,181 +284,185 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Device Name*</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.name && <span className="text-xs text-rose-450 mt-1 block">{errors.name}</span>}
+                        {/* Modal Body — scrollable */}
+                        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                            <div className="overflow-y-auto px-6 py-5 space-y-4 flex-1">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Device Name*</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={data.name}
+                                            onChange={(e) => setData('name', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.name && <span className="text-xs text-rose-450 mt-1 block">{errors.name}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Hostname</label>
+                                        <input
+                                            type="text"
+                                            value={data.hostname}
+                                            onChange={(e) => setData('hostname', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.hostname && <span className="text-xs text-rose-450 mt-1 block">{errors.hostname}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">IP Address</label>
+                                        <input
+                                            type="text"
+                                            value={data.ip_address}
+                                            onChange={(e) => setData('ip_address', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.ip_address && <span className="text-xs text-rose-450 mt-1 block">{errors.ip_address}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">MAC Address</label>
+                                        <input
+                                            type="text"
+                                            value={data.mac_address}
+                                            onChange={(e) => setData('mac_address', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.mac_address && <span className="text-xs text-rose-450 mt-1 block">{errors.mac_address}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Vendor*</label>
+                                        <select
+                                            required
+                                            value={data.vendor_id}
+                                            onChange={(e) => setData('vendor_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Vendor</option>
+                                            {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                        </select>
+                                        {errors.vendor_id && <span className="text-xs text-rose-450 mt-1 block">{errors.vendor_id}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Category*</label>
+                                        <select
+                                            required
+                                            value={data.device_category_id}
+                                            onChange={(e) => setData('device_category_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Category</option>
+                                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                        {errors.device_category_id && <span className="text-xs text-rose-450 mt-1 block">{errors.device_category_id}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Model</label>
+                                        <input
+                                            type="text"
+                                            value={data.model}
+                                            onChange={(e) => setData('model', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.model && <span className="text-xs text-rose-450 mt-1 block">{errors.model}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Serial Number</label>
+                                        <input
+                                            type="text"
+                                            value={data.serial_number}
+                                            onChange={(e) => setData('serial_number', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        />
+                                        {errors.serial_number && <span className="text-xs text-rose-450 mt-1 block">{errors.serial_number}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
+                                        <select
+                                            required
+                                            value={data.building_id}
+                                            onChange={(e) => setData('building_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Building</option>
+                                            {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        {errors.building_id && <span className="text-xs text-rose-450 mt-1 block">{errors.building_id}</span>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor</label>
+                                        <select
+                                            value={data.floor_id}
+                                            onChange={(e) => setData('floor_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Floor</option>
+                                            {floors.filter(f => f.building_id == data.building_id).map(f => (
+                                                <option key={f.id} value={f.id}>{f.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Room</label>
+                                        <select
+                                            value={data.room_id}
+                                            onChange={(e) => setData('room_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Room</option>
+                                            {rooms.filter(r => r.floor_id == data.floor_id).map(r => (
+                                                <option key={r.id} value={r.id}>{r.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Rack</label>
+                                        <select
+                                            value={data.rack_id}
+                                            onChange={(e) => setData('rack_id', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="">Select Rack</option>
+                                            {racks.filter(rk => rk.room_id == data.room_id).map(rk => (
+                                                <option key={rk.id} value={rk.id}>{rk.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Operating Status</label>
+                                        <select
+                                            value={data.status}
+                                            onChange={(e) => setData('status', e.target.value)}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                        >
+                                            <option value="active">Active / Online</option>
+                                            <option value="maintenance">Under Maintenance</option>
+                                            <option value="offline">Offline / Down</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Device Node Image</label>
+                                        <input
+                                            type="file"
+                                            onChange={(e) => setData('image', e.target.files[0])}
+                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20"
+                                        />
+                                        {errors.image && <span className="text-xs text-rose-450 mt-1 block">{errors.image}</span>}
+                                    </div>
                                 </div>
+
                                 <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Hostname</label>
-                                    <input
-                                        type="text"
-                                        value={data.hostname}
-                                        onChange={(e) => setData('hostname', e.target.value)}
+                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Operational Notes</label>
+                                    <textarea
+                                        value={data.notes}
+                                        onChange={(e) => setData('notes', e.target.value)}
+                                        rows="2"
                                         className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.hostname && <span className="text-xs text-rose-450 mt-1 block">{errors.hostname}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">IP Address</label>
-                                    <input
-                                        type="text"
-                                        value={data.ip_address}
-                                        onChange={(e) => setData('ip_address', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.ip_address && <span className="text-xs text-rose-450 mt-1 block">{errors.ip_address}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">MAC Address</label>
-                                    <input
-                                        type="text"
-                                        value={data.mac_address}
-                                        onChange={(e) => setData('mac_address', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.mac_address && <span className="text-xs text-rose-450 mt-1 block">{errors.mac_address}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Vendor*</label>
-                                    <select
-                                        required
-                                        value={data.vendor_id}
-                                        onChange={(e) => setData('vendor_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Vendor</option>
-                                        {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                                    </select>
-                                    {errors.vendor_id && <span className="text-xs text-rose-450 mt-1 block">{errors.vendor_id}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Category*</label>
-                                    <select
-                                        required
-                                        value={data.device_category_id}
-                                        onChange={(e) => setData('device_category_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Category</option>
-                                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                    {errors.device_category_id && <span className="text-xs text-rose-450 mt-1 block">{errors.device_category_id}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Model</label>
-                                    <input
-                                        type="text"
-                                        value={data.model}
-                                        onChange={(e) => setData('model', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.model && <span className="text-xs text-rose-450 mt-1 block">{errors.model}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Serial Number</label>
-                                    <input
-                                        type="text"
-                                        value={data.serial_number}
-                                        onChange={(e) => setData('serial_number', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.serial_number && <span className="text-xs text-rose-450 mt-1 block">{errors.serial_number}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
-                                    <select
-                                        required
-                                        value={data.building_id}
-                                        onChange={(e) => setData('building_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Building</option>
-                                        {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                    </select>
-                                    {errors.building_id && <span className="text-xs text-rose-450 mt-1 block">{errors.building_id}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor</label>
-                                    <select
-                                        value={data.floor_id}
-                                        onChange={(e) => setData('floor_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Floor</option>
-                                        {floors.filter(f => f.building_id == data.building_id).map(f => (
-                                            <option key={f.id} value={f.id}>{f.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Room</label>
-                                    <select
-                                        value={data.room_id}
-                                        onChange={(e) => setData('room_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Room</option>
-                                        {rooms.filter(r => r.floor_id == data.floor_id).map(r => (
-                                            <option key={r.id} value={r.id}>{r.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Rack</label>
-                                    <select
-                                        value={data.rack_id}
-                                        onChange={(e) => setData('rack_id', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="">Select Rack</option>
-                                        {racks.filter(rk => rk.room_id == data.room_id).map(rk => (
-                                            <option key={rk.id} value={rk.id}>{rk.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Operating Status</label>
-                                    <select
-                                        value={data.status}
-                                        onChange={(e) => setData('status', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                    >
-                                        <option value="active">Active / Online</option>
-                                        <option value="maintenance">Under Maintenance</option>
-                                        <option value="offline">Offline / Down</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Device Node Image</label>
-                                    <input
-                                        type="file"
-                                        onChange={(e) => setData('image', e.target.files[0])}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20"
-                                    />
-                                    {errors.image && <span className="text-xs text-rose-450 mt-1 block">{errors.image}</span>}
+                                    ></textarea>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Operational Notes</label>
-                                <textarea
-                                    value={data.notes}
-                                    onChange={(e) => setData('notes', e.target.value)}
-                                    rows="3"
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                ></textarea>
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
+                            {/* Modal Footer — fixed */}
+                            <div className="flex justify-end space-x-3 px-6 py-4 border-t border-brand-border shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
