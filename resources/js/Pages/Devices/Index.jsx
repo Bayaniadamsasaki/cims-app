@@ -380,7 +380,30 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                         <select
                                             required
                                             value={data.building_id}
-                                            onChange={(e) => setData('building_id', e.target.value)}
+                                            onChange={(e) => {
+                                                const bId = e.target.value;
+                                                setData(prev => {
+                                                    const updated = { ...prev, building_id: bId };
+                                                    const firstFloor = floors.find(f => f.building_id == bId);
+                                                    if (firstFloor) {
+                                                        updated.floor_id = firstFloor.id;
+                                                        const firstRoom = rooms.find(r => r.floor_id == firstFloor.id);
+                                                        if (firstRoom) {
+                                                            updated.room_id = firstRoom.id;
+                                                            const firstRack = racks.find(rk => rk.room_id == firstRoom.id);
+                                                            updated.rack_id = firstRack ? firstRack.id : '';
+                                                        } else {
+                                                            updated.room_id = '';
+                                                            updated.rack_id = '';
+                                                        }
+                                                    } else {
+                                                        updated.floor_id = '';
+                                                        updated.room_id = '';
+                                                        updated.rack_id = '';
+                                                    }
+                                                    return updated;
+                                                });
+                                            }}
                                             className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
                                         >
                                             <option value="">Select Building</option>
@@ -392,7 +415,22 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                         <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor</label>
                                         <select
                                             value={data.floor_id}
-                                            onChange={(e) => setData('floor_id', e.target.value)}
+                                            onChange={(e) => {
+                                                const fId = e.target.value;
+                                                setData(prev => {
+                                                    const updated = { ...prev, floor_id: fId };
+                                                    const firstRoom = rooms.find(r => r.floor_id == fId);
+                                                    if (firstRoom) {
+                                                        updated.room_id = firstRoom.id;
+                                                        const firstRack = racks.find(rk => rk.room_id == firstRoom.id);
+                                                        updated.rack_id = firstRack ? firstRack.id : '';
+                                                    } else {
+                                                        updated.room_id = '';
+                                                        updated.rack_id = '';
+                                                    }
+                                                    return updated;
+                                                });
+                                            }}
                                             className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
                                         >
                                             <option value="">Select Floor</option>
@@ -405,7 +443,15 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                         <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Room</label>
                                         <select
                                             value={data.room_id}
-                                            onChange={(e) => setData('room_id', e.target.value)}
+                                            onChange={(e) => {
+                                                const rId = e.target.value;
+                                                setData(prev => {
+                                                    const updated = { ...prev, room_id: rId };
+                                                    const firstRack = racks.find(rk => rk.room_id == rId);
+                                                    updated.rack_id = firstRack ? firstRack.id : '';
+                                                    return updated;
+                                                });
+                                            }}
                                             className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
                                         >
                                             <option value="">Select Room</option>

@@ -40,7 +40,7 @@ class MasterWebController extends Controller
     // Buildings CRUD
     public function buildingsIndex()
     {
-        $buildings = $this->buildingRepo->paginate(100)->items();
+        $buildings = \App\Models\Building::with(['floors.rooms'])->orderBy('id', 'desc')->paginate(100)->items();
         return Inertia::render('Master/Buildings', ['buildings' => $buildings]);
     }
 
@@ -50,9 +50,46 @@ class MasterWebController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:buildings,code',
             'description' => 'nullable|string',
+            'floors_count' => 'required|integer|min:1|max:50',
+            'rooms_count' => 'required|integer|min:0',
+            'floor_rooms' => 'required|array',
+            'floor_rooms.*' => 'integer|min:0|max:50',
         ]);
-        $this->buildingRepo->create($data);
-        return redirect()->back()->with('success', 'Building created successfully.');
+
+        \DB::transaction(function() use ($data) {
+            $building = $this->buildingRepo->create([
+                'name' => $data['name'],
+                'code' => $data['code'],
+                'floors_count' => $data['floors_count'],
+                'rooms_count' => $data['rooms_count'],
+                'description' => $data['description'] ?? null,
+            ]);
+
+            $roomTotalCounter = 1;
+            for ($i = 1; $i <= $data['floors_count']; $i++) {
+                $floor = \App\Models\Floor::create([
+                    'building_id' => $building->id,
+                    'name' => 'Lantai ' . $i,
+                    'level' => $i,
+                    'description' => 'Generated automatically for ' . $building->name,
+                ]);
+
+                $roomsForThisFloor = isset($data['floor_rooms'][$i - 1]) ? intval($data['floor_rooms'][$i - 1]) : 0;
+
+                for ($r = 1; $r <= $roomsForThisFloor; $r++) {
+                    $roomCode = strtoupper($building->code) . '-F' . $i . '-R' . str_pad($r, 2, '0', STR_PAD_LEFT);
+                    \App\Models\Room::create([
+                        'floor_id' => $floor->id,
+                        'name' => sprintf('Ruangan %d', $roomTotalCounter),
+                        'code' => $roomCode,
+                        'description' => sprintf('Generated automatically for %s, Lantai %d', $building->name, $i),
+                    ]);
+                    $roomTotalCounter++;
+                }
+            }
+        });
+
+        return redirect()->back()->with('success', 'Building, floors, and rooms created successfully.');
     }
 
     public function buildingsUpdate(Request $request, int $id)

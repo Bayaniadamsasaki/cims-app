@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('code')->unique();
+            $table->integer('floors_count')->default(1);
+            $table->integer('rooms_count')->default(0);
             $table->text('description')->nullable();
             $table->timestamps();
         });

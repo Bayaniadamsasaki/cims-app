@@ -189,12 +189,16 @@ class DatabaseSeeder extends Seeder
         $rektorat = Building::create([
             'name' => 'Gedung Rektorat',
             'code' => 'REK',
+            'floors_count' => 1,
+            'rooms_count' => 1,
             'description' => 'Gedung pusat administrasi dan rektorat.',
         ]);
 
         $labti = Building::create([
             'name' => 'Gedung Laboratorium TI',
             'code' => 'LABTI',
+            'floors_count' => 1,
+            'rooms_count' => 1,
             'description' => 'Gedung pusat laboratorium Fakultas Teknologi Informasi.',
         ]);
 

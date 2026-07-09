@@ -15,6 +15,8 @@ class Building extends Model
     protected $fillable = [
         'name',
         'code',
+        'floors_count',
+        'rooms_count',
         'description',
     ];
 
@@ -33,5 +35,10 @@ class Building extends Model
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    public function rooms(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(Room::class, Floor::class);
     }
 }
