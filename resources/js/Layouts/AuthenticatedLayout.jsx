@@ -61,7 +61,6 @@ export default function AuthenticatedLayout({ header, children }) {
 
     const masterItems = [
         { name: 'Buildings', route: 'buildings.index' },
-        { name: 'Racks', route: 'racks.index' },
         { name: 'Vendors', route: 'vendors.index' },
         { name: 'Device Categories', route: 'device-categories.index' }
     ];
