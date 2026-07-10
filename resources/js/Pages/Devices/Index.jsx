@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Index({ devices = [], vendors = [], categories = [], buildings = [], floors = [], rooms = [], racks = [], filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -10,6 +11,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingDevice, setEditingDevice] = useState(null);
+    const { confirmAction } = useConfirmation();
 
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         name: '',
@@ -93,9 +95,16 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this device?')) {
-            destroy(route('devices.destroy', id));
-        }
+        confirmAction({
+            title: 'Hapus Perangkat',
+            message: 'Apakah Anda yakin ingin menghapus perangkat ini dari inventaris?',
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                destroy(route('devices.destroy', id));
+            }
+        });
     };
 
     return (

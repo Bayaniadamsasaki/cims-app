@@ -1,12 +1,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Index({ tickets = [], devices = [], technicians = [] }) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [activeTicket, setActiveTicket] = useState(null);
     const [filterStatus, setFilterStatus] = useState('all');
+    const { confirmAction } = useConfirmation();
 
     // Stats calculations
     const totalTickets = tickets.length;
@@ -74,9 +76,16 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this maintenance ticket?')) {
-            router.delete(route('maintenance.destroy', id));
-        }
+        confirmAction({
+            title: 'Hapus Tiket Pemeliharaan',
+            message: 'Apakah Anda yakin ingin menghapus tiket pemeliharaan ini?',
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                router.delete(route('maintenance.destroy', id));
+            }
+        });
     };
 
     const filteredTickets = filterStatus === 'all' 

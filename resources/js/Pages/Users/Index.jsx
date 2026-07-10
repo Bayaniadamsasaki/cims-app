@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function UsersIndex({ users = [], roles = [], filters = {} }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
+    const { confirmAction } = useConfirmation();
 
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         name: '',
@@ -52,9 +54,16 @@ export default function UsersIndex({ users = [], roles = [], filters = {} }) {
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this user?')) {
-            destroy(route('users.destroy', id));
-        }
+        confirmAction({
+            title: 'Hapus Pengguna',
+            message: 'Apakah Anda yakin ingin menghapus pengguna ini?',
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                destroy(route('users.destroy', id));
+            }
+        });
     };
 
     return (

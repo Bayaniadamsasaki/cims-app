@@ -1,11 +1,13 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Buildings({ buildings = [] }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBuilding, setEditingBuilding] = useState(null);
     const [selectedLayoutBuilding, setSelectedLayoutBuilding] = useState(null);
+    const { confirmAction } = useConfirmation();
 
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         name: '',
@@ -93,9 +95,16 @@ export default function Buildings({ buildings = [] }) {
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this building?')) {
-            destroy(route('buildings.destroy', id));
-        }
+        confirmAction({
+            title: 'Hapus Gedung',
+            message: 'Apakah Anda yakin ingin menghapus gedung ini? Semua lantai dan ruangan di dalamnya juga akan terhapus secara permanen.',
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                destroy(route('buildings.destroy', id));
+            }
+        });
     };
 
     return (

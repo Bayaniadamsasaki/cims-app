@@ -1,10 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Vendors({ vendors = [] }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
+    const { confirmAction } = useConfirmation();
 
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         name: '',
@@ -52,9 +54,16 @@ export default function Vendors({ vendors = [] }) {
     };
 
     const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this vendor?')) {
-            destroy(route('vendors.destroy', id));
-        }
+        confirmAction({
+            title: 'Hapus Vendor',
+            message: 'Apakah Anda yakin ingin menghapus vendor ini?',
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                destroy(route('vendors.destroy', id));
+            }
+        });
     };
 
     return (

@@ -1,13 +1,15 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { ToastProvider } from '@/Components/Toast';
+import { ConfirmationProvider, ConfirmationDialog } from '@/Components/ConfirmationModal';
 import { useState } from 'react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
     const [showingMobileMenu, setShowingMobileMenu] = useState(false);
     const [showingMasterDropdown, setShowingMasterDropdown] = useState(false);
+    const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     const hasRole = (role) => user?.roles?.includes(role);
 
@@ -67,8 +69,7 @@ export default function AuthenticatedLayout({ header, children }) {
     ];
 
     return (
-        <ToastProvider>
-            <div className="min-h-screen bg-brand-bg text-white flex flex-col lg:flex-row">
+        <div className="min-h-screen bg-brand-bg text-white flex flex-col lg:flex-row">
             
             {/* Mobile Header Bar */}
             <div className="lg:hidden flex items-center justify-between bg-brand-bgSecondary border-b border-brand-border px-4 py-3 w-full z-30">
@@ -215,9 +216,13 @@ export default function AuthenticatedLayout({ header, children }) {
                                     <Dropdown.Link href={route('profile.edit')}>
                                         Profile Settings
                                     </Dropdown.Link>
-                                    <Dropdown.Link href={route('logout')} method="post" as="button">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLogoutModalOpen(true)}
+                                        className="block w-full px-4 py-2.5 text-start text-sm leading-5 text-brand-textSecondary transition duration-150 ease-in-out hover:bg-brand-primary hover:text-slate-950 focus:bg-brand-primary focus:text-slate-950 focus:outline-none first:rounded-t-xl last:rounded-b-xl font-medium"
+                                    >
                                         Log Out
-                                    </Dropdown.Link>
+                                    </button>
                                 </Dropdown.Content>
                             </Dropdown>
                         </div>
@@ -239,7 +244,19 @@ export default function AuthenticatedLayout({ header, children }) {
                     {children}
                 </main>
             </div>
+            {isLogoutModalOpen && (
+                <ConfirmationDialog
+                    config={{
+                        title: 'Log Out',
+                        message: 'Apakah Anda yakin ingin keluar dari sistem?',
+                        confirmLabel: 'Log Out',
+                        cancelLabel: 'Batal',
+                        variant: 'warning',
+                        onConfirm: () => router.post(route('logout')),
+                        onCancel: () => setIsLogoutModalOpen(false)
+                    }}
+                />
+            )}
             </div>
-        </ToastProvider>
     );
 }
