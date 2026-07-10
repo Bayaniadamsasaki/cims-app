@@ -383,23 +383,19 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             onChange={(e) => {
                                                 const bId = e.target.value;
                                                 setData(prev => {
-                                                    const updated = { ...prev, building_id: bId };
+                                                    const updated = { ...prev, building_id: bId, rack_id: '' };
                                                     const firstFloor = floors.find(f => f.building_id == bId);
                                                     if (firstFloor) {
                                                         updated.floor_id = firstFloor.id;
                                                         const firstRoom = rooms.find(r => r.floor_id == firstFloor.id);
                                                         if (firstRoom) {
                                                             updated.room_id = firstRoom.id;
-                                                            const firstRack = racks.find(rk => rk.room_id == firstRoom.id);
-                                                            updated.rack_id = firstRack ? firstRack.id : '';
                                                         } else {
                                                             updated.room_id = '';
-                                                            updated.rack_id = '';
                                                         }
                                                     } else {
                                                         updated.floor_id = '';
                                                         updated.room_id = '';
-                                                        updated.rack_id = '';
                                                     }
                                                     return updated;
                                                 });
@@ -418,15 +414,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             onChange={(e) => {
                                                 const fId = e.target.value;
                                                 setData(prev => {
-                                                    const updated = { ...prev, floor_id: fId };
+                                                    const updated = { ...prev, floor_id: fId, rack_id: '' };
                                                     const firstRoom = rooms.find(r => r.floor_id == fId);
                                                     if (firstRoom) {
                                                         updated.room_id = firstRoom.id;
-                                                        const firstRack = racks.find(rk => rk.room_id == firstRoom.id);
-                                                        updated.rack_id = firstRack ? firstRack.id : '';
                                                     } else {
                                                         updated.room_id = '';
-                                                        updated.rack_id = '';
                                                     }
                                                     return updated;
                                                 });
@@ -445,31 +438,13 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             value={data.room_id}
                                             onChange={(e) => {
                                                 const rId = e.target.value;
-                                                setData(prev => {
-                                                    const updated = { ...prev, room_id: rId };
-                                                    const firstRack = racks.find(rk => rk.room_id == rId);
-                                                    updated.rack_id = firstRack ? firstRack.id : '';
-                                                    return updated;
-                                                });
+                                                setData(prev => ({ ...prev, room_id: rId, rack_id: '' }));
                                             }}
                                             className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
                                         >
                                             <option value="">Select Room</option>
                                             {rooms.filter(r => r.floor_id == data.floor_id).map(r => (
                                                 <option key={r.id} value={r.id}>{r.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Rack</label>
-                                        <select
-                                            value={data.rack_id}
-                                            onChange={(e) => setData('rack_id', e.target.value)}
-                                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
-                                        >
-                                            <option value="">Select Rack</option>
-                                            {racks.filter(rk => rk.room_id == data.room_id).map(rk => (
-                                                <option key={rk.id} value={rk.id}>{rk.name}</option>
                                             ))}
                                         </select>
                                     </div>

@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import { Link, usePage } from '@inertiajs/react';
+import { ToastProvider } from '@/Components/Toast';
 import { useState } from 'react';
 
 export default function AuthenticatedLayout({ header, children }) {
@@ -66,7 +67,8 @@ export default function AuthenticatedLayout({ header, children }) {
     ];
 
     return (
-        <div className="min-h-screen bg-brand-bg text-white flex flex-col lg:flex-row">
+        <ToastProvider>
+            <div className="min-h-screen bg-brand-bg text-white flex flex-col lg:flex-row">
             
             {/* Mobile Header Bar */}
             <div className="lg:hidden flex items-center justify-between bg-brand-bgSecondary border-b border-brand-border px-4 py-3 w-full z-30">
@@ -237,6 +239,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     {children}
                 </main>
             </div>
-        </div>
+            </div>
+        </ToastProvider>
     );
 }
