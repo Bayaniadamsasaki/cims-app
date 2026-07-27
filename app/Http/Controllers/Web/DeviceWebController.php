@@ -108,4 +108,21 @@ class DeviceWebController extends Controller
 
         return redirect()->route('devices.index')->with('success', 'Device deleted successfully.');
     }
+
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240'
+        ]);
+
+        $file = $request->file('file');
+        $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.xlsx', 'local');
+        $fullPath = storage_path('app/' . $tempPath);
+
+        \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
+            'file' => $fullPath
+        ]);
+
+        return redirect()->route('devices.index')->with('success', 'Data inventaris Excel berhasil diimport ke sistem CIMS!');
+    }
 }

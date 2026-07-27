@@ -53,9 +53,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Device Inventory CRUD
+    // Device Inventory CRUD & Import
     Route::get('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'index'])->name('devices.index');
     Route::post('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'store'])->name('devices.store');
+    Route::post('/devices/import', [\App\Http\Controllers\Web\DeviceWebController::class, 'importExcel'])->name('devices.import');
     Route::post('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'update'])->name('devices.update');
     Route::delete('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'destroy'])->name('devices.destroy');
 

@@ -83,38 +83,8 @@ class DatabaseSeeder extends Seeder
             'view reports',
         ]);
 
-        // 3. Create Default Users
-        $usersInfo = [
-            [
-                'name' => 'Super Admin User',
-                'email' => 'admin@cims.com',
-                'role' => 'Super Admin',
-            ],
-            [
-                'name' => 'Network Administrator User',
-                'email' => 'netadmin@cims.com',
-                'role' => 'Network Administrator',
-            ],
-            [
-                'name' => 'Technician User',
-                'email' => 'tech@cims.com',
-                'role' => 'Technician',
-            ],
-            [
-                'name' => 'Viewer User',
-                'email' => 'viewer@cims.com',
-                'role' => 'Viewer',
-            ],
-        ];
-
-        foreach ($usersInfo as $userInfo) {
-            $user = User::firstOrCreate([
-                'name' => $userInfo['name'],
-                'email' => $userInfo['email'],
-                'password' => bcrypt('password'),
-            ]);
-            $user->assignRole($userInfo['role']);
-        }
+        // 3. Call UserSeeder
+        $this->call(UserSeeder::class);
 
         // 4. Seed Master Data
 

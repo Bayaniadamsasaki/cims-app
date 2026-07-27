@@ -9,7 +9,7 @@ class DeviceRepository implements DeviceRepositoryInterface
 {
     protected array $defaultRelations = [
         'vendor', 'category', 'operatingSystem', 'deviceType',
-        'building', 'floor', 'room', 'rack',
+        'building', 'floor', 'room', 'rack', 'deviceInterfaces'
     ];
 
     public function paginate(int $perPage = 15, array $filters = [])
