@@ -134,6 +134,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/ppp-active', [\App\Http\Controllers\Web\MikrotikWebController::class, 'pppActive'])->name('api.ppp-active');
         Route::get('/api/dns-config', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dnsConfig'])->name('api.dns-config');
     });
+
+    // Interactive Topology Map Routes
+    Route::get('/topology', [\App\Http\Controllers\Web\TopologyWebController::class, 'index'])->name('topology.index');
+    Route::get('/topology/data', [\App\Http\Controllers\Web\TopologyWebController::class, 'graphData'])->name('topology.data');
 });
 
 require __DIR__.'/auth.php';
