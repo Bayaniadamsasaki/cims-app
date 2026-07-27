@@ -41,17 +41,22 @@ class AlertService
      */
     protected function sendTelegramNotification(string $token, string $chatId, string $deviceName, string $type, string $message): void
     {
-        $text = "⚠️ *CIMS INFRASTRUCTURE ALERT*\n"
-              . "*Type*: {$type}\n"
-              . "*Device*: {$deviceName}\n"
-              . "*Message*: {$message}\n"
-              . "*Time*: " . now()->toDateTimeString();
+        $safeType = htmlspecialchars($type, ENT_QUOTES, 'UTF-8');
+        $safeDevice = htmlspecialchars($deviceName, ENT_QUOTES, 'UTF-8');
+        $safeMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+        $timeStr = now()->toDateTimeString();
+
+        $text = "<b>🚨 CIMS INFRASTRUCTURE ALERT</b>\n\n"
+              . "<b>Type:</b> <code>{$safeType}</code>\n"
+              . "<b>Device:</b> <code>{$safeDevice}</code>\n"
+              . "<b>Message:</b> {$safeMessage}\n"
+              . "<b>Time:</b> <code>{$timeStr}</code>";
 
         try {
-            Http::timeout(3)->post("https://api.telegram.org/bot{$token}/sendMessage", [
+            Http::timeout(5)->post("https://api.telegram.org/bot{$token}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $text,
-                'parse_mode' => 'Markdown',
+                'parse_mode' => 'HTML',
             ]);
         } catch (\Exception $e) {
             Log::error("Failed sending Telegram alert: " . $e->getMessage());

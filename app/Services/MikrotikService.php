@@ -33,6 +33,8 @@ class MikrotikService
                     'allow_self_signed' => true,
                 ],
                 'timeout' => $config['timeout'],
+                'socket_timeout' => 5,
+                'throw_timeout_exception' => false,
                 'attempts' => $config['attempts'],
             ]);
         }

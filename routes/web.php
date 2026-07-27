@@ -138,6 +138,11 @@ Route::middleware('auth')->group(function () {
     // Interactive Topology Map Routes
     Route::get('/topology', [\App\Http\Controllers\Web\TopologyWebController::class, 'index'])->name('topology.index');
     Route::get('/topology/data', [\App\Http\Controllers\Web\TopologyWebController::class, 'graphData'])->name('topology.data');
+
+    // Security & Anomaly Alerts Center Routes
+    Route::get('/alerts', [\App\Http\Controllers\Web\AlertWebController::class, 'index'])->name('alerts.index');
+    Route::post('/alerts/scan', [\App\Http\Controllers\Web\AlertWebController::class, 'scan'])->name('alerts.scan');
+    Route::post('/alerts/test-telegram', [\App\Http\Controllers\Web\AlertWebController::class, 'testTelegram'])->name('alerts.test-telegram');
 });
 
 require __DIR__.'/auth.php';

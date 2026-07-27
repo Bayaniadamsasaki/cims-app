@@ -33,6 +33,21 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $user = Auth::user();
+        $clientIp = $request->ip();
+
+        // Dispatch Login Audit Event & Telegram Notification
+        try {
+            app(\App\Services\AlertService::class)->dispatchAlert(
+                'CIMS Web Portal',
+                'INFO_USER_LOGIN',
+                "User '{$user->name}' ({$user->email}) logged in successfully from IP: {$clientIp}"
+            );
+        } catch (\Exception $e) {
+            // Silently log exception if alert failed
+            \Illuminate\Support\Facades\Log::error("Failed logging user login alert: " . $e->getMessage());
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
