@@ -459,21 +459,37 @@ export default function MikrotikExplorer({
                                         <table className="w-full text-left text-sm text-brand-textSecondary">
                                             <thead className="bg-brand-bgSecondary text-xs uppercase tracking-wider text-brand-textSecondary">
                                                 <tr>
+                                                    <th className="px-6 py-3">Status</th>
                                                     <th className="px-6 py-3">Chain</th>
                                                     <th className="px-6 py-3">Action</th>
                                                     <th className="px-6 py-3">Protocol / Port</th>
                                                     <th className="px-6 py-3">To Addresses / Ports</th>
                                                     <th className="px-6 py-3">Out Interface</th>
+                                                    <th className="px-6 py-3">Comment</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-brand-border">
                                                 {natRules.map((r, idx) => (
-                                                    <tr key={idx} className="hover:bg-brand-cardElevated/50 transition">
+                                                    <tr key={idx} className={`hover:bg-brand-cardElevated/50 transition ${r.disabled ? "opacity-45 bg-red-950/10" : ""}`}>
+                                                        <td className="px-6 py-4">
+                                                            {r.disabled ? (
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-red-400 mr-1.5"></span>
+                                                                    Disabled (Non-aktif)
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
+                                                                    Enabled (Aktif)
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td className="px-6 py-4 font-mono text-purple-400">{r.chain}</td>
                                                         <td className="px-6 py-4 font-mono font-bold text-white">{r.action}</td>
                                                         <td className="px-6 py-4 font-mono text-xs">{r.protocol} {r.dst_port ? `:${r.dst_port}` : ""}</td>
                                                         <td className="px-6 py-4 font-mono text-emerald-400">{r.to_addresses || "-"} {r.to_ports ? `:${r.to_ports}` : ""}</td>
                                                         <td className="px-6 py-4 font-mono text-xs">{r.out_interface || "-"}</td>
+                                                        <td className="px-6 py-4 text-xs italic text-brand-textSecondary">{r.comment || "-"}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -494,19 +510,35 @@ export default function MikrotikExplorer({
                                             <table className="w-full text-left text-sm text-brand-textSecondary">
                                                 <thead className="bg-brand-bgSecondary text-xs uppercase tracking-wider text-brand-textSecondary">
                                                     <tr>
+                                                        <th className="px-6 py-3">Status</th>
                                                         <th className="px-6 py-3">Chain</th>
                                                         <th className="px-6 py-3">Action</th>
                                                         <th className="px-6 py-3">Src / Dst Address</th>
                                                         <th className="px-6 py-3">Bytes / Packets</th>
+                                                        <th className="px-6 py-3">Comment</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-brand-border">
                                                     {firewallFilter.map((r, idx) => (
-                                                        <tr key={idx} className="hover:bg-brand-cardElevated/50 transition">
+                                                        <tr key={idx} className={`hover:bg-brand-cardElevated/50 transition ${r.disabled ? "opacity-45 bg-red-950/10" : ""}`}>
+                                                            <td className="px-6 py-4">
+                                                                {r.disabled ? (
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+                                                                        <span className="h-1.5 w-1.5 rounded-full bg-red-400 mr-1.5"></span>
+                                                                        Disabled (Non-aktif)
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5"></span>
+                                                                        Enabled (Aktif)
+                                                                    </span>
+                                                                )}
+                                                            </td>
                                                             <td className="px-6 py-4 font-mono text-purple-400">{r.chain}</td>
                                                             <td className="px-6 py-4 font-mono font-bold text-white">{r.action}</td>
                                                             <td className="px-6 py-4 font-mono text-xs">{r.src_address || "*"} → {r.dst_address || "*"}</td>
                                                             <td className="px-6 py-4 font-mono text-xs">{r.bytes} B ({r.packets} pkts)</td>
+                                                            <td className="px-6 py-4 text-xs italic text-brand-textSecondary">{r.comment || "-"}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
