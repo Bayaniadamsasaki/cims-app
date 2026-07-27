@@ -115,6 +115,25 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports', [\App\Http\Controllers\Web\ReportWebController::class, 'index'])->name('reports.index');
     Route::get('/reports/excel', [\App\Http\Controllers\Web\ReportWebController::class, 'exportExcel'])->name('reports.excel');
     Route::get('/reports/pdf', [\App\Http\Controllers\Web\ReportWebController::class, 'exportPdf'])->name('reports.pdf');
+
+    // MikroTik API Explorer Routes
+    Route::prefix('mikrotik')->name('mikrotik.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\MikrotikWebController::class, 'index'])->name('index');
+        Route::get('/api/metrics', [\App\Http\Controllers\Web\MikrotikWebController::class, 'refreshMetrics'])->name('api.metrics');
+        Route::get('/api/ip-addresses', [\App\Http\Controllers\Web\MikrotikWebController::class, 'ipAddresses'])->name('api.ip-addresses');
+        Route::get('/api/routes', [\App\Http\Controllers\Web\MikrotikWebController::class, 'routes'])->name('api.routes');
+        Route::get('/api/firewall-filter', [\App\Http\Controllers\Web\MikrotikWebController::class, 'firewallFilter'])->name('api.firewall-filter');
+        Route::get('/api/nat-rules', [\App\Http\Controllers\Web\MikrotikWebController::class, 'natRules'])->name('api.nat-rules');
+        Route::get('/api/hotspot-active', [\App\Http\Controllers\Web\MikrotikWebController::class, 'hotspotActive'])->name('api.hotspot-active');
+        Route::get('/api/dhcp-leases', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dhcpLeases'])->name('api.dhcp-leases');
+        Route::get('/api/arp-table', [\App\Http\Controllers\Web\MikrotikWebController::class, 'arpTable'])->name('api.arp-table');
+        Route::get('/api/logs', [\App\Http\Controllers\Web\MikrotikWebController::class, 'logs'])->name('api.logs');
+        Route::get('/api/neighbors', [\App\Http\Controllers\Web\MikrotikWebController::class, 'neighbors'])->name('api.neighbors');
+        Route::get('/api/queues', [\App\Http\Controllers\Web\MikrotikWebController::class, 'queues'])->name('api.queues');
+        Route::get('/api/wireless-clients', [\App\Http\Controllers\Web\MikrotikWebController::class, 'wirelessClients'])->name('api.wireless-clients');
+        Route::get('/api/ppp-active', [\App\Http\Controllers\Web\MikrotikWebController::class, 'pppActive'])->name('api.ppp-active');
+        Route::get('/api/dns-config', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dnsConfig'])->name('api.dns-config');
+    });
 });
 
 require __DIR__.'/auth.php';

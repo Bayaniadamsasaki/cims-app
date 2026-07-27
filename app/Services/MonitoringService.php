@@ -11,10 +11,12 @@ use Illuminate\Support\Facades\Log;
 class MonitoringService
 {
     protected $alertService;
+    protected $mikrotikService;
 
-    public function __construct(AlertService $alertService)
+    public function __construct(AlertService $alertService, MikrotikService $mikrotikService)
     {
         $this->alertService = $alertService;
+        $this->mikrotikService = $mikrotikService;
     }
 
     /**
@@ -77,17 +79,21 @@ class MonitoringService
                     ['name' => 'wlan2-5g', 'status' => 'up', 'speed' => '867Mbps'],
                 ];
             } else {
-                // Real SNMP check (would call php-snmp if available)
-                // Fallback to basic metrics if SNMP fails or not installed
-                $snmpMetrics = $this->querySnmp($ip);
-                $cpu = $snmpMetrics['cpu'];
-                $ram = $snmpMetrics['ram'];
-                $storage = $snmpMetrics['storage'];
-                $temp = $snmpMetrics['temp'];
-                $uptime = $snmpMetrics['uptime'];
-                $rx = $snmpMetrics['rx'];
-                $tx = $snmpMetrics['tx'];
-                $interfaces = $snmpMetrics['interfaces'];
+                // Prefer MikroTik RouterOS API for MikroTik devices, fallback to SNMP
+                if ($this->isMikrotikDevice($device)) {
+                    $metrics = $this->mikrotikService->getSystemMetrics($ip);
+                } else {
+                    $metrics = $this->querySnmp($ip);
+                }
+
+                $cpu = $metrics['cpu'];
+                $ram = $metrics['ram'];
+                $storage = $metrics['storage'];
+                $temp = $metrics['temp'];
+                $uptime = $metrics['uptime'];
+                $rx = $metrics['rx'];
+                $tx = $metrics['tx'];
+                $interfaces = $metrics['interfaces'];
             }
         } else {
             $packetLoss = 100;
@@ -171,6 +177,18 @@ class MonitoringService
             }
         }
         return $count;
+    }
+
+    /**
+     * Determine if a device is a MikroTik (RouterOS) device based on
+     * its vendor or operating system master data.
+     */
+    protected function isMikrotikDevice(Device $device): bool
+    {
+        $vendor = strtolower($device->vendor->name ?? '');
+        $os = strtolower($device->operatingSystem->name ?? '');
+
+        return str_contains($vendor, 'mikrotik') || str_contains($os, 'routeros');
     }
 
     /**

@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'mikrotik' => [
+        'host' => env('MIKROTIK_HOST', '192.168.88.1'),
+        'user' => env('MIKROTIK_USER', 'admin'),
+        'password' => env('MIKROTIK_PASSWORD', ''),
+        'port' => (int) env('MIKROTIK_PORT', 8728),
+        'ssl' => (bool) env('MIKROTIK_SSL', false),
+        'timeout' => (int) env('MIKROTIK_TIMEOUT', 10),
+        'attempts' => (int) env('MIKROTIK_ATTEMPTS', 2),
+    ],
+
 ];
