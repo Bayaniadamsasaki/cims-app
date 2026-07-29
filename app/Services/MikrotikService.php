@@ -11,21 +11,24 @@ class MikrotikService
     protected ?Client $client = null;
 
     /**
-     * Get (or lazily create) the RouterOS API client connection.
+     * Get (or lazily create) the RouterOS API client connection for any router.
      */
-    protected function client(?string $host = null): Client
+    public function client(?string $host = null, ?string $user = null, ?string $pass = null, ?int $port = null): Client
     {
-        if ($this->client === null || $host !== null) {
+        if ($this->client === null || $host !== null || $user !== null) {
             $config = config('services.mikrotik');
 
-            $this->client = new Client([
-                'host' => $host ?? $config['host'],
-                'user' => $config['user'],
-                'pass' => $config['password'],
-                'port' => $config['port'],
+            $targetHost = $host ?? $config['host'];
+            $targetUser = $user ?? $config['user'];
+            $targetPass = $pass ?? $config['password'];
+            $targetPort = $port ?? $config['port'];
+
+            $client = new Client([
+                'host' => $targetHost,
+                'user' => $targetUser,
+                'pass' => $targetPass,
+                'port' => $targetPort,
                 'ssl' => $config['ssl'],
-                // MikroTik api-ssl without a certificate uses anonymous DH ciphers,
-                // which modern OpenSSL rejects by default (SECLEVEL >= 1).
                 'ssl_options' => [
                     'ciphers' => 'ADH:ALL@SECLEVEL=0',
                     'verify_peer' => false,
@@ -37,6 +40,12 @@ class MikrotikService
                 'throw_timeout_exception' => false,
                 'attempts' => $config['attempts'],
             ]);
+
+            if ($host === null && $user === null) {
+                $this->client = $client;
+            }
+
+            return $client;
         }
 
         return $this->client;

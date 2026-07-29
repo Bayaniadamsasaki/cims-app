@@ -6,6 +6,8 @@ import axios from "axios";
 export default function MikrotikExplorer({
     auth,
     routerConfig,
+    availableRouters = [],
+    selectedHost,
     connection,
     systemMetrics: initialMetrics,
     ipAddresses: initialIps,
@@ -31,6 +33,16 @@ export default function MikrotikExplorer({
     const [loadingTab, setLoadingTab] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
+    const currentHost = selectedHost || routerConfig.host;
+
+    // Helper to get API URL with target host query
+    const apiRoute = (routeName, extraParams = {}) => {
+        const base = route(routeName, extraParams);
+        if (!currentHost) return base;
+        const separator = base.includes("?") ? "&" : "?";
+        return `${base}${separator}host=${encodeURIComponent(currentHost)}`;
+    };
+
     // Auto-refresh metrics every 10 seconds if connected
     useEffect(() => {
         if (!connection?.success) return;
@@ -40,7 +52,7 @@ export default function MikrotikExplorer({
         }, 10000);
 
         return () => clearInterval(interval);
-    }, [connection]);
+    }, [connection, currentHost]);
 
     // Load data lazily when tab changes
     useEffect(() => {
@@ -49,8 +61,8 @@ export default function MikrotikExplorer({
         if (activeTab === "firewall" && natRules.length === 0) {
             setLoadingTab(true);
             Promise.all([
-                axios.get(route("mikrotik.api.nat-rules")),
-                axios.get(route("mikrotik.api.firewall-filter")),
+                axios.get(apiRoute("mikrotik.api.nat-rules")),
+                axios.get(apiRoute("mikrotik.api.firewall-filter")),
             ]).then(([natRes, fwRes]) => {
                 setNatRules(natRes.data);
                 setFirewallFilter(fwRes.data);
@@ -58,28 +70,28 @@ export default function MikrotikExplorer({
             });
         } else if (activeTab === "hotspot" && hotspotActive.length === 0) {
             setLoadingTab(true);
-            axios.get(route("mikrotik.api.hotspot-active")).then((res) => {
+            axios.get(apiRoute("mikrotik.api.hotspot-active")).then((res) => {
                 setHotspotActive(res.data);
                 setLoadingTab(false);
             });
         } else if (activeTab === "neighbors" && neighbors.length === 0) {
             setLoadingTab(true);
-            axios.get(route("mikrotik.api.neighbors")).then((res) => {
+            axios.get(apiRoute("mikrotik.api.neighbors")).then((res) => {
                 setNeighbors(res.data);
                 setLoadingTab(false);
             });
         } else if (activeTab === "logs" && logs.length === 0) {
             setLoadingTab(true);
-            axios.get(route("mikrotik.api.logs")).then((res) => {
+            axios.get(apiRoute("mikrotik.api.logs")).then((res) => {
                 setLogs(res.data);
                 setLoadingTab(false);
             });
         }
-    }, [activeTab]);
+    }, [activeTab, connection, currentHost]);
 
     const fetchMetricsSilently = async () => {
         try {
-            const res = await axios.get(route("mikrotik.api.metrics"));
+            const res = await axios.get(apiRoute("mikrotik.api.metrics"));
             setMetrics(res.data);
         } catch (e) {
             console.error("Failed refreshing metrics", e);
@@ -89,31 +101,31 @@ export default function MikrotikExplorer({
     const handleManualRefresh = async () => {
         setIsRefreshing(true);
         try {
-            const res = await axios.get(route("mikrotik.api.metrics"));
+            const res = await axios.get(apiRoute("mikrotik.api.metrics"));
             setMetrics(res.data);
 
             if (activeTab === "network") {
                 const [ipRes, routeRes] = await Promise.all([
-                    axios.get(route("mikrotik.api.ip-addresses")),
-                    axios.get(route("mikrotik.api.routes")),
+                    axios.get(apiRoute("mikrotik.api.ip-addresses")),
+                    axios.get(apiRoute("mikrotik.api.routes")),
                 ]);
                 setIpAddresses(ipRes.data);
                 setRoutes(routeRes.data);
             } else if (activeTab === "firewall") {
                 const [natRes, fwRes] = await Promise.all([
-                    axios.get(route("mikrotik.api.nat-rules")),
-                    axios.get(route("mikrotik.api.firewall-filter")),
+                    axios.get(apiRoute("mikrotik.api.nat-rules")),
+                    axios.get(apiRoute("mikrotik.api.firewall-filter")),
                 ]);
                 setNatRules(natRes.data);
                 setFirewallFilter(fwRes.data);
             } else if (activeTab === "hotspot") {
-                const res = await axios.get(route("mikrotik.api.hotspot-active"));
+                const res = await axios.get(apiRoute("mikrotik.api.hotspot-active"));
                 setHotspotActive(res.data);
             } else if (activeTab === "neighbors") {
-                const res = await axios.get(route("mikrotik.api.neighbors"));
+                const res = await axios.get(apiRoute("mikrotik.api.neighbors"));
                 setNeighbors(res.data);
             } else if (activeTab === "logs") {
-                const res = await axios.get(route("mikrotik.api.logs"));
+                const res = await axios.get(apiRoute("mikrotik.api.logs"));
                 setLogs(res.data);
             }
         } catch (e) {
@@ -145,61 +157,84 @@ export default function MikrotikExplorer({
 
             <div className="space-y-6">
                 {/* Header Banner */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-card border border-brand-border p-6 rounded-2xl">
-                    <div className="flex items-center space-x-4">
-                        <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono font-bold text-xl">
-                            μT
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-3">
-                                <h1 className="text-2xl font-bold text-white tracking-wide">
-                                    MikroTik Live API Explorer
-                                </h1>
-                                {connection?.success ? (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                                        <span className="h-2 w-2 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
-                                        API Connected
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/30">
-                                        Offline / Failed
-                                    </span>
-                                )}
+                <div className="bg-brand-card border border-brand-border p-6 rounded-2xl">
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+                        {/* Left: Title & Status */}
+                        <div className="flex items-center space-x-4">
+                            <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono font-bold text-xl shrink-0 shadow-lg shadow-emerald-500/5">
+                                μT
                             </div>
-                            <p className="text-sm text-brand-textSecondary mt-1">
-                                Real-time monitoring & administration direct from RouterOS API (No Winbox required)
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                        <div className="text-right hidden sm:block">
-                            <div className="text-xs text-brand-textSecondary">Target Host</div>
-                            <div className="text-sm font-mono font-semibold text-white">
-                                {routerConfig.host}:{routerConfig.port}
+                            <div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <h1 className="text-2xl font-bold text-white tracking-wide">
+                                        MikroTik Live API Explorer
+                                    </h1>
+                                    {connection?.success ? (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                            <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                                            API Connected
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+                                            Offline / Connection Error
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-brand-textSecondary mt-1">
+                                    Real-time monitoring & administration direct from RouterOS API (No Winbox required)
+                                </p>
                             </div>
                         </div>
 
-                        <button
-                            onClick={handleManualRefresh}
-                            disabled={isRefreshing}
-                            className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition duration-200 disabled:opacity-50"
-                        >
-                            <svg
-                                className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        {/* Right: Router Switcher Card & Refresh Button */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            {/* Styled Router Selector */}
+                            <div className="flex items-center space-x-3 bg-brand-bg/90 border border-brand-border/80 px-4 py-2 rounded-xl shadow-inner min-w-[300px]">
+                                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm shrink-0">
+                                    🎛️
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary">
+                                        Active MikroTik Device
+                                    </label>
+                                    <select
+                                        value={currentHost}
+                                        onChange={(e) => {
+                                            const selectedIp = e.target.value;
+                                            window.location.href = route("mikrotik.index") + "?host=" + encodeURIComponent(selectedIp);
+                                        }}
+                                        className="w-full bg-transparent text-white text-xs font-mono font-bold border-0 p-0 focus:ring-0 focus:outline-none cursor-pointer truncate"
+                                    >
+                                        {(availableRouters || []).map((r) => (
+                                            <option key={r.id} value={r.ip} className="bg-slate-900 text-white font-sans py-1.5">
+                                                {r.name} ({r.model || 'MikroTik'}) — {r.ip}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleManualRefresh}
+                                disabled={isRefreshing}
+                                className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition duration-200 disabled:opacity-50 shadow-md shadow-emerald-900/20 shrink-0"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                />
-                            </svg>
-                            <span>{isRefreshing ? "Refreshing..." : "Refresh Data"}</span>
-                        </button>
+                                <svg
+                                    className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                    />
+                                </svg>
+                                <span>{isRefreshing ? "Refreshing..." : "Refresh Data"}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

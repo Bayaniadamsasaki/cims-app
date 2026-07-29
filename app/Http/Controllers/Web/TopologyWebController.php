@@ -43,7 +43,24 @@ class TopologyWebController extends Controller
         $links = [];
         $existingNodeKeys = [];
 
-        // 1. Add Core Router (The MikroTik RB450Gx4 itself as Gateway Node)
+        // 0. Add ISP / Internet Gateway Node at the top
+        $ispNodeId = 'isp-internet-cloud';
+        $nodes[] = [
+            'id'          => $ispNodeId,
+            'name'        => 'ISP Source (Astinet / WAN)',
+            'hostname'    => 'Astinet Internet Gateway',
+            'ip'          => '116.58.127.23 (WAN)',
+            'type'        => 'internet',
+            'category'    => 'Internet Gateway',
+            'vendor'      => 'ASTINET / Telkom',
+            'status'      => 'online',
+            'is_internet' => true,
+            'is_core'     => false,
+            'building'    => 'ISP Uplink Fiber',
+            'model'       => 'Internet Fiber Gateway',
+        ];
+
+        // 1. Add Core Router (The MikroTik RB450Gx4 itself as Core Router)
         $coreRouterId = 'core-router-mikrotik';
         $nodes[] = [
             'id'          => $coreRouterId,
@@ -61,6 +78,17 @@ class TopologyWebController extends Controller
             'interfaces'  => count($ipAddresses),
         ];
         $existingNodeKeys[config('services.mikrotik.host')] = $coreRouterId;
+
+        // Link ISP Cloud to Core Router
+        $links[] = [
+            'id'               => 'link-isp-core',
+            'source'           => $ispNodeId,
+            'target'           => $coreRouterId,
+            'source_interface' => 'WAN (ISP)',
+            'target_interface' => 'ether1_WAN',
+            'status'           => 'active',
+            'protocol'         => 'BGP / Static WAN Route',
+        ];
 
         // 2. Map Database Devices into Nodes
         foreach ($dbDevices as $dev) {
@@ -161,7 +189,7 @@ class TopologyWebController extends Controller
 
         // 4. Fallback links for DB devices not linked by MNDP (connect them to Core Router or closest subnet)
         foreach ($nodes as $node) {
-            if ($node['id'] === $coreRouterId) continue;
+            if ($node['id'] === $coreRouterId || $node['id'] === $ispNodeId) continue;
 
             // Check if node already has a link
             $hasLink = false;
@@ -177,10 +205,10 @@ class TopologyWebController extends Controller
                     'id'               => 'link-auto-' . $node['id'],
                     'source'           => $coreRouterId,
                     'target'           => $node['id'],
-                    'source_interface' => 'ether2/3/4',
-                    'target_interface' => 'eth0',
+                    'source_interface' => null,
+                    'target_interface' => null,
                     'status'           => $node['status'] === 'online' ? 'active' : 'offline',
-                    'protocol'         => 'IP Routing',
+                    'protocol'         => 'IP Network Link',
                 ];
             }
         }

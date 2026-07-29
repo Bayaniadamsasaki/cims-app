@@ -17,91 +17,139 @@ class MikrotikWebController extends Controller
     }
 
     /**
+     * Helper to get target router credentials or host from request.
+     */
+    protected function getTargetHost(Request $request): ?string
+    {
+        return $request->query('host');
+    }
+
+    /**
      * Main RouterOS Explorer page — renders the Inertia view with initial data.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $connection = $this->mikrotik->testConnection();
+        $targetHost = $this->getTargetHost($request);
+        $connection = $this->mikrotik->testConnection($targetHost);
+
+        // Fetch all router devices from inventory
+        $dbRouters = \App\Models\Device::with('building')->where(function ($query) {
+            $query->whereHas('category', function ($q) {
+                $q->where('name', 'like', '%router%')
+                  ->orWhere('name', 'like', '%mikrotik%')
+                  ->orWhere('name', 'like', '%core%');
+            })->orWhere('name', 'like', '%mikrotik%');
+        })->get();
+
+        $availableRouters = [];
+        $addedIps = [];
+
+        foreach ($dbRouters as $r) {
+            if ($r->ip_address && !in_array($r->ip_address, $addedIps)) {
+                $addedIps[] = $r->ip_address;
+                $availableRouters[] = [
+                    'id' => $r->id,
+                    'name' => $r->name,
+                    'model' => $r->model ?? 'MikroTik',
+                    'location' => $r->building?->name ?? 'Main Site',
+                    'ip' => $r->ip_address,
+                ];
+            }
+        }
+
+        // Fallback to config host if no DB routers exist or env host missing
+        $envHost = config('services.mikrotik.host');
+        if ($envHost && !in_array($envHost, $addedIps)) {
+            array_unshift($availableRouters, [
+                'id' => 'env-default',
+                'name' => ($connection['identity'] ?? 'Primary Core Router'),
+                'model' => $connection['board'] ?? 'RB450Gx4',
+                'location' => 'Data Center',
+                'ip' => $envHost,
+            ]);
+        }
 
         return Inertia::render('Mikrotik/Explorer', [
             'routerConfig' => [
-                'host' => config('services.mikrotik.host'),
+                'host' => $targetHost ?? config('services.mikrotik.host'),
                 'port' => config('services.mikrotik.port'),
                 'user' => config('services.mikrotik.user'),
                 'ssl'  => config('services.mikrotik.ssl'),
             ],
-            'connection' => $connection,
-            'systemMetrics' => $connection['success'] ? $this->mikrotik->getSystemMetrics() : null,
-            'ipAddresses' => $connection['success'] ? $this->mikrotik->getIpAddresses() : [],
-            'routes' => $connection['success'] ? $this->mikrotik->getRoutes() : [],
-            'users' => $connection['success'] ? $this->mikrotik->getUsers() : [],
-            'packages' => $connection['success'] ? $this->mikrotik->getSystemPackages() : [],
-            'dns' => $connection['success'] ? $this->mikrotik->getDnsConfig() : [],
+            'availableRouters' => $availableRouters,
+            'selectedHost'     => $targetHost ?? config('services.mikrotik.host'),
+            'connection'       => $connection,
+            'systemMetrics'    => $connection['success'] ? $this->mikrotik->getSystemMetrics($targetHost) : null,
+            'ipAddresses'      => $connection['success'] ? $this->mikrotik->getIpAddresses($targetHost) : [],
+            'routes'           => $connection['success'] ? $this->mikrotik->getRoutes($targetHost) : [],
+            'users'            => $connection['success'] ? $this->mikrotik->getUsers($targetHost) : [],
+            'packages'         => $connection['success'] ? $this->mikrotik->getSystemPackages($targetHost) : [],
+            'dns'              => $connection['success'] ? $this->mikrotik->getDnsConfig($targetHost) : [],
         ]);
     }
 
     /**
      * JSON API: Refresh system metrics (CPU, RAM, Temp, Bandwidth).
      */
-    public function refreshMetrics()
+    public function refreshMetrics(Request $request)
     {
-        return response()->json($this->mikrotik->getSystemMetrics());
+        return response()->json($this->mikrotik->getSystemMetrics($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch IP addresses.
      */
-    public function ipAddresses()
+    public function ipAddresses(Request $request)
     {
-        return response()->json($this->mikrotik->getIpAddresses());
+        return response()->json($this->mikrotik->getIpAddresses($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch routing table.
      */
-    public function routes()
+    public function routes(Request $request)
     {
-        return response()->json($this->mikrotik->getRoutes());
+        return response()->json($this->mikrotik->getRoutes($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch firewall filter rules.
      */
-    public function firewallFilter()
+    public function firewallFilter(Request $request)
     {
-        return response()->json($this->mikrotik->getFirewallFilter());
+        return response()->json($this->mikrotik->getFirewallFilter($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch NAT rules.
      */
-    public function natRules()
+    public function natRules(Request $request)
     {
-        return response()->json($this->mikrotik->getNatRules());
+        return response()->json($this->mikrotik->getNatRules($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch active hotspot users.
      */
-    public function hotspotActive()
+    public function hotspotActive(Request $request)
     {
-        return response()->json($this->mikrotik->getHotspotActive());
+        return response()->json($this->mikrotik->getHotspotActive($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch DHCP leases.
      */
-    public function dhcpLeases()
+    public function dhcpLeases(Request $request)
     {
-        return response()->json($this->mikrotik->getDhcpLeases());
+        return response()->json($this->mikrotik->getDhcpLeases($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch ARP table.
      */
-    public function arpTable()
+    public function arpTable(Request $request)
     {
-        return response()->json($this->mikrotik->getArpTable());
+        return response()->json($this->mikrotik->getArpTable($this->getTargetHost($request)));
     }
 
     /**
@@ -110,46 +158,46 @@ class MikrotikWebController extends Controller
     public function logs(Request $request)
     {
         $limit = min((int) $request->get('limit', 50), 200);
-        return response()->json($this->mikrotik->getLogs(null, $limit));
+        return response()->json($this->mikrotik->getLogs($this->getTargetHost($request), $limit));
     }
 
     /**
      * JSON API: Fetch network neighbors.
      */
-    public function neighbors()
+    public function neighbors(Request $request)
     {
-        return response()->json($this->mikrotik->getNeighbors());
+        return response()->json($this->mikrotik->getNeighbors($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch simple queues.
      */
-    public function queues()
+    public function queues(Request $request)
     {
-        return response()->json($this->mikrotik->getQueues());
+        return response()->json($this->mikrotik->getQueues($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch wireless clients.
      */
-    public function wirelessClients()
+    public function wirelessClients(Request $request)
     {
-        return response()->json($this->mikrotik->getWirelessClients());
+        return response()->json($this->mikrotik->getWirelessClients($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch PPP active connections.
      */
-    public function pppActive()
+    public function pppActive(Request $request)
     {
-        return response()->json($this->mikrotik->getPppActive());
+        return response()->json($this->mikrotik->getPppActive($this->getTargetHost($request)));
     }
 
     /**
      * JSON API: Fetch DNS configuration.
      */
-    public function dnsConfig()
+    public function dnsConfig(Request $request)
     {
-        return response()->json($this->mikrotik->getDnsConfig());
+        return response()->json($this->mikrotik->getDnsConfig($this->getTargetHost($request)));
     }
 }
