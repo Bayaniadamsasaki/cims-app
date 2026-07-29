@@ -17,27 +17,39 @@ class TopologyWebController extends Controller
         $this->mikrotik = $mikrotik;
     }
 
-    public function index()
+    public function index(Request $request)
     {
         return Inertia::render('Topology/Map', [
-            'topologyData' => $this->buildTopologyGraph(),
+            'topologyData' => $this->buildTopologyGraph($request->query('host')),
         ]);
     }
 
-    public function graphData()
+    public function graphData(Request $request)
     {
-        return response()->json($this->buildTopologyGraph());
+        return response()->json($this->buildTopologyGraph($request->query('host')));
     }
 
-    private function buildTopologyGraph(): array
+    private function buildTopologyGraph(?string $targetHost = null): array
     {
         // Fetch all inventory devices
         $dbDevices = Device::with(['category', 'building', 'vendor', 'room', 'metrics'])->get();
 
-        // Fetch live MikroTik discovery data
-        $connection = $this->mikrotik->testConnection();
-        $neighbors = $connection['success'] ? $this->mikrotik->getNeighbors() : [];
-        $ipAddresses = $connection['success'] ? $this->mikrotik->getIpAddresses() : [];
+        // Find primary router from DB Inventory if targetHost is null
+        if (!$targetHost) {
+            $firstRouter = $dbDevices->first(function ($device) {
+                return $device->ip_address && (
+                    str_contains(strtolower($device->category?->name ?? ''), 'router') ||
+                    str_contains(strtolower($device->category?->name ?? ''), 'mikrotik') ||
+                    str_contains(strtolower($device->name), 'mikrotik')
+                );
+            });
+            $targetHost = $firstRouter?->ip_address ?? config('services.mikrotik.host');
+        }
+
+        // Fetch live MikroTik discovery data for target host
+        $connection = $this->mikrotik->testConnection($targetHost);
+        $neighbors = $connection['success'] ? $this->mikrotik->getNeighbors($targetHost) : [];
+        $ipAddresses = $connection['success'] ? $this->mikrotik->getIpAddresses($targetHost) : [];
 
         $nodes = [];
         $links = [];
@@ -66,7 +78,7 @@ class TopologyWebController extends Controller
             'id'          => $coreRouterId,
             'name'        => $connection['identity'] ?? 'MikroTik Core Router',
             'hostname'    => $connection['identity'] ?? 'RB450Gx4',
-            'ip'          => config('services.mikrotik.host'),
+            'ip'          => $targetHost,
             'type'        => 'router',
             'category'    => 'Core Router',
             'vendor'      => 'MikroTik',
@@ -77,7 +89,7 @@ class TopologyWebController extends Controller
             'version'     => $connection['version'] ?? '7.23.2',
             'interfaces'  => count($ipAddresses),
         ];
-        $existingNodeKeys[config('services.mikrotik.host')] = $coreRouterId;
+        $existingNodeKeys[$targetHost] = $coreRouterId;
 
         // Link ISP Cloud to Core Router
         $links[] = [
@@ -96,7 +108,7 @@ class TopologyWebController extends Controller
             $ip = $dev->ip_address;
 
             // Skip if this device is the core router itself
-            if ($ip === config('services.mikrotik.host')) {
+            if ($ip === $targetHost) {
                 continue;
             }
 

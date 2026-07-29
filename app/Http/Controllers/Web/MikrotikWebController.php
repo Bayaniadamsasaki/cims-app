@@ -29,10 +29,7 @@ class MikrotikWebController extends Controller
      */
     public function index(Request $request)
     {
-        $targetHost = $this->getTargetHost($request);
-        $connection = $this->mikrotik->testConnection($targetHost);
-
-        // Fetch all router devices from inventory
+        // 1. Fetch all router devices from inventory first
         $dbRouters = \App\Models\Device::with('building')->where(function ($query) {
             $query->whereHas('category', function ($q) {
                 $q->where('name', 'like', '%router%')
@@ -57,27 +54,34 @@ class MikrotikWebController extends Controller
             }
         }
 
-        // Fallback to config host if no DB routers exist or env host missing
+        // 2. Determine targetHost: Request query 'host' FIRST, then FIRST Database router, then .env fallback
+        $firstDbIp = !empty($availableRouters) ? $availableRouters[0]['ip'] : null;
         $envHost = config('services.mikrotik.host');
-        if ($envHost && !in_array($envHost, $addedIps)) {
-            array_unshift($availableRouters, [
+        $targetHost = $request->query('host') ?? $firstDbIp ?? $envHost;
+
+        // Add .env host to availableRouters ONLY if no routers in DB
+        if (empty($availableRouters) && $envHost) {
+            $availableRouters[] = [
                 'id' => 'env-default',
-                'name' => ($connection['identity'] ?? 'Primary Core Router'),
-                'model' => $connection['board'] ?? 'RB450Gx4',
+                'name' => 'Default Core Router',
+                'model' => 'RB450Gx4',
                 'location' => 'Data Center',
                 'ip' => $envHost,
-            ]);
+            ];
         }
+
+        // 3. Test connection & fetch dynamic data for targetHost
+        $connection = $this->mikrotik->testConnection($targetHost);
 
         return Inertia::render('Mikrotik/Explorer', [
             'routerConfig' => [
-                'host' => $targetHost ?? config('services.mikrotik.host'),
+                'host' => $targetHost,
                 'port' => config('services.mikrotik.port'),
                 'user' => config('services.mikrotik.user'),
                 'ssl'  => config('services.mikrotik.ssl'),
             ],
             'availableRouters' => $availableRouters,
-            'selectedHost'     => $targetHost ?? config('services.mikrotik.host'),
+            'selectedHost'     => $targetHost,
             'connection'       => $connection,
             'systemMetrics'    => $connection['success'] ? $this->mikrotik->getSystemMetrics($targetHost) : null,
             'ipAddresses'      => $connection['success'] ? $this->mikrotik->getIpAddresses($targetHost) : [],

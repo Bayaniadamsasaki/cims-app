@@ -88,7 +88,7 @@ class MikrotikService
     {
         try {
             $identity = $this->client($host)->query('/system/identity/print')->read();
-            $resource = $this->client()->query('/system/resource/print')->read();
+            $resource = $this->client($host)->query('/system/resource/print')->read();
 
             return [
                 'success' => true,
