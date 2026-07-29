@@ -18,10 +18,40 @@ class MikrotikService
         if ($this->client === null || $host !== null || $user !== null) {
             $config = config('services.mikrotik');
 
-            $targetHost = $host ?? $config['host'];
-            $targetUser = $user ?? $config['user'];
-            $targetPass = $pass ?? $config['password'];
-            $targetPort = $port ?? $config['port'];
+            $rawHost = $host ?? $config['host'];
+            $targetHost = $rawHost;
+            $targetUser = $user;
+            $targetPass = $pass;
+            $targetPort = $port;
+
+            // 1. Support IP:Port syntax (e.g. "192.168.1.254:8729")
+            if ($rawHost && str_contains($rawHost, ':')) {
+                $parts = explode(':', $rawHost);
+                $targetHost = $parts[0];
+                $targetPort = (int)$parts[1];
+            }
+
+            // 2. Dynamic Database Lookup: Fetch credentials for target router from Device Inventory
+            if ($targetHost && ($targetUser === null || $targetPass === null)) {
+                $device = \App\Models\Device::where('ip_address', $targetHost)->first();
+                if ($device) {
+                    if ($targetUser === null && !empty($device->username)) {
+                        $targetUser = $device->username;
+                    }
+                    if ($targetPass === null && !empty($device->password_encrypted)) {
+                        try {
+                            $targetPass = decrypt($device->password_encrypted);
+                        } catch (\Throwable $e) {
+                            $targetPass = $device->password_encrypted;
+                        }
+                    }
+                }
+            }
+
+            // 3. Fallback to default .env config
+            $targetUser = $targetUser ?? $config['user'];
+            $targetPass = $targetPass ?? $config['password'];
+            $targetPort = $targetPort ?? $config['port'];
 
             $client = new Client([
                 'host' => $targetHost,

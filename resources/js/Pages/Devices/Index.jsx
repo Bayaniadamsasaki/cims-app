@@ -556,14 +556,19 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-brand-textSecondary mb-1">IP Address Utama</label>
+                                            <label className="block text-xs font-semibold text-brand-textSecondary mb-1">
+                                                IP Address Utama (Port API Opsional)
+                                            </label>
                                             <input
                                                 type="text"
-                                                placeholder="Contoh: 118.98.127.16"
+                                                placeholder="Contoh: 118.98.127.16 atau 118.98.127.16:8729"
                                                 value={data.ip_address}
                                                 onChange={(e) => setData('ip_address', e.target.value)}
                                                 className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
                                             />
+                                            <span className="text-[10px] text-brand-textMuted mt-1 block">
+                                                Gunakan format <code>IP:Port</code> jika port API RouterOS disesuaikan.
+                                            </span>
                                             {errors.ip_address && <span className="text-xs text-rose-450 mt-1 block">{errors.ip_address}</span>}
                                         </div>
                                         <div>

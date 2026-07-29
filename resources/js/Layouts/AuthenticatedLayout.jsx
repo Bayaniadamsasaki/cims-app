@@ -217,27 +217,27 @@ export default function AuthenticatedLayout({ header, children }) {
                 </button>
             </div>
 
-            {/* Sidebar Left (Desktop) */}
+            {/* Sidebar Left (Desktop & Mobile) */}
             <aside
-                className={`fixed inset-y-0 left-0 bg-brand-bgSecondary border-r border-brand-border w-64 flex-col justify-between z-20 transition-transform duration-300 lg:flex lg:translate-x-0 ${
+                className={`fixed inset-y-0 left-0 bg-brand-bgSecondary border-r border-brand-border w-64 flex flex-col justify-between z-30 transition-transform duration-300 lg:translate-x-0 ${
                     showingMobileMenu
-                        ? "translate-x-0 flex"
-                        : "-translate-x-full hidden"
+                        ? "translate-x-0"
+                        : "-translate-x-full"
                 }`}
             >
-                <div>
-                    {/* Brand Logo */}
-                    <div className="h-16 flex items-center px-6 border-b border-brand-border bg-brand-bg">
-                        <Link
-                            href="/dashboard"
-                            className="flex items-center space-x-3"
-                        >
-                            <ApplicationLogo className="h-9 w-auto fill-current text-brand-primary" />
-                        </Link>
-                    </div>
+                {/* Fixed Brand Logo Header */}
+                <div className="h-16 shrink-0 flex items-center px-6 border-b border-brand-border bg-brand-bg">
+                    <Link
+                        href="/dashboard"
+                        className="flex items-center space-x-3"
+                    >
+                        <ApplicationLogo className="h-9 w-auto fill-current text-brand-primary" />
+                    </Link>
+                </div>
 
-                    {/* Navigation Links */}
-                    <nav className="px-4 py-6 space-y-1">
+                {/* Scrollable Navigation Section */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+                    <nav className="space-y-1">
                         {navItems.map((item, idx) => {
                             const active =
                                 route().current(item.route) ||
@@ -358,8 +358,8 @@ export default function AuthenticatedLayout({ header, children }) {
                     </nav>
                 </div>
 
-                {/* Bottom User Profile Section */}
-                <div className="p-4 border-t border-brand-border bg-brand-bg">
+                {/* Fixed Bottom User Profile Section */}
+                <div className="shrink-0 p-4 border-t border-brand-border bg-brand-bg">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3 overflow-hidden">
                             <div className="h-10 w-10 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-black shrink-0">

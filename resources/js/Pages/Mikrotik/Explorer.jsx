@@ -32,8 +32,10 @@ export default function MikrotikExplorer({
     const [logs, setLogs] = useState([]);
     const [loadingTab, setLoadingTab] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isRouterDropdownOpen, setIsRouterDropdownOpen] = useState(false);
 
     const currentHost = selectedHost || routerConfig.host;
+    const activeRouterObj = (availableRouters || []).find((r) => r.ip === currentHost) || availableRouters[0] || { name: "Core Router", ip: currentHost };
 
     // Helper to get API URL with target host query
     const apiRoute = (routeName, extraParams = {}) => {
@@ -188,30 +190,115 @@ export default function MikrotikExplorer({
 
                         {/* Right: Router Switcher Card & Refresh Button */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                            {/* Styled Router Selector */}
-                            <div className="flex items-center space-x-3 bg-brand-bg/90 border border-brand-border/80 px-4 py-2 rounded-xl shadow-inner min-w-[300px]">
-                                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm shrink-0">
-                                    🎛️
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary">
-                                        Active MikroTik Device
-                                    </label>
-                                    <select
-                                        value={currentHost}
-                                        onChange={(e) => {
-                                            const selectedIp = e.target.value;
-                                            window.location.href = route("mikrotik.index") + "?host=" + encodeURIComponent(selectedIp);
-                                        }}
-                                        className="w-full bg-transparent text-white text-xs font-mono font-bold border-0 p-0 focus:ring-0 focus:outline-none cursor-pointer truncate"
+                            {/* Custom Glassmorphism Router Selector */}
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRouterDropdownOpen(!isRouterDropdownOpen)}
+                                    className="flex items-center justify-between space-x-3 bg-brand-bg/90 hover:bg-brand-bgSecondary border border-brand-border/90 hover:border-emerald-500/50 px-4 py-2 rounded-xl shadow-inner min-w-[290px] sm:min-w-[340px] transition group text-left"
+                                >
+                                    <div className="flex items-center space-x-3 min-w-0">
+                                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm shrink-0 group-hover:scale-105 transition-transform">
+                                            🎛️
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <span className="block text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary">
+                                                Active MikroTik Device
+                                            </span>
+                                            <div className="flex items-center space-x-2 truncate">
+                                                <span className="text-xs font-bold text-white truncate">
+                                                    {activeRouterObj?.name}
+                                                </span>
+                                                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded shrink-0">
+                                                    {activeRouterObj?.ip}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <svg
+                                        className={`w-4 h-4 text-brand-textSecondary transition-transform duration-200 shrink-0 ${isRouterDropdownOpen ? "rotate-180 text-emerald-400" : ""}`}
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
                                     >
-                                        {(availableRouters || []).map((r) => (
-                                            <option key={r.id} value={r.ip} className="bg-slate-900 text-white font-sans py-1.5">
-                                                {r.name} ({r.model || 'MikroTik'}) — {r.ip}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+
+                                {/* Custom Dropdown Glass Panel */}
+                                {isRouterDropdownOpen && (
+                                    <>
+                                        {/* Click Outside Overlay */}
+                                        <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setIsRouterDropdownOpen(false)}
+                                        />
+
+                                        <div className="absolute right-0 top-full mt-2 w-full sm:w-[400px] z-50 bg-[#0b1329]/95 backdrop-blur-2xl border border-emerald-500/40 rounded-2xl shadow-2xl p-2 space-y-1 animate-in fade-in duration-150">
+                                            <div className="px-3 py-2 border-b border-brand-border/60 flex items-center justify-between">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary flex items-center space-x-1.5">
+                                                    <span>📡</span>
+                                                    <span>Select Monitoring Target</span>
+                                                </span>
+                                                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                                    {(availableRouters || []).length} Devices Registered
+                                                </span>
+                                            </div>
+
+                                            <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                                {(availableRouters || []).map((r) => {
+                                                    const isSelected = r.ip === currentHost;
+                                                    return (
+                                                        <button
+                                                            key={r.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsRouterDropdownOpen(false);
+                                                                window.location.href = route("mikrotik.index") + "?host=" + encodeURIComponent(r.ip);
+                                                            }}
+                                                            className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between group ${
+                                                                isSelected
+                                                                    ? "bg-emerald-500/15 border border-emerald-500/50 text-white shadow-md shadow-emerald-950/50"
+                                                                    : "hover:bg-brand-bgSecondary hover:border hover:border-brand-border text-brand-textSecondary hover:text-white border border-transparent"
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center space-x-3 min-w-0">
+                                                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                                                                    isSelected 
+                                                                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20" 
+                                                                        : "bg-brand-bg border border-brand-border text-emerald-400 group-hover:border-emerald-500/40"
+                                                                }`}>
+                                                                    μT
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-200 group-hover:text-emerald-300"}`}>
+                                                                        {r.name}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-brand-textSecondary truncate font-mono">
+                                                                        {r.model || 'MikroTik'} • {r.location || 'Data Center'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center space-x-2 shrink-0 ml-2">
+                                                                <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                                                                    isSelected 
+                                                                        ? "bg-emerald-950 text-emerald-300 border-emerald-500/50 font-bold" 
+                                                                        : "bg-brand-bg text-slate-300 border-brand-border group-hover:border-brand-border"
+                                                                }`}>
+                                                                    {r.ip}
+                                                                </span>
+                                                                {isSelected && (
+                                                                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                                )}
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <button
