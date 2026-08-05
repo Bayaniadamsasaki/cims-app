@@ -45,4 +45,11 @@ return [
         'attempts' => (int) env('MIKROTIK_ATTEMPTS', 2),
     ],
 
+    'ruijie' => [
+        'app_id' => env('RUIJIE_APP_ID', 'open2a30c702449b'),
+        'secret' => env('RUIJIE_SECRET', '779af05e4ece46308add65013a8154c1'),
+        'base_url' => env('RUIJIE_BASE_URL', 'https://cloud-as.ruijienetworks.com'),
+        'timeout' => 15,
+    ],
+
 ];

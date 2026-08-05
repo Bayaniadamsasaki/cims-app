@@ -135,6 +135,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/dns-config', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dnsConfig'])->name('api.dns-config');
     });
 
+    // Ruijie Reyee Cloud API Explorer Routes
+    Route::prefix('ruijie')->name('ruijie.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\RuijieWebController::class, 'index'])->name('index');
+        Route::get('/api/test', [\App\Http\Controllers\Web\RuijieWebController::class, 'testConnection'])->name('api.test');
+        Route::get('/api/devices', [\App\Http\Controllers\Web\RuijieWebController::class, 'devices'])->name('api.devices');
+        Route::get('/api/wireless-clients', [\App\Http\Controllers\Web\RuijieWebController::class, 'wirelessClients'])->name('api.wireless-clients');
+        Route::get('/api/alarms', [\App\Http\Controllers\Web\RuijieWebController::class, 'alarms'])->name('api.alarms');
+    });
+
     // Interactive Topology Map Routes
     Route::get('/topology', [\App\Http\Controllers\Web\TopologyWebController::class, 'index'])->name('topology.index');
     Route::get('/topology/data', [\App\Http\Controllers\Web\TopologyWebController::class, 'graphData'])->name('topology.data');

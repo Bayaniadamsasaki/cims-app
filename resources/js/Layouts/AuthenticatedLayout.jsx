@@ -95,6 +95,25 @@ export default function AuthenticatedLayout({ header, children }) {
             ),
         },
         {
+            name: "Ruijie Reyee Cloud",
+            route: "ruijie.index",
+            icon: (
+                <svg
+                    className="h-5 w-5 mr-3 shrink-0 text-cyan-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M3 15a4 4 0 004 4h9a5 5 0 001-9.9A7 7 0 103 15z"
+                    />
+                </svg>
+            ),
+        },
+        {
             name: "Topology Map",
             route: "topology.index",
             icon: (
