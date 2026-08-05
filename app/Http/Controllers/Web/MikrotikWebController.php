@@ -73,6 +73,24 @@ class MikrotikWebController extends Controller
         // 3. Test connection & fetch dynamic data for targetHost
         $connection = $this->mikrotik->testConnection($targetHost);
 
+        // 4. Auto-discover live neighbors from connected router and add to dropdown options
+        if ($connection['success']) {
+            $liveNeighbors = $this->mikrotik->getNeighbors($targetHost);
+            foreach ($liveNeighbors as $idx => $nb) {
+                $nbIp = $nb['address'] ?? null;
+                if ($nbIp && !in_array($nbIp, $addedIps)) {
+                    $addedIps[] = $nbIp;
+                    $availableRouters[] = [
+                        'id' => 'discovered-nb-' . $idx,
+                        'name' => $nb['identity'] ?? ('Neighbor (' . $nbIp . ')'),
+                        'model' => $nb['board'] ?? $nb['platform'] ?? 'MikroTik MNDP',
+                        'location' => 'Auto-Discovered (' . ($nb['interface'] ?? 'eth') . ')',
+                        'ip' => $nbIp,
+                    ];
+                }
+            }
+        }
+
         return Inertia::render('Mikrotik/Explorer', [
             'routerConfig' => [
                 'host' => $targetHost,
