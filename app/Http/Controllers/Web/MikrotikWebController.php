@@ -73,22 +73,39 @@ class MikrotikWebController extends Controller
         // 3. Test connection & fetch dynamic data for targetHost
         $connection = $this->mikrotik->testConnection($targetHost);
 
-        // 4. Auto-discover live neighbors from connected router and add to dropdown options
-        if ($connection['success']) {
-            $liveNeighbors = $this->mikrotik->getNeighbors($targetHost);
+        // 4. Retrieve cached discovered routers from session
+        $sessionDiscovered = session('mikrotik_discovered_routers', []);
+        foreach ($sessionDiscovered as $sd) {
+            if ($sd['ip'] && !in_array($sd['ip'], $addedIps)) {
+                $addedIps[] = $sd['ip'];
+                $availableRouters[] = $sd;
+            }
+        }
+
+        // 5. Auto-discover live neighbors from targetHost (or fallback to env core router if targetHost is offline)
+        $discoveryHost = $connection['success'] ? $targetHost : $envHost;
+        $coreConn = $connection['success'] ? $connection : $this->mikrotik->testConnection($discoveryHost);
+
+        if ($coreConn['success']) {
+            $liveNeighbors = $this->mikrotik->getNeighbors($discoveryHost);
+            $newDiscovered = $sessionDiscovered;
+
             foreach ($liveNeighbors as $idx => $nb) {
                 $nbIp = $nb['address'] ?? null;
                 if ($nbIp && !in_array($nbIp, $addedIps)) {
                     $addedIps[] = $nbIp;
-                    $availableRouters[] = [
-                        'id' => 'discovered-nb-' . $idx,
+                    $routerItem = [
+                        'id' => 'discovered-nb-' . md5($nbIp),
                         'name' => $nb['identity'] ?? ('Neighbor (' . $nbIp . ')'),
                         'model' => $nb['board'] ?? $nb['platform'] ?? 'MikroTik MNDP',
                         'location' => 'Auto-Discovered (' . ($nb['interface'] ?? 'eth') . ')',
                         'ip' => $nbIp,
                     ];
+                    $availableRouters[] = $routerItem;
+                    $newDiscovered[] = $routerItem;
                 }
             }
+            session(['mikrotik_discovered_routers' => $newDiscovered]);
         }
 
         return Inertia::render('Mikrotik/Explorer', [

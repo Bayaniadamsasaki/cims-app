@@ -94,12 +94,12 @@ export default function RuijieExplorer({
                                     {connection?.success ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                             <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
-                                            Cloud OpenAPI Connected
+                                            LIVE CLOUD API CONNECTED
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                                             <span className="h-2 w-2 rounded-full bg-amber-400 mr-2"></span>
-                                            API Auth Active ({connection?.latency_ms || 0}ms)
+                                            INVENTORY FALLBACK MODE ({connection?.latency_ms || 0}ms)
                                         </span>
                                     )}
                                 </div>
@@ -179,6 +179,30 @@ export default function RuijieExplorer({
                     </div>
                 </div>
 
+                {/* Diagnostic Authorization Hint Banner */}
+                {connection?.hint && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start space-x-3 text-amber-200">
+                        <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div className="space-y-1 text-xs leading-relaxed">
+                            <div className="font-bold text-amber-300 text-sm flex items-center space-x-2">
+                                <span>Langkah Penting Otorisasi Ruijie Cloud API (Code 5 - Permission Required)</span>
+                            </div>
+                            <p className="text-amber-200/90">
+                                APPID <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-amber-300">{connection?.app_id}</code> sudah benar dan diterima oleh Ruijie Cloud, namun **perlu di-Otorisasi (Authorize)** di dalam akun/project Ruijie Cloud Anda:
+                            </p>
+                            <ol className="list-decimal list-inside space-y-1 text-amber-200/80 pt-1 font-mono">
+                                <li>Buka Portal Ruijie Cloud (<a href="https://cloud-as.ruijienetworks.com" target="_blank" rel="noreferrer" className="underline text-cyan-300 font-bold">cloud-as.ruijienetworks.com</a> atau <a href="https://cloud.ruijienetworks.com" target="_blank" rel="noreferrer" className="underline text-cyan-300 font-bold">cloud.ruijienetworks.com</a>)</li>
+                                <li>Masuk ke Project Jaringan Anda ➔ Klik <strong>Settings</strong> ➔ <strong>Open API / Authorize APPID</strong></li>
+                                <li>Masukkan APPID: <strong className="text-white">{connection?.app_id}</strong> lalu klik <strong>Authorize Project Access</strong></li>
+                            </ol>
+                        </div>
+                    </div>
+                )}
+
                 {/* Tab Navigation */}
                 <div className="border-b border-brand-border flex overflow-x-auto space-x-2 pb-2">
                     {[
@@ -251,13 +275,14 @@ export default function RuijieExplorer({
                                             <th className="px-6 py-3">Category</th>
                                             <th className="px-6 py-3">Status</th>
                                             <th className="px-6 py-3">Clients</th>
+                                            <th className="px-6 py-3">Data Source</th>
                                             <th className="px-6 py-3">Group Site</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-brand-border">
                                         {filteredDevices.length === 0 ? (
                                             <tr>
-                                                <td colSpan="7" className="text-center py-10 text-brand-textSecondary">
+                                                <td colSpan="8" className="text-center py-10 text-brand-textSecondary">
                                                     No devices match the selected filters.
                                                 </td>
                                             </tr>
@@ -294,6 +319,17 @@ export default function RuijieExplorer({
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 font-mono font-bold text-purple-400">{dev.client_count} STAs</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold ${
+                                                            dev.source === 'Cloud API'
+                                                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                                                : dev.source === 'DB Inventory'
+                                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                                        }`}>
+                                                            {dev.source || 'Demo Fallback'}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-4 text-xs text-brand-textSecondary">{dev.group_name}</td>
                                                 </tr>
                                             ))

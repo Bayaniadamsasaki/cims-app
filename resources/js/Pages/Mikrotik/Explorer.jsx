@@ -248,6 +248,7 @@ export default function MikrotikExplorer({
                                             <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                                                 {(availableRouters || []).map((r) => {
                                                     const isSelected = r.ip === currentHost;
+                                                    const isDiscovered = String(r.id).startsWith('discovered-');
                                                     return (
                                                         <button
                                                             key={r.id}
@@ -271,8 +272,15 @@ export default function MikrotikExplorer({
                                                                     μT
                                                                 </div>
                                                                 <div className="min-w-0">
-                                                                    <div className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-200 group-hover:text-emerald-300"}`}>
-                                                                        {r.name}
+                                                                    <div className="flex items-center space-x-1.5">
+                                                                        <span className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-200 group-hover:text-emerald-300"}`}>
+                                                                            {r.name}
+                                                                        </span>
+                                                                        {isDiscovered && (
+                                                                            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold uppercase tracking-wider shrink-0">
+                                                                                Neighbor
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                     <div className="text-[10px] text-brand-textSecondary truncate font-mono">
                                                                         {r.model || 'MikroTik'} • {r.location || 'Data Center'}
@@ -288,8 +296,11 @@ export default function MikrotikExplorer({
                                                                 }`}>
                                                                     {r.ip}
                                                                 </span>
-                                                                {isSelected && (
+                                                                {isSelected && connection?.success && (
                                                                     <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                                )}
+                                                                {isSelected && !connection?.success && (
+                                                                    <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse"></span>
                                                                 )}
                                                             </div>
                                                         </button>
@@ -325,16 +336,52 @@ export default function MikrotikExplorer({
                     </div>
                 </div>
 
-                {/* Connection Error Alert */}
+                {/* Connection Error Alert with Diagnostics */}
                 {!connection?.success && (
-                    <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl text-red-400 flex items-start space-x-3">
-                        <svg className="w-6 h-6 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <div>
-                            <div className="font-semibold text-white">Router Connection Failed</div>
-                            <div className="text-sm mt-1">{connection?.error || "Unable to establish API socket connection to RouterOS."}</div>
+                    <div className="bg-red-500/10 border border-red-500/30 p-5 rounded-2xl text-red-300 space-y-4">
+                        <div className="flex items-start space-x-3">
+                            <svg className="w-6 h-6 shrink-0 mt-0.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <div className="flex-1">
+                                <div className="font-bold text-white text-base">Koneksi API Gagal ke {currentHost}</div>
+                                <div className="text-sm mt-1 font-mono bg-red-950/40 px-3 py-1.5 rounded-lg inline-block">
+                                    {connection?.error || "Unable to establish API socket connection to RouterOS."}
+                                </div>
+                            </div>
                         </div>
+
+                        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 space-y-2 text-xs text-slate-300 leading-relaxed">
+                            <div className="font-bold text-amber-300 text-sm mb-2">🔧 Kemungkinan Penyebab & Solusi:</div>
+                            <ol className="list-decimal list-inside space-y-1.5">
+                                <li>
+                                    <strong className="text-white">API Service belum aktif</strong> — Buka Winbox ke <code className="bg-slate-700 px-1 rounded text-emerald-300">{currentHost}</code>, pastikan <code className="bg-slate-700 px-1 rounded">IP → Services → api</code> (port 8728) atau <code className="bg-slate-700 px-1 rounded">api-ssl</code> (port 8729) sudah <strong>enabled</strong>.
+                                </li>
+                                <li>
+                                    <strong className="text-white">User API belum dibuat</strong> — Buat user di <code className="bg-slate-700 px-1 rounded">System → Users</code> dengan group <code className="bg-slate-700 px-1 rounded">full</code>, dan tambahkan <strong>Allowed Address</strong>: <code className="bg-slate-700 px-1 rounded text-emerald-300">192.168.91.41</code> (IP server CIMS).
+                                </li>
+                                <li>
+                                    <strong className="text-white">Firewall memblokir port API</strong> — Pastikan tidak ada filter rule yang memblokir port 8728/8729 dari IP <code className="bg-slate-700 px-1 rounded text-emerald-300">192.168.91.41</code>.
+                                </li>
+                                <li>
+                                    <strong className="text-white">Subnet berbeda / Tidak reachable</strong> — Pastikan server CIMS bisa ping ke <code className="bg-slate-700 px-1 rounded text-emerald-300">{currentHost}</code>. Jika berbeda subnet, pastikan ada routing.
+                                </li>
+                            </ol>
+                        </div>
+
+                        {currentHost !== routerConfig?.host && (
+                            <button
+                                onClick={() => {
+                                    window.location.href = route("mikrotik.index");
+                                }}
+                                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition shadow-md"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                <span>Kembali ke Default Core Router</span>
+                            </button>
+                        )}
                     </div>
                 )}
 
