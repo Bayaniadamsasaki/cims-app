@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Services\MikrotikService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class MikrotikWebController extends Controller
@@ -29,7 +30,24 @@ class MikrotikWebController extends Controller
      */
     public function index(Request $request)
     {
-        // 1. Fetch all router devices from inventory first
+        $envHost = config('services.mikrotik.host');
+        $availableRouters = [];
+        $addedIps = [];
+
+        // 1. Always include env-default
+            // Retrieve router identity and model via API to use as defaults
+            $coreConn = $this->mikrotik->testConnection($envHost);
+            $routerName = $coreConn['success'] && isset($coreConn['identity']) ? $coreConn['identity'] : 'Core Router';
+            $routerModel = $coreConn['success'] && isset($coreConn['board']) ? $coreConn['board'] : 'Unknown Model';
+            $defaultRouter = [
+                'id' => 'env-default',
+                'name' => $routerName,
+                'model' => $routerModel,
+                'location' => 'Data Center',
+                'ip' => $envHost,
+            ];
+
+        // 2. Fetch database routers
         $dbRouters = \App\Models\Device::with('building')->where(function ($query) {
             $query->whereHas('category', function ($q) {
                 $q->where('name', 'like', '%router%')
@@ -37,9 +55,6 @@ class MikrotikWebController extends Controller
                   ->orWhere('name', 'like', '%core%');
             })->orWhere('name', 'like', '%mikrotik%');
         })->get();
-
-        $availableRouters = [];
-        $addedIps = [];
 
         foreach ($dbRouters as $r) {
             if ($r->ip_address && !in_array($r->ip_address, $addedIps)) {
@@ -54,59 +69,34 @@ class MikrotikWebController extends Controller
             }
         }
 
-        // 2. Determine targetHost: Request query 'host' FIRST, then FIRST Database router, then .env fallback
-        $firstDbIp = !empty($availableRouters) ? $availableRouters[0]['ip'] : null;
-        $envHost = config('services.mikrotik.host');
-        $targetHost = $request->query('host') ?? $firstDbIp ?? $envHost;
-
-        // Add .env host to availableRouters ONLY if no routers in DB
-        if (empty($availableRouters) && $envHost) {
-            $availableRouters[] = [
-                'id' => 'env-default',
-                'name' => 'Default Core Router',
-                'model' => 'RB450Gx4',
-                'location' => 'Data Center',
-                'ip' => $envHost,
-            ];
-        }
-
-        // 3. Test connection & fetch dynamic data for targetHost
-        $connection = $this->mikrotik->testConnection($targetHost);
-
-        // 4. Retrieve cached discovered routers from session
-        $sessionDiscovered = session('mikrotik_discovered_routers', []);
-        foreach ($sessionDiscovered as $sd) {
-            if ($sd['ip'] && !in_array($sd['ip'], $addedIps)) {
-                $addedIps[] = $sd['ip'];
-                $availableRouters[] = $sd;
-            }
-        }
-
-        // 5. Auto-discover live neighbors from targetHost (or fallback to env core router if targetHost is offline)
-        $discoveryHost = $connection['success'] ? $targetHost : $envHost;
-        $coreConn = $connection['success'] ? $connection : $this->mikrotik->testConnection($discoveryHost);
-
-        if ($coreConn['success']) {
-            $liveNeighbors = $this->mikrotik->getNeighbors($discoveryHost);
-            $newDiscovered = $sessionDiscovered;
-
-            foreach ($liveNeighbors as $idx => $nb) {
-                $nbIp = $nb['address'] ?? null;
-                if ($nbIp && !in_array($nbIp, $addedIps)) {
-                    $addedIps[] = $nbIp;
-                    $routerItem = [
-                        'id' => 'discovered-nb-' . md5($nbIp),
-                        'name' => $nb['identity'] ?? ('Neighbor (' . $nbIp . ')'),
+        // 3. Discovery from core (Cached for 5 mins)
+        $discovered = Cache::remember('mikrotik_discovered_routers', 300, function () use ($envHost) {
+            if (!$envHost) return [];
+            $neighbors = $this->mikrotik->getNeighbors($envHost);
+            $list = [];
+            foreach ($neighbors as $nb) {
+                if (!empty($nb['address'])) {
+                    $list[] = [
+                        'id' => 'discovered-nb-' . md5($nb['address']),
+                        'name' => $nb['identity'] ?? ('Neighbor (' . $nb['address'] . ')'),
                         'model' => $nb['board'] ?? $nb['platform'] ?? 'MikroTik MNDP',
                         'location' => 'Auto-Discovered (' . ($nb['interface'] ?? 'eth') . ')',
-                        'ip' => $nbIp,
+                        'ip' => $nb['address'],
                     ];
-                    $availableRouters[] = $routerItem;
-                    $newDiscovered[] = $routerItem;
                 }
             }
-            session(['mikrotik_discovered_routers' => $newDiscovered]);
+            return $list;
+        });
+
+        foreach ($discovered as $nb) {
+            if (!in_array($nb['ip'], $addedIps)) {
+                $addedIps[] = $nb['ip'];
+                $availableRouters[] = $nb;
+            }
         }
+
+        $targetHost = $request->query('host') ?? $envHost;
+        $connection = $this->mikrotik->testConnection($targetHost);
 
         return Inertia::render('Mikrotik/Explorer', [
             'routerConfig' => [
