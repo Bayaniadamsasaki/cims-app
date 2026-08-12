@@ -36,19 +36,19 @@ return [
     ],
 
     'mikrotik' => [
-        'host' => env('MIKROTIK_HOST', '192.168.88.1'),
-        'user' => env('MIKROTIK_USER', 'admin'),
-        'password' => env('MIKROTIK_PASSWORD', ''),
-        'port' => (int) env('MIKROTIK_PORT', 8728),
-        'ssl' => (bool) env('MIKROTIK_SSL', false),
+        'host' => env('MIKROTIK_HOST'),
+        'user' => env('MIKROTIK_USER'),
+        'password' => env('MIKROTIK_PASSWORD'),
+        'port' => (int) env('MIKROTIK_PORT'),
+        'ssl' => (bool) env('MIKROTIK_SSL'),
         'timeout' => (int) env('MIKROTIK_TIMEOUT', 10),
         'attempts' => (int) env('MIKROTIK_ATTEMPTS', 2),
     ],
 
     'ruijie' => [
-        'app_id' => env('RUIJIE_APP_ID', 'open2a30c702449b'),
-        'secret' => env('RUIJIE_SECRET', '779af05e4ece46308add65013a8154c1'),
-        'base_url' => env('RUIJIE_BASE_URL', 'https://cloud-as.ruijienetworks.com'),
+        'app_id' => env('RUIJIE_APP_ID'),
+        'secret' => env('RUIJIE_SECRET'),
+        'base_url' => env('RUIJIE_BASE_URL'),
         'timeout' => 15,
     ],
 
