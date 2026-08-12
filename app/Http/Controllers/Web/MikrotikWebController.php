@@ -34,8 +34,8 @@ class MikrotikWebController extends Controller
         $availableRouters = [];
         $addedIps = [];
 
-        // 1. Always include env-default
-            // Retrieve router identity and model via API to use as defaults
+        // 1. Selalu sertakan router default dari environment
+            // Ambil identity dan model router melalui API untuk dijadikan nilai default
             $coreConn = $this->mikrotik->testConnection($envHost);
             $routerName = $coreConn['success'] && isset($coreConn['identity']) ? $coreConn['identity'] : 'Core Router';
             $routerModel = $coreConn['success'] && isset($coreConn['board']) ? $coreConn['board'] : 'Unknown Model';
@@ -47,7 +47,7 @@ class MikrotikWebController extends Controller
                 'ip' => $envHost,
             ];
 
-        // 2. Fetch database routers
+        // 2. Ambil router dari database
         $dbRouters = \App\Models\Device::with('building')->where(function ($query) {
             $query->whereHas('category', function ($q) {
                 $q->where('name', 'like', '%router%')

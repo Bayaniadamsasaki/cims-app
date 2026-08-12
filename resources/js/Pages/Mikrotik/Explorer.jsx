@@ -174,11 +174,11 @@ export default function MikrotikExplorer({
                                     {connection?.success ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                             <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
-                                            API Connected
+                                            API Terhubung
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
-                                            Offline / Connection Error
+                                            Offline / Kesalahan Koneksi
                                         </span>
                                     )}
                                 </div>
@@ -203,7 +203,7 @@ export default function MikrotikExplorer({
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <span className="block text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary">
-                                                Active MikroTik Device
+                                                Perangkat MikroTik Aktif
                                             </span>
                                             <div className="flex items-center space-x-2 truncate">
                                                 <span className="text-xs font-bold text-white truncate">
@@ -238,10 +238,10 @@ export default function MikrotikExplorer({
                                             <div className="px-3 py-2 border-b border-brand-border/60 flex items-center justify-between">
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary flex items-center space-x-1.5">
                                                     <span>📡</span>
-                                                    <span>Select Monitoring Target</span>
+                                                    <span>Pilih Target Monitoring</span>
                                                 </span>
                                                 <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                                                    {(availableRouters || []).length} Devices Registered
+                                                    {(availableRouters || []).length} Perangkat Terdaftar
                                                 </span>
                                             </div>
 
@@ -330,7 +330,7 @@ export default function MikrotikExplorer({
                                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                     />
                                 </svg>
-                                <span>{isRefreshing ? "Refreshing..." : "Refresh Data"}</span>
+                                <span>{isRefreshing ? "Menyegarkan..." : "Segarkan Data"}</span>
                             </button>
                         </div>
                     </div>
@@ -388,13 +388,13 @@ export default function MikrotikExplorer({
                 {/* Navigation Tabs */}
                 <div className="border-b border-brand-border flex overflow-x-auto space-x-2 pb-2">
                     {[
-                        { id: "overview", label: "System Overview", icon: "📊" },
+                        { id: "overview", label: "Ringkasan Sistem", icon: "📊" },
                         { id: "network", label: "IP & Routing", icon: "🌐" },
                         { id: "firewall", label: "Firewall & NAT", icon: "🛡️" },
-                        { id: "hotspot", label: "Hotspot Active", icon: "📡" },
-                        { id: "neighbors", label: "Neighbors", icon: "🔗" },
-                        { id: "system", label: "DNS & Packages", icon: "📦" },
-                        { id: "logs", label: "System Logs", icon: "📜" },
+                        { id: "hotspot", label: "Hotspot Aktif", icon: "📡" },
+                        { id: "neighbors", label: "Tetangga", icon: "🔗" },
+                        { id: "system", label: "DNS & Paket", icon: "📦" },
+                        { id: "logs", label: "Log Sistem", icon: "📜" },
                     ].map((tab) => (
                         <button
                             key={tab.id}
