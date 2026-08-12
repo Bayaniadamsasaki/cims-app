@@ -98,6 +98,42 @@ class MikrotikWebController extends Controller
         $targetHost = $request->query('host') ?? $envHost;
         $connection = $this->mikrotik->testConnection($targetHost);
 
+        $selectedRouter = null;
+
+        foreach ($availableRouters as $router) {
+            if (($router['ip'] ?? null) === $targetHost) {
+                $selectedRouter = $router;
+                break;
+            }
+        }
+
+        if ($connection['success']) {
+            $connectionRouter = [
+                'id' => 'selected-host-' . md5((string) $targetHost),
+                'name' => $connection['identity'] ?? ($targetHost ?? 'Selected Router'),
+                'model' => $connection['board'] ?? 'Unknown Model',
+                'location' => 'Selected Target',
+                'ip' => $targetHost,
+            ];
+
+            if ($selectedRouter) {
+                $selectedRouter['name'] = $connectionRouter['name'];
+                $selectedRouter['model'] = $connectionRouter['model'];
+            } elseif ($targetHost) {
+                $selectedRouter = $connectionRouter;
+                $availableRouters[] = $connectionRouter;
+            }
+        } elseif (!$selectedRouter && $targetHost) {
+            $selectedRouter = [
+                'id' => 'selected-host-' . md5((string) $targetHost),
+                'name' => $targetHost,
+                'model' => 'Unknown Model',
+                'location' => 'Selected Target',
+                'ip' => $targetHost,
+            ];
+            $availableRouters[] = $selectedRouter;
+        }
+
         return Inertia::render('Mikrotik/Explorer', [
             'routerConfig' => [
                 'host' => $targetHost,
@@ -106,6 +142,7 @@ class MikrotikWebController extends Controller
                 'ssl'  => config('services.mikrotik.ssl'),
             ],
             'availableRouters' => $availableRouters,
+            'selectedRouter'   => $selectedRouter,
             'selectedHost'     => $targetHost,
             'connection'       => $connection,
             'systemMetrics'    => $connection['success'] ? $this->mikrotik->getSystemMetrics($targetHost) : null,

@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
+import { useEffect, useState } from "react";
 
 export default function MikrotikExplorer({
     auth,
     routerConfig,
     availableRouters = [],
+    selectedRouter = null,
     selectedHost,
     connection,
     systemMetrics: initialMetrics,
@@ -33,16 +34,198 @@ export default function MikrotikExplorer({
     const [loadingTab, setLoadingTab] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isRouterDropdownOpen, setIsRouterDropdownOpen] = useState(false);
+    const [routerNeighborsByHost, setRouterNeighborsByHost] = useState({});
+    const [loadingRouterNeighbors, setLoadingRouterNeighbors] = useState({});
+    const [expandedRouterHosts, setExpandedRouterHosts] = useState({});
 
     const currentHost = selectedHost || routerConfig.host;
-    const activeRouterObj = (availableRouters || []).find((r) => r.ip === currentHost) || availableRouters[0] || { name: "Core Router", ip: currentHost };
+    const activeRouterObj = selectedRouter || (availableRouters || []).find((r) => r.ip === currentHost) || availableRouters[0] || { name: "Core Router", ip: currentHost };
 
     // Helper to get API URL with target host query
     const apiRoute = (routeName, extraParams = {}) => {
-        const base = route(routeName, extraParams);
-        if (!currentHost) return base;
+        const { host: targetHost, ...params } = extraParams;
+        const base = route(routeName, params);
+        const host = targetHost ?? currentHost;
+        if (!host) return base;
         const separator = base.includes("?") ? "&" : "?";
-        return `${base}${separator}host=${encodeURIComponent(currentHost)}`;
+        return `${base}${separator}host=${encodeURIComponent(host)}`;
+    };
+
+    const normalizeNeighborRouter = (neighbor, parentRouter, index) => ({
+        id: `neighbor-${parentRouter?.ip || "root"}-${neighbor.address || neighbor.identity || index}`,
+        name: neighbor.identity || (neighbor.address ? `Neighbor (${neighbor.address})` : "Neighbor Router"),
+        model: neighbor.board || neighbor.platform || "MikroTik MNDP",
+        location: `Auto-Discovered (${neighbor.interface || "eth"})`,
+        ip: neighbor.address || null,
+        mac: neighbor.mac || null,
+        sourceInterface: neighbor.interface || null,
+        sourceHost: parentRouter?.ip || null,
+        version: neighbor.version || null,
+        isNeighbor: true,
+    });
+
+    const handleSelectRouter = (router) => {
+        if (!router?.ip) return;
+
+        setIsRouterDropdownOpen(false);
+        window.location.href = route("mikrotik.index", { host: router.ip });
+    };
+
+    const loadRouterNeighbors = async (router) => {
+        if (!router?.ip || loadingRouterNeighbors[router.ip] || routerNeighborsByHost[router.ip]) {
+            return;
+        }
+
+        setLoadingRouterNeighbors((prev) => ({ ...prev, [router.ip]: true }));
+
+        try {
+            const res = await axios.get(apiRoute("mikrotik.api.neighbors", { host: router.ip }));
+            const nextNeighbors = (res.data || [])
+                .filter((neighbor) => neighbor.address)
+                .map((neighbor, index) => normalizeNeighborRouter(neighbor, router, index));
+
+            setRouterNeighborsByHost((prev) => ({
+                ...prev,
+                [router.ip]: nextNeighbors,
+            }));
+        } catch (error) {
+            console.error(`Failed loading neighbors for ${router.ip}`, error);
+            setRouterNeighborsByHost((prev) => ({
+                ...prev,
+                [router.ip]: [],
+            }));
+        } finally {
+            setLoadingRouterNeighbors((prev) => ({ ...prev, [router.ip]: false }));
+        }
+    };
+
+    const toggleRouterNeighbors = async (router) => {
+        if (!router?.ip) return;
+
+        const nextExpanded = !expandedRouterHosts[router.ip];
+
+        setExpandedRouterHosts((prev) => ({
+            ...prev,
+            [router.ip]: nextExpanded,
+        }));
+
+        if (nextExpanded) {
+            await loadRouterNeighbors(router);
+        }
+    };
+
+    const renderRouterNode = (router, depth = 0, ancestry = new Set()) => {
+        if (!router?.ip || ancestry.has(router.ip)) {
+            return null;
+        }
+
+        const nextAncestry = new Set(ancestry);
+        nextAncestry.add(router.ip);
+
+        const isSelected = router.ip === currentHost;
+        const isExpanded = !!expandedRouterHosts[router.ip];
+        const isLoading = !!loadingRouterNeighbors[router.ip];
+        const childRouters = (routerNeighborsByHost[router.ip] || []).filter((child) => child.ip && !nextAncestry.has(child.ip));
+        const isDiscovered = router.isNeighbor || String(router.id || "").startsWith("discovered-");
+
+        return (
+            <div key={router.id || `${router.ip}-${depth}`} className={depth > 0 ? "ml-4 pl-4 border-l border-emerald-500/15" : ""}>
+                <div
+                    className={`rounded-xl transition border ${
+                        isSelected
+                            ? "bg-emerald-500/15 border-emerald-500/50 text-white shadow-md shadow-emerald-950/40"
+                            : "bg-transparent border-transparent hover:bg-brand-bgSecondary hover:border-brand-border text-brand-textSecondary hover:text-white"
+                    }`}
+                >
+                    <div className="flex items-stretch justify-between gap-2 px-3 py-2.5">
+                        <button
+                            type="button"
+                            onClick={() => handleSelectRouter(router)}
+                            className="flex min-w-0 flex-1 items-center space-x-3 text-left"
+                        >
+                            <div
+                                className={`h-8 w-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                                    isSelected
+                                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                                        : "bg-brand-bg border border-brand-border text-emerald-400 group-hover:border-emerald-500/40"
+                                }`}
+                            >
+                                μT
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center space-x-1.5">
+                                    <span className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-200"}`}>
+                                        {router.name}
+                                    </span>
+                                    {isDiscovered && (
+                                        <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold uppercase tracking-wider shrink-0">
+                                            Neighbor
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-[10px] text-brand-textSecondary truncate font-mono">
+                                    {router.model || "MikroTik"} • {router.location || "Data Center"}
+                                </div>
+                            </div>
+                        </button>
+
+                        <div className="flex items-center space-x-2 shrink-0 ml-2">
+                            <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                                isSelected
+                                    ? "bg-emerald-950 text-emerald-300 border-emerald-500/50 font-bold"
+                                    : "bg-brand-bg text-slate-300 border-brand-border"
+                            }`}>
+                                {router.ip}
+                            </span>
+
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleRouterNeighbors(router);
+                                }}
+                                className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                    isExpanded
+                                        ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
+                                        : "border-brand-border bg-brand-bg text-brand-textSecondary hover:border-emerald-500/40 hover:text-emerald-300"
+                                }`}
+                                title="Lihat neighbors"
+                            >
+                                <svg
+                                    className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {isExpanded && (
+                    <div className="mt-2 space-y-2">
+                        <div className="px-1 text-[10px] uppercase tracking-wider text-brand-textSecondary">
+                            {isLoading ? "Memuat neighbors..." : `${childRouters.length} Neighbor`}
+                        </div>
+
+                        {isLoading ? (
+                            <div className="px-3 py-2 text-xs text-brand-textSecondary">
+                                Mengambil data neighbors untuk {router.name}...
+                            </div>
+                        ) : childRouters.length > 0 ? (
+                            childRouters.map((childRouter) => renderRouterNode(childRouter, depth + 1, nextAncestry))
+                        ) : (
+                            <div className="px-3 py-2 text-xs text-brand-textSecondary">
+                                Tidak ada neighbors yang bisa dipilih.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
     };
 
     // Auto-refresh metrics every 10 seconds if connected
@@ -245,67 +428,8 @@ export default function MikrotikExplorer({
                                                 </span>
                                             </div>
 
-                                            <div className="max-h-[340px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                                                {(availableRouters || []).map((r) => {
-                                                    const isSelected = r.ip === currentHost;
-                                                    const isDiscovered = String(r.id).startsWith('discovered-');
-                                                    return (
-                                                        <button
-                                                            key={r.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setIsRouterDropdownOpen(false);
-                                                                window.location.href = route("mikrotik.index") + "?host=" + encodeURIComponent(r.ip);
-                                                            }}
-                                                            className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-center justify-between group ${
-                                                                isSelected
-                                                                    ? "bg-emerald-500/15 border border-emerald-500/50 text-white shadow-md shadow-emerald-950/50"
-                                                                    : "hover:bg-brand-bgSecondary hover:border hover:border-brand-border text-brand-textSecondary hover:text-white border border-transparent"
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-center space-x-3 min-w-0">
-                                                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
-                                                                    isSelected 
-                                                                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20" 
-                                                                        : "bg-brand-bg border border-brand-border text-emerald-400 group-hover:border-emerald-500/40"
-                                                                }`}>
-                                                                    μT
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <div className="flex items-center space-x-1.5">
-                                                                        <span className={`text-xs font-bold truncate ${isSelected ? "text-white" : "text-slate-200 group-hover:text-emerald-300"}`}>
-                                                                            {r.name}
-                                                                        </span>
-                                                                        {isDiscovered && (
-                                                                            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-bold uppercase tracking-wider shrink-0">
-                                                                                Neighbor
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-[10px] text-brand-textSecondary truncate font-mono">
-                                                                        {r.model || 'MikroTik'} • {r.location || 'Data Center'}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex items-center space-x-2 shrink-0 ml-2">
-                                                                <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
-                                                                    isSelected 
-                                                                        ? "bg-emerald-950 text-emerald-300 border-emerald-500/50 font-bold" 
-                                                                        : "bg-brand-bg text-slate-300 border-brand-border group-hover:border-brand-border"
-                                                                }`}>
-                                                                    {r.ip}
-                                                                </span>
-                                                                {isSelected && connection?.success && (
-                                                                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                                                )}
-                                                                {isSelected && !connection?.success && (
-                                                                    <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse"></span>
-                                                                )}
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
+                                            <div className="max-h-[340px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                                {(availableRouters || []).map((router) => renderRouterNode(router))}
                                             </div>
                                         </div>
                                     </>
