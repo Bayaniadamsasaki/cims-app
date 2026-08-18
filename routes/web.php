@@ -111,6 +111,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/maintenance/{id}', [\App\Http\Controllers\Web\MaintenanceWebController::class, 'update'])->name('maintenance.update');
     Route::delete('/maintenance/{id}', [\App\Http\Controllers\Web\MaintenanceWebController::class, 'destroy'])->name('maintenance.destroy');
 
+    // Laporan Speedtest Jaringan Bulanan
+    Route::prefix('speedtest-reports')->name('speedtest-reports.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'index'])->name('index');
+        Route::get('/export', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'exportCsv'])->name('export');
+        Route::post('/', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'store'])->name('store');
+        Route::post('/testers', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'storeTester'])->name('testers.store');
+        Route::delete('/testers/{id}', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'destroyTester'])->name('testers.destroy');
+        Route::post('/{id}', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'update'])->name('update');
+        Route::delete('/{id}', [\App\Http\Controllers\Web\SpeedtestReportWebController::class, 'destroy'])->name('destroy');
+    });
+
     // Reporting Routes
     Route::get('/reports', [\App\Http\Controllers\Web\ReportWebController::class, 'index'])->name('reports.index');
     Route::get('/reports/excel', [\App\Http\Controllers\Web\ReportWebController::class, 'exportExcel'])->name('reports.excel');

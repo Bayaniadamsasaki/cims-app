@@ -114,6 +114,16 @@ export default function AuthenticatedLayout({ header, children }) {
                     ),
                 },
                 {
+                    name: "Laporan Speedtest Bulanan",
+                    route: "speedtest-reports.index",
+                    matchPrefix: "speedtest-reports.",
+                    icon: (
+                        <svg className="h-5 w-5 mr-3 shrink-0 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    ),
+                },
+                {
                     name: "Reports & Export",
                     route: "reports.index",
                     icon: (
