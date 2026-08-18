@@ -187,7 +187,7 @@ export default function LineTrendChart({ title, subtitle, unit, data = [], serie
                             left: `${Math.min(88, Math.max(12, (xAt(hover) / VIEW.w) * 100))}%`,
                         }}
                     >
-                        <div className="text-[11px] font-bold text-white">{fmtDateShort(data[hover].date)}</div>
+                        <div className="text-[11px] font-bold text-slate-900">{fmtDateShort(data[hover].date)}</div>
                         <div className="mt-1 space-y-1">
                             {series.map((s) => (
                                 <div key={s.key} className="flex items-center justify-between gap-3 text-[11px]">
@@ -195,7 +195,7 @@ export default function LineTrendChart({ title, subtitle, unit, data = [], serie
                                         <span className="h-0.5 w-3 rounded-full" style={{ backgroundColor: s.color }} />
                                         {s.label}
                                     </span>
-                                    <span className="font-bold text-white tabular-nums">
+                                    <span className="font-bold text-slate-900 tabular-nums">
                                         {fmt(data[hover][s.key])} {unit}
                                     </span>
                                 </div>
@@ -216,7 +216,7 @@ function ChartHeading({ title, subtitle, series }) {
     return (
         <figcaption className="flex flex-wrap items-start justify-between gap-3">
             <div>
-                <h3 className="text-sm font-bold text-white">{title}</h3>
+                <h3 className="text-sm font-bold text-slate-900">{title}</h3>
                 {subtitle && <p className="text-[11px] text-brand-textSecondary mt-0.5">{subtitle}</p>}
             </div>
             {/* Legend wajib untuk 2 seri atau lebih; satu seri cukup dijelaskan judul */}

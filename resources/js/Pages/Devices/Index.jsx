@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -130,21 +130,21 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-white">
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
                             Device Inventory
                         </h2>
-                        <p className="text-sm text-brand-textSecondary">
-                            Manage all server hardware and networking equipment nodes.
+                        <p className="text-sm text-slate-500">
+                            Kelola semua perangkat server dan peralatan jaringan.
                         </p>
                     </div>
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={() => setIsImportModalOpen(true)}
-                            className="inline-flex items-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-4 py-2.5 text-sm font-bold text-emerald-400 shadow-md hover:bg-emerald-500 hover:text-slate-950 transition duration-150"
+                            className="inline-flex items-center rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition duration-150"
                         >
                             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -153,12 +153,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                         </button>
                         <button
                             onClick={handleOpenCreateModal}
-                            className="inline-flex items-center rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-bold text-slate-950 shadow-md hover:bg-brand-primaryHover transition duration-150"
+                            className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
                         >
                             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                             </svg>
-                            Add Device
+                            Tambah Perangkat
                         </button>
                     </div>
                 </div>
@@ -166,58 +166,57 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
         >
             <Head title="Device Inventory" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
                     
                     {/* Filters & Search */}
-                    <form onSubmit={handleSearch} className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-5 bg-brand-card p-4 rounded-2xl border border-brand-border shadow-lg">
+                    <form onSubmit={handleSearch} className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-5 bg-white p-4 rounded-2xl border border-slate-200">
                         <div className="sm:col-span-2">
-                            <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Search Query</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Cari Perangkat</label>
                             <input
                                 type="text"
-                                placeholder="Search by name, IP, hostname..."
+                                placeholder="Cari nama, IP, hostname..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Category</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value)}
-                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                             >
-                                <option value="">All Categories</option>
-                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                <option value="" className="bg-white text-slate-800">Semua Kategori</option>
+                                {categories.map(c => <option key={c.id} value={c.id} className="bg-white text-slate-800">{c.name}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Gedung</label>
                             <select
                                 value={selectedBuilding}
                                 onChange={(e) => setSelectedBuilding(e.target.value)}
-                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                             >
-                                <option value="">All Buildings</option>
-                                {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                <option value="" className="bg-white text-slate-800">Semua Gedung</option>
+                                {buildings.map(b => <option key={b.id} value={b.id} className="bg-white text-slate-800">{b.name}</option>)}
                             </select>
                         </div>
                         <div className="flex items-end">
                             <button
                                 type="submit"
-                                className="w-full rounded-xl bg-brand-primary/15 border border-brand-primary/20 hover:bg-brand-primary hover:text-slate-950 px-4 py-2.5 text-sm font-semibold text-brand-primary shadow transition duration-150"
+                                className="w-full rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-600 hover:text-white px-4 py-2.5 text-sm font-semibold text-blue-700 transition duration-150"
                             >
-                                Filter Inventory
+                                Filter Inventaris
                             </button>
                         </div>
                     </form>
 
                     {/* Inventory Table */}
-                    <div className="overflow-hidden rounded-2xl bg-brand-card border border-brand-border shadow-xl">
+                    <div className="overflow-hidden rounded-2xl bg-white border border-slate-200">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-brand-border text-left">
-                                <thead className="bg-brand-bgSecondary/40">
+                            <table className="min-w-full divide-y divide-slate-200 text-left">
+                                <thead className="bg-slate-50">
                                     <tr>
                                         <th className="py-4 pl-6 pr-3 text-xs font-bold text-brand-textSecondary">Perangkat & Board</th>
                                         <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Hostname / IP Utama</th>
@@ -238,24 +237,24 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                             #{idx + 1}
                                                         </div>
                                                         <div>
-                                                            <div className="font-bold text-white flex items-center gap-2">
+                                                            <div className="font-bold text-slate-900 flex items-center gap-2">
                                                                 {device.name}
                                                             </div>
                                                             <div className="text-xs text-brand-textSecondary mt-0.5 flex items-center gap-1.5">
-                                                                <span className="bg-brand-bg px-1.5 py-0.5 rounded text-emerald-400 font-mono text-[11px]">{device.model || 'MikroTik'}</span>
+                                                                <span className="bg-brand-bg px-1.5 py-0.5 rounded text-emerald-700 font-mono text-[11px]">{device.model || 'MikroTik'}</span>
                                                                 <span>• {device.vendor?.name || 'MikroTik'}</span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    <div className="font-mono text-xs font-semibold text-emerald-400">{device.ip_address || '-'}</div>
+                                                    <div className="font-mono text-xs font-semibold text-emerald-700">{device.ip_address || '-'}</div>
                                                     <div className="text-xs text-brand-textMuted mt-0.5 font-mono">{device.hostname || '-'}</div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    <div className="font-bold text-white flex items-center space-x-1.5">
+                                                    <div className="font-bold text-slate-900 flex items-center space-x-1.5">
                                                         {device.room?.code && (
-                                                            <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                                                            <span className="bg-cyan-500/15 text-cyan-700 border border-cyan-500/30 px-1.5 py-0.5 rounded text-[11px] font-mono">
                                                                 {device.room.code}
                                                             </span>
                                                         )}
@@ -266,11 +265,11 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                     </div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    <div className="font-mono text-xs text-white">{device.serial_number || '-'}</div>
+                                                    <div className="font-mono text-xs text-slate-900">{device.serial_number || '-'}</div>
                                                     <div className="text-xs text-brand-textMuted mt-0.5 font-mono">User: {device.username || '-'}</div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    <span className="inline-flex items-center rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 text-xs font-bold text-indigo-300">
+                                                    <span className="inline-flex items-center rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-1 text-xs font-bold text-indigo-700">
                                                         {device.device_interfaces?.length || 0} Ports
                                                     </span>
                                                 </td>
@@ -279,8 +278,8 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                         device.status === 'active' 
                                                             ? 'bg-emerald-500/10 text-emerald-450 border-emerald-500/20' 
                                                             : device.status === 'maintenance' 
-                                                            ? 'bg-amber-500/10 text-amber-450 border-amber-500/20' 
-                                                            : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
+                                                            ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' 
+                                                            : 'bg-rose-500/10 text-red-700 border-rose-500/20'
                                                     }`}>
                                                         {device.status.charAt(0).toUpperCase() + device.status.slice(1)}
                                                     </span>
@@ -289,7 +288,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                     <div className="flex justify-end space-x-1.5">
                                                         <button
                                                             onClick={() => setViewingDevice(device)}
-                                                            className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 px-2.5 py-1.5 text-xs font-bold transition flex items-center"
+                                                            className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 hover:bg-emerald-500 hover:text-white px-2.5 py-1.5 text-xs font-bold transition flex items-center"
                                                         >
                                                             <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -299,13 +298,13 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                         </button>
                                                         <button
                                                             onClick={() => handleOpenEditModal(device)}
-                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-slate-950 px-2.5 py-1.5 text-xs font-bold transition"
+                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
                                                         >
                                                             Edit
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(device.id)}
-                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-450 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
+                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-red-700 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
                                                         >
                                                             Delete
                                                         </button>
@@ -324,17 +323,16 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </table>
                         </div>
                     </div>
-                </div>
             </div>
 
             {/* Create/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 flex items-center justify-center p-4 backdrop-blur-md">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
                     <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl bg-brand-card border border-brand-border shadow-2xl">
                         {/* Modal Header — fixed */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border bg-brand-bgSecondary/40 shrink-0">
                             <div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-slate-900">
                                     {editingDevice ? 'Edit Data Perangkat Inventaris' : 'Tambah Perangkat Inventaris Manual'}
                                 </h3>
                                 <p className="text-xs text-brand-textSecondary mt-0.5">
@@ -343,7 +341,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </div>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-white transition text-2xl font-bold"
+                                className="text-brand-textSecondary hover:text-slate-900 transition text-2xl font-bold"
                             >
                                 &times;
                             </button>
@@ -354,7 +352,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             <div className="overflow-y-auto px-6 py-5 space-y-6 flex-1">
                                 {/* Group 1: Identitas & Jenis Perangkat */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
                                         1. Identitas & Hardware (Merek / Board)
                                     </h4>
@@ -367,9 +365,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: Router MikroTik RB450Gx4"
                                                 value={data.name}
                                                 onChange={(e) => setData('name', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             />
-                                            {errors.name && <span className="text-xs text-rose-450 mt-1 block">{errors.name}</span>}
+                                            {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">kode (Hostname)</label>
@@ -378,9 +376,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: R"
                                                 value={data.hostname}
                                                 onChange={(e) => setData('hostname', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             />
-                                            {errors.hostname && <span className="text-xs text-rose-450 mt-1 block">{errors.hostname}</span>}
+                                            {errors.hostname && <span className="text-xs text-red-700 mt-1 block">{errors.hostname}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Jenis Perangkat (Category)*</label>
@@ -388,12 +386,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 required
                                                 value={data.device_category_id}
                                                 onChange={(e) => setData('device_category_id', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="">-- Pilih Jenis Perangkat --</option>
                                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                             </select>
-                                            {errors.device_category_id && <span className="text-xs text-rose-450 mt-1 block">{errors.device_category_id}</span>}
+                                            {errors.device_category_id && <span className="text-xs text-red-700 mt-1 block">{errors.device_category_id}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Merek (Vendor)*</label>
@@ -401,12 +399,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 required
                                                 value={data.vendor_id}
                                                 onChange={(e) => setData('vendor_id', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="">-- Pilih Merek --</option>
                                                 {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                                             </select>
-                                            {errors.vendor_id && <span className="text-xs text-rose-450 mt-1 block">{errors.vendor_id}</span>}
+                                            {errors.vendor_id && <span className="text-xs text-red-700 mt-1 block">{errors.vendor_id}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Board (Model Hardware)</label>
@@ -415,9 +413,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: RB450Gx4"
                                                 value={data.model}
                                                 onChange={(e) => setData('model', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             />
-                                            {errors.model && <span className="text-xs text-rose-450 mt-1 block">{errors.model}</span>}
+                                            {errors.model && <span className="text-xs text-red-700 mt-1 block">{errors.model}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">SN (Serial Number)</label>
@@ -426,16 +424,16 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: HD508CJZHSR"
                                                 value={data.serial_number}
                                                 onChange={(e) => setData('serial_number', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                             />
-                                            {errors.serial_number && <span className="text-xs text-rose-450 mt-1 block">{errors.serial_number}</span>}
+                                            {errors.serial_number && <span className="text-xs text-red-700 mt-1 block">{errors.serial_number}</span>}
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Group 2: Spesifikasi Software & Kredensial Akses */}
                                 <div className="border-t border-brand-border/60 pt-4">
-                                    <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
                                         2. Software (Patch) & Kredensial Akses
                                     </h4>
@@ -447,7 +445,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: RouterOS 7.14"
                                                 value={data.firmware}
                                                 onChange={(e) => setData('firmware', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             />
                                         </div>
                                         <div>
@@ -457,7 +455,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: admin"
                                                 value={data.username}
                                                 onChange={(e) => setData('username', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                             />
                                         </div>
                                         <div>
@@ -467,7 +465,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder={editingDevice ? 'Kosongkan jika tak diubah' : 'Ketik password'}
                                                 value={data.password}
                                                 onChange={(e) => setData('password', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                             />
                                         </div>
                                     </div>
@@ -475,7 +473,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
                                 {/* Group 3: Posisi Perangkat & Network IP */}
                                 <div className="border-t border-brand-border/60 pt-4">
-                                    <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-amber-400"></span>
                                         3. Posisi Perangkat (Lokasi) & Network IP
                                     </h4>
@@ -505,12 +503,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                         return updated;
                                                     });
                                                 }}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="">-- Pilih Gedung --</option>
                                                 {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                             </select>
-                                            {errors.building_id && <span className="text-xs text-rose-450 mt-1 block">{errors.building_id}</span>}
+                                            {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Lantai (Floor)</label>
@@ -529,7 +527,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                         return updated;
                                                     });
                                                 }}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="">-- Pilih Lantai --</option>
                                                 {floors.filter(f => f.building_id == data.building_id).map(f => (
@@ -545,7 +543,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                     const rId = e.target.value;
                                                     setData(prev => ({ ...prev, room_id: rId, rack_id: '' }));
                                                 }}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="">-- Pilih Ruangan / Kode --</option>
                                                 {rooms.filter(r => r.floor_id == data.floor_id).map(r => (
@@ -564,12 +562,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: 118.98.127.16 atau 118.98.127.16:8729"
                                                 value={data.ip_address}
                                                 onChange={(e) => setData('ip_address', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                             />
                                             <span className="text-[10px] text-brand-textMuted mt-1 block">
                                                 Gunakan format <code>IP:Port</code> jika port API RouterOS disesuaikan.
                                             </span>
-                                            {errors.ip_address && <span className="text-xs text-rose-450 mt-1 block">{errors.ip_address}</span>}
+                                            {errors.ip_address && <span className="text-xs text-red-700 mt-1 block">{errors.ip_address}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">MAC Address Utama</label>
@@ -578,16 +576,16 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 placeholder="Contoh: 48:8E:EF:00:11:22"
                                                 value={data.mac_address}
                                                 onChange={(e) => setData('mac_address', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary font-mono"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                             />
-                                            {errors.mac_address && <span className="text-xs text-rose-450 mt-1 block">{errors.mac_address}</span>}
+                                            {errors.mac_address && <span className="text-xs text-red-700 mt-1 block">{errors.mac_address}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Status Operasional</label>
                                             <select
                                                 value={data.status}
                                                 onChange={(e) => setData('status', e.target.value)}
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                             >
                                                 <option value="active">Active / Normal</option>
                                                 <option value="maintenance">Maintenance</option>
@@ -607,7 +605,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 onChange={(e) => setData('image', e.target.files[0])}
                                                 className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20"
                                             />
-                                            {errors.image && <span className="text-xs text-rose-450 mt-1 block">{errors.image}</span>}
+                                            {errors.image && <span className="text-xs text-red-700 mt-1 block">{errors.image}</span>}
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Catatan / Detail Tambahan (Notes / Bandwidth)</label>
@@ -616,7 +614,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 onChange={(e) => setData('notes', e.target.value)}
                                                 rows="2"
                                                 placeholder="Contoh: Bandwidth: 1 Gbps / Catatan lokasi khusus"
-                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                             ></textarea>
                                         </div>
                                     </div>
@@ -635,7 +633,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-slate-950 shadow transition duration-150"
+                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-white shadow transition duration-150"
                                 >
                                     {editingDevice ? 'Simpan Perubahan' : 'Simpan Perangkat Baru'}
                                 </button>
@@ -647,25 +645,25 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
             {/* Import Excel Modal */}
             {isImportModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
                     <div className="w-full max-w-lg rounded-2xl bg-brand-card border border-brand-border shadow-2xl">
                         <div className="flex justify-between items-center px-6 py-4 border-b border-brand-border">
-                            <h3 className="text-lg font-bold text-white flex items-center">
-                                <svg className="h-5 w-5 mr-2 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                                <svg className="h-5 w-5 mr-2 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                 </svg>
                                 Import Data Inventaris (.xlsx)
                             </h3>
                             <button
                                 onClick={() => setIsImportModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-white text-xl font-bold"
+                                className="text-brand-textSecondary hover:text-slate-900 text-xl font-bold"
                             >
                                 &times;
                             </button>
                         </div>
                         <form onSubmit={handleImportSubmit} className="p-6 space-y-4">
                             <p className="text-sm text-brand-textSecondary">
-                                Unggah file Excel inventaris (seperti <code className="text-emerald-400 bg-brand-bg px-1.5 py-0.5 rounded">Inventaris Jaringan UBG.xlsx</code>). Sistem CIMS akan memproses lembar <strong>GEDUNG & RUANGAN</strong> serta <strong>Router</strong> secara otomatis.
+                                Unggah file Excel inventaris (seperti <code className="text-emerald-700 bg-brand-bg px-1.5 py-0.5 rounded">Inventaris Jaringan UBG.xlsx</code>). Sistem CIMS akan memproses lembar <strong>GEDUNG & RUANGAN</strong> serta <strong>Router</strong> secara otomatis.
                             </p>
 
                             <div>
@@ -674,9 +672,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                     type="file"
                                     accept=".xlsx, .xls"
                                     onChange={(e) => importForm.setData('file', e.target.files[0])}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-brand-textSecondary file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20"
+                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-brand-textSecondary file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-500/10 file:text-emerald-700 hover:file:bg-emerald-500/20"
                                 />
-                                {importForm.errors.file && <span className="text-xs text-rose-450 mt-1 block">{importForm.errors.file}</span>}
+                                {importForm.errors.file && <span className="text-xs text-red-700 mt-1 block">{importForm.errors.file}</span>}
                             </div>
 
                             <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
@@ -690,7 +688,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 <button
                                     type="submit"
                                     disabled={importForm.processing || !importForm.data.file}
-                                    className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-sm font-bold text-slate-950 shadow transition duration-150 disabled:opacity-50"
+                                    className="rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2.5 text-sm font-bold text-white shadow transition duration-150 disabled:opacity-50"
                                 >
                                     {importForm.processing ? 'Mengimport...' : 'Mulai Import Excel'}
                                 </button>
@@ -702,12 +700,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
             {/* View Device Detail Modal */}
             {viewingDevice && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 flex items-center justify-center p-4 backdrop-blur-md">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
                     <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl bg-brand-card border border-brand-border shadow-2xl overflow-hidden">
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border bg-brand-bgSecondary/40 shrink-0">
                             <div>
-                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                                     <span className="bg-brand-primary/10 text-brand-primary border border-brand-primary/20 px-2 py-0.5 rounded text-xs font-mono">
                                         {viewingDevice.model || 'Device'}
                                     </span>
@@ -719,7 +717,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </div>
                             <button
                                 onClick={() => setViewingDevice(null)}
-                                className="text-brand-textSecondary hover:text-white transition text-2xl font-bold"
+                                className="text-brand-textSecondary hover:text-slate-900 transition text-2xl font-bold"
                             >
                                 &times;
                             </button>
@@ -731,58 +729,58 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-brand-bg/60 p-4 rounded-xl border border-brand-border/60">
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">kode (Hostname)</span>
-                                    <span className="font-mono text-white font-semibold">{viewingDevice.hostname || '-'}</span>
+                                    <span className="font-mono text-slate-900 font-semibold">{viewingDevice.hostname || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Posisi Perangkat (Kode Tempat)</span>
-                                    <span className="font-semibold text-cyan-300">
+                                    <span className="font-semibold text-cyan-700">
                                         {viewingDevice.room?.code ? `[${viewingDevice.room.code}] ` : ''}
                                         {viewingDevice.building?.name || '-'} ({viewingDevice.room?.name || viewingDevice.floor?.name || '-'})
                                     </span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Jenis Perangkat</span>
-                                    <span className="text-white font-medium">{viewingDevice.category?.name || 'Router'}</span>
+                                    <span className="text-slate-900 font-medium">{viewingDevice.category?.name || 'Router'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Merek</span>
-                                    <span className="text-white font-medium">{viewingDevice.vendor?.name || 'MikroTik'}</span>
+                                    <span className="text-slate-900 font-medium">{viewingDevice.vendor?.name || 'MikroTik'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Board (Model)</span>
-                                    <span className="font-mono text-emerald-400 font-semibold">{viewingDevice.model || '-'}</span>
+                                    <span className="font-mono text-emerald-700 font-semibold">{viewingDevice.model || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Bandwith</span>
-                                    <span className="text-white font-medium">
+                                    <span className="text-slate-900 font-medium">
                                         {viewingDevice.notes?.includes('Bandwidth:') ? viewingDevice.notes.split('Bandwidth:')[1].trim() : '-'}
                                     </span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Versi Software (Patch/Firmware)</span>
-                                    <span className="font-mono text-white">{viewingDevice.firmware || '-'}</span>
+                                    <span className="font-mono text-slate-900">{viewingDevice.firmware || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">SN (Serial Number)</span>
-                                    <span className="font-mono text-amber-300 font-semibold">{viewingDevice.serial_number || '-'}</span>
+                                    <span className="font-mono text-amber-700 font-semibold">{viewingDevice.serial_number || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Kredensial Akses</span>
-                                    <span className="font-mono text-white text-xs">
+                                    <span className="font-mono text-slate-900 text-xs">
                                         User: <strong>{viewingDevice.username || '-'}</strong> | Pass: <span className="text-brand-textMuted italic">Terenkripsi</span>
                                     </span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">IP Utama</span>
-                                    <span className="font-mono text-emerald-400 font-bold">{viewingDevice.ip_address || '-'}</span>
+                                    <span className="font-mono text-emerald-700 font-bold">{viewingDevice.ip_address || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">MAC Address Utama</span>
-                                    <span className="font-mono text-white">{viewingDevice.mac_address || '-'}</span>
+                                    <span className="font-mono text-slate-900">{viewingDevice.mac_address || '-'}</span>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-brand-textSecondary">Status Operasional & Kondisi</span>
-                                    <span className="inline-flex items-center rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400 capitalize">
+                                    <span className="inline-flex items-center rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-700 capitalize">
                                         {viewingDevice.status} • Normal
                                     </span>
                                 </div>
@@ -790,7 +788,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
                             {/* Section Interfaces */}
                             <div>
-                                <h4 className="text-sm font-bold text-white mb-3 flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center justify-between">
                                     <span className="flex items-center">
                                         <svg className="w-4 h-4 mr-1.5 text-brand-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -814,20 +812,20 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             {viewingDevice.device_interfaces && viewingDevice.device_interfaces.length > 0 ? (
                                                 viewingDevice.device_interfaces.map((iface) => (
                                                     <tr key={iface.id} className="hover:bg-brand-bgSecondary/20">
-                                                        <td className="py-2 px-3 font-bold text-white">{iface.interface_name}</td>
+                                                        <td className="py-2 px-3 font-bold text-slate-900">{iface.interface_name}</td>
                                                         <td className="py-2 px-3">{iface.mac_address || '-'}</td>
-                                                        <td className="py-2 px-3 text-emerald-400 font-bold">
+                                                        <td className="py-2 px-3 text-emerald-700 font-bold">
                                                             {iface.ip_address ? `${iface.ip_address}${iface.subnet || ''}` : '-'}
                                                         </td>
-                                                        <td className="py-2 px-3 text-cyan-300">
+                                                        <td className="py-2 px-3 text-cyan-700">
                                                             {iface.description?.includes('Bridge:') ? iface.description.split('Bridge:')[1].trim() : '-'}
                                                         </td>
                                                         <td className="py-2 px-3">{iface.interface_type || 'Ethernet'}</td>
                                                         <td className="py-2 px-3">
                                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                                                 iface.interface_status === 'up' 
-                                                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                                                                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                                                    ? 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30' 
+                                                                    : 'bg-rose-500/20 text-rose-700 border border-rose-500/30'
                                                             }`}>
                                                                 {iface.interface_status === 'up' ? 'Aktif' : 'Nonaktif'}
                                                             </span>
@@ -851,7 +849,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                         <div className="flex justify-end px-6 py-4 border-t border-brand-border bg-brand-bgSecondary/20 shrink-0">
                             <button
                                 onClick={() => setViewingDevice(null)}
-                                className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-slate-950 shadow transition duration-150"
+                                className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-white shadow transition duration-150"
                             >
                                 Tutup Detail
                             </button>
@@ -859,6 +857,6 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                     </div>
                 </div>
             )}
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

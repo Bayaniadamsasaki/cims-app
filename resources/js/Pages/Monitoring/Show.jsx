@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, Link } from '@inertiajs/react';
 
 export default function Show({ device = {}, historyLogs = [] }) {
@@ -29,30 +29,30 @@ export default function Show({ device = {}, historyLogs = [] }) {
     const ramPoints = getSvgPoints('ram_usage_percent', 100);
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <Link
                             href={route('monitoring.index')}
-                            className="p-2 rounded-xl bg-brand-bgSecondary border border-brand-border text-brand-textSecondary hover:text-white hover:bg-brand-card transition"
+                            className="p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition"
                         >
-                            ← Back
+                            ← Kembali
                         </Link>
                         <div>
-                            <h2 className="text-2xl font-bold tracking-tight text-white">
-                                Telemetry Details: {device.name}
+                            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                                Detail Telemetri: {device.name}
                             </h2>
-                            <p className="text-sm text-brand-textSecondary">
-                                Physical host node historical charts and SNMP metrics.
+                            <p className="text-sm text-slate-500">
+                                Grafik riwayat host fisik dan metrik SNMP.
                             </p>
                         </div>
                     </div>
                     <div>
                         <span className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-bold border ${
                             device.status === 'active' 
-                                ? 'bg-emerald-500/10 text-emerald-450 border-emerald-500/20' 
-                                : 'bg-rose-500/10 text-rose-450 border-rose-500/20'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-red-50 text-red-700 border-red-200'
                         }`}>
                             Status: {device.status === 'active' ? 'ONLINE' : 'OFFLINE'}
                         </span>
@@ -62,24 +62,23 @@ export default function Show({ device = {}, historyLogs = [] }) {
         >
             <Head title={`Telemetry - ${device.name}`} />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
                     
                     {/* Top Device Specs Grid */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary font-bold">Network Address</div>
-                            <div className="text-lg font-bold font-mono text-white mt-1">{device.ip_address || '-'}</div>
+                            <div className="text-lg font-bold font-mono text-slate-900 mt-1">{device.ip_address || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">MAC: {device.mac_address || '-'}</div>
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary font-bold">Hardware Model</div>
-                            <div className="text-lg font-bold text-white mt-1 truncate">{device.model || '-'}</div>
+                            <div className="text-lg font-bold text-slate-900 mt-1 truncate">{device.model || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">SN: {device.serial_number || '-'}</div>
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary font-bold">Location Zone</div>
-                            <div className="text-lg font-bold text-white mt-1">{device.building?.name || '-'}</div>
+                            <div className="text-lg font-bold text-slate-900 mt-1">{device.building?.name || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">Rack Node: {device.rack?.name || '-'}</div>
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
@@ -98,7 +97,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                         
                         {/* Ping Latency Trend */}
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
-                            <h3 className="text-sm font-bold text-white mb-4">ICMP Latency Trend (24 Hours)</h3>
+                            <h3 className="text-sm font-bold text-slate-900 mb-4">ICMP Latency Trend (24 Hours)</h3>
                             {historyLogs.length > 0 && latencyPoints ? (
                                 <div className="w-full h-40 bg-brand-bgSecondary/30 rounded-xl border border-brand-border/40 p-2 flex items-center justify-center">
                                     <svg className="w-full h-full" viewBox="0 0 500 150" preserveAspectRatio="none">
@@ -123,7 +122,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
 
                         {/* CPU & RAM Utilization Trend */}
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
-                            <h3 className="text-sm font-bold text-white mb-4">CPU & RAM load Trend (24 Hours)</h3>
+                            <h3 className="text-sm font-bold text-slate-900 mb-4">CPU & RAM load Trend (24 Hours)</h3>
                             {historyLogs.length > 0 && cpuPoints ? (
                                 <div className="w-full h-40 bg-brand-bgSecondary/30 rounded-xl border border-brand-border/40 p-2 flex items-center justify-center">
                                     <svg className="w-full h-full" viewBox="0 0 500 150" preserveAspectRatio="none">
@@ -165,7 +164,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
 
                     {/* Historical Log Points Table */}
                     <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
-                        <h3 className="text-lg font-bold text-white mb-6">Historical Log Points</h3>
+                        <h3 className="text-lg font-bold text-slate-900 mb-6">Historical Log Points</h3>
                         
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-brand-border text-left">
@@ -186,7 +185,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                                                 <td className="whitespace-nowrap py-3 pl-6 pr-3 text-brand-textSecondary">
                                                     {new Date(log.checked_at).toLocaleString()}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-3 font-mono text-white">
+                                                <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">
                                                     {log.ping_latency_ms ? `${log.ping_latency_ms} ms` : '-'}
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-3 font-semibold text-brand-primary">
@@ -220,7 +219,6 @@ export default function Show({ device = {}, historyLogs = [] }) {
                     </div>
 
                 </div>
-            </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

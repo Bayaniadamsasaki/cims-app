@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -67,76 +67,75 @@ export default function Vendors({ vendors = [] }) {
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-white">
-                            Vendors Master Data
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                            Data Master Vendor
                         </h2>
-                        <p className="text-sm text-brand-textSecondary">
-                            Manage hardware suppliers, manufacturing vendors, and support contact details.
+                        <p className="text-sm text-slate-500">
+                            Kelola pemasok perangkat keras, vendor manufaktur, dan rincian kontak dukungan.
                         </p>
                     </div>
                     <button
                         onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-bold text-slate-950 shadow-md hover:bg-brand-primaryHover transition duration-150"
+                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
                     >
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Add Vendor
+                        Tambah Vendor
                     </button>
                 </div>
             }
         >
-            <Head title="Vendors Master" />
+            <Head title="Master Vendor" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
                     
                     {/* Vendors Table */}
-                    <div className="overflow-hidden rounded-2xl bg-brand-card border border-brand-border shadow-xl">
+                    <div className="overflow-hidden rounded-2xl bg-white border border-slate-200">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-brand-border text-left">
-                                <thead className="bg-brand-bgSecondary/40">
+                            <table className="min-w-full divide-y divide-slate-200 text-left">
+                                <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="py-4 pl-6 pr-3 text-xs font-bold text-brand-textSecondary">Name</th>
-                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Contact Person</th>
-                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Email</th>
-                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Phone</th>
-                                        <th className="py-4 pl-3 pr-6 text-right text-xs font-bold text-brand-textSecondary">Actions</th>
+                                        <th className="py-4 pl-6 pr-3 text-xs font-bold text-slate-600">Nama Vendor</th>
+                                        <th className="px-3 py-4 text-xs font-bold text-slate-600">Kontak Person</th>
+                                        <th className="px-3 py-4 text-xs font-bold text-slate-600">Email</th>
+                                        <th className="px-3 py-4 text-xs font-bold text-slate-600">No. Telepon</th>
+                                        <th className="py-4 pl-3 pr-6 text-right text-xs font-bold text-slate-600">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-brand-border/60">
+                                <tbody className="divide-y divide-slate-100">
                                     {vendors.length > 0 ? (
                                         vendors.map((vendor) => (
-                                            <tr key={vendor.id} className="hover:bg-brand-bgSecondary/30 transition">
-                                                <td className="whitespace-nowrap py-4 pl-6 pr-3 text-sm font-bold text-white">
+                                            <tr key={vendor.id} className="hover:bg-slate-50/80 transition">
+                                                <td className="whitespace-nowrap py-4 pl-6 pr-3 text-sm font-bold text-slate-900">
                                                     {vendor.name}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                     {vendor.contact_person || '-'}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                     {vendor.email || '-'}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary font-mono">
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 font-mono">
                                                     {vendor.phone || '-'}
                                                 </td>
                                                 <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
                                                     <div className="flex justify-end space-x-2">
                                                         <button
                                                             onClick={() => handleOpenEditModal(vendor)}
-                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-slate-950 px-3 py-1.5 text-xs font-semibold transition"
+                                                            className="rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
                                                         >
                                                             Edit
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(vendor.id)}
-                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-450 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
+                                                            className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
                                                         >
-                                                            Delete
+                                                            Hapus
                                                         </button>
                                                     </div>
                                                 </td>
@@ -144,8 +143,8 @@ export default function Vendors({ vendors = [] }) {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="text-center py-8 text-brand-textSecondary text-sm">
-                                                No vendors registered yet.
+                                            <td colSpan="5" className="text-center py-8 text-slate-500 text-sm">
+                                                Belum ada vendor terdaftar.
                                             </td>
                                         </tr>
                                     )}
@@ -153,20 +152,19 @@ export default function Vendors({ vendors = [] }) {
                             </table>
                         </div>
                     </div>
-                </div>
             </div>
 
             {/* Create/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-brand-card border border-brand-border p-6 shadow-2xl">
-                        <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
-                            <h3 className="text-lg font-bold text-white">
-                                {editingVendor ? 'Modify Vendor Info' : 'Register New Support Vendor'}
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
+                    <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6 shadow-xl">
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
+                            <h3 className="text-lg font-bold text-slate-900">
+                                {editingVendor ? 'Edit Data Vendor' : 'Tambah Vendor Baru'}
                             </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-white transition"
+                                className="text-slate-400 hover:text-slate-700 transition"
                             >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -176,86 +174,86 @@ export default function Vendors({ vendors = [] }) {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Vendor Name*</label>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Vendor*</label>
                                 <input
                                     type="text"
                                     required
-                                    placeholder="e.g. Cisco Systems"
+                                    placeholder="Contoh: Mikrotik / Cisco / Ruijie"
                                     value={data.name}
                                     onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                 />
-                                {errors.name && <span className="text-xs text-rose-450 mt-1 block">{errors.name}</span>}
+                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Contact Person</label>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Kontak Person (CP)</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. John Doe"
+                                    placeholder="Contoh: Budi (Sales Support)"
                                     value={data.contact_person}
                                     onChange={(e) => setData('contact_person', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                 />
-                                {errors.contact_person && <span className="text-xs text-rose-450 mt-1 block">{errors.contact_person}</span>}
+                                {errors.contact_person && <span className="text-xs text-red-700 mt-1 block">{errors.contact_person}</span>}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Email</label>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Alamat Email</label>
                                 <input
                                     type="email"
-                                    placeholder="e.g. support@vendor.com"
+                                    placeholder="Contoh: support@vendor.com"
                                     value={data.email}
                                     onChange={(e) => setData('email', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                 />
-                                {errors.email && <span className="text-xs text-rose-450 mt-1 block">{errors.email}</span>}
+                                {errors.email && <span className="text-xs text-red-700 mt-1 block">{errors.email}</span>}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Phone Number</label>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">No. Telepon / WA</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. +62 812-3456-7890"
+                                    placeholder="Contoh: 081234567890"
                                     value={data.phone}
                                     onChange={(e) => setData('phone', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
                                 />
-                                {errors.phone && <span className="text-xs text-rose-450 mt-1 block">{errors.phone}</span>}
+                                {errors.phone && <span className="text-xs text-red-700 mt-1 block">{errors.phone}</span>}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Address</label>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Alamat</label>
                                 <textarea
                                     value={data.address}
                                     onChange={(e) => setData('address', e.target.value)}
                                     rows="2"
-                                    placeholder="Corporate headquarter or repair center address..."
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    placeholder="Alamat kantor atau pusat perbaikan vendor..."
+                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
                                 ></textarea>
-                                {errors.address && <span className="text-xs text-rose-450 mt-1 block">{errors.address}</span>}
+                                {errors.address && <span className="text-xs text-red-700 mt-1 block">{errors.address}</span>}
                             </div>
 
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
+                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition"
+                                    className="rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition"
                                 >
-                                    Cancel
+                                    Batal
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-slate-950 shadow transition duration-150"
+                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150"
                                 >
-                                    {editingVendor ? 'Save Changes' : 'Register Vendor'}
+                                    {editingVendor ? 'Simpan Perubahan' : 'Tambah Vendor'}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

@@ -47,14 +47,16 @@ class MikrotikWebController extends Controller
                 'ip' => $envHost,
             ];
 
-        // 2. Ambil router dari database
-        $dbRouters = \App\Models\Device::with('building')->where(function ($query) {
-            $query->whereHas('category', function ($q) {
-                $q->where('name', 'like', '%router%')
-                  ->orWhere('name', 'like', '%mikrotik%')
-                  ->orWhere('name', 'like', '%core%');
-            })->orWhere('name', 'like', '%mikrotik%');
-        })->get();
+        // 2. Ambil router dari database yang khusus vendor/kategori MikroTik
+        $dbRouters = \App\Models\Device::with(['building', 'vendor', 'category'])
+            ->where(function ($query) {
+                $query->whereHas('vendor', function ($q) {
+                    $q->where('name', 'like', '%mikrotik%');
+                })->orWhereHas('category', function ($q) {
+                    $q->where('name', 'like', '%mikrotik%');
+                });
+            })
+            ->get();
 
         foreach ($dbRouters as $r) {
             if ($r->ip_address && !in_array($r->ip_address, $addedIps)) {

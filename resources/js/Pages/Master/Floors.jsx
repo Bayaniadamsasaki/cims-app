@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -59,33 +59,32 @@ export default function Floors({ floors = [], buildings = [] }) {
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-white">
-                            Floors Master Data
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                            Data Master Lantai
                         </h2>
-                        <p className="text-sm text-brand-textSecondary">
-                            Configure floor levels for placement within buildings.
+                        <p className="text-sm text-slate-500">
+                            Konfigurasi tingkat lantai untuk penempatan di dalam gedung.
                         </p>
                     </div>
                     <button
                         onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-bold text-slate-950 shadow-md hover:bg-brand-primaryHover transition duration-150"
+                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
                     >
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Add Floor
+                        Tambah Lantai
                     </button>
                 </div>
             }
         >
-            <Head title="Floors Master" />
+            <Head title="Master Lantai" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
                     
                     {/* Floors Table */}
                     <div className="overflow-hidden rounded-2xl bg-brand-card border border-brand-border shadow-xl">
@@ -107,7 +106,7 @@ export default function Floors({ floors = [], buildings = [] }) {
                                                 <td className="whitespace-nowrap py-4 pl-6 pr-3 text-sm font-semibold text-brand-primary">
                                                     {floor.building?.name || `Building ID: ${floor.building_id}`}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-white font-semibold">
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-900 font-semibold">
                                                     {floor.name}
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
@@ -120,13 +119,13 @@ export default function Floors({ floors = [], buildings = [] }) {
                                                     <div className="flex justify-end space-x-2">
                                                         <button
                                                             onClick={() => handleOpenEditModal(floor)}
-                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-slate-950 px-3 py-1.5 text-xs font-semibold transition"
+                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white px-3 py-1.5 text-xs font-semibold transition"
                                                         >
                                                             Edit
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(floor.id)}
-                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-450 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
+                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-red-700 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
                                                         >
                                                             Delete
                                                         </button>
@@ -145,20 +144,19 @@ export default function Floors({ floors = [], buildings = [] }) {
                             </table>
                         </div>
                     </div>
-                </div>
             </div>
 
             {/* Create/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 flex items-center justify-center p-4 backdrop-blur-md">
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
                     <div className="relative w-full max-w-md rounded-2xl bg-brand-card border border-brand-border p-6 shadow-2xl">
                         <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
-                            <h3 className="text-lg font-bold text-white">
+                            <h3 className="text-lg font-bold text-slate-900">
                                 {editingFloor ? 'Modify Floor Info' : 'Register New Floor'}
                             </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-white transition"
+                                className="text-brand-textSecondary hover:text-slate-900 transition"
                             >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -173,7 +171,7 @@ export default function Floors({ floors = [], buildings = [] }) {
                                     required
                                     value={data.building_id}
                                     onChange={(e) => setData('building_id', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                 >
                                     <option value="" disabled>Select Building</option>
                                     {buildings.map((building) => (
@@ -182,7 +180,7 @@ export default function Floors({ floors = [], buildings = [] }) {
                                         </option>
                                     ))}
                                 </select>
-                                {errors.building_id && <span className="text-xs text-rose-450 mt-1 block">{errors.building_id}</span>}
+                                {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
                             </div>
 
                             <div>
@@ -193,9 +191,9 @@ export default function Floors({ floors = [], buildings = [] }) {
                                     placeholder="e.g. Lantai 1"
                                     value={data.name}
                                     onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                 />
-                                {errors.name && <span className="text-xs text-rose-450 mt-1 block">{errors.name}</span>}
+                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
                             </div>
 
                             <div>
@@ -206,9 +204,9 @@ export default function Floors({ floors = [], buildings = [] }) {
                                     placeholder="e.g. 1"
                                     value={data.level}
                                     onChange={(e) => setData('level', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                 />
-                                {errors.level && <span className="text-xs text-rose-450 mt-1 block">{errors.level}</span>}
+                                {errors.level && <span className="text-xs text-red-700 mt-1 block">{errors.level}</span>}
                             </div>
 
                             <div>
@@ -218,9 +216,9 @@ export default function Floors({ floors = [], buildings = [] }) {
                                     onChange={(e) => setData('description', e.target.value)}
                                     rows="3"
                                     placeholder="Describe the usage or location details..."
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-white focus:border-brand-primary focus:ring-brand-primary"
+                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                 ></textarea>
-                                {errors.description && <span className="text-xs text-rose-450 mt-1 block">{errors.description}</span>}
+                                {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
                             </div>
 
                             <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
@@ -234,7 +232,7 @@ export default function Floors({ floors = [], buildings = [] }) {
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-slate-950 shadow transition duration-150"
+                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white shadow transition duration-150"
                                 >
                                     {editingFloor ? 'Save Changes' : 'Register Floor'}
                                 </button>
@@ -243,6 +241,6 @@ export default function Floors({ floors = [], buildings = [] }) {
                     </div>
                 </div>
             )}
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

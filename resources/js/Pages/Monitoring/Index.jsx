@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -21,38 +21,37 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-white">
-                            Live Infrastructure Monitoring
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                            Pemantauan Infrastruktur Langsung
                         </h2>
-                        <p className="text-sm text-brand-textSecondary">
-                            Real-time ICMP/SNMP status, packet latency, CPU load, and hardware health metrics.
+                        <p className="text-sm text-slate-500">
+                            Status ICMP/SNMP real-time, latensi paket, beban CPU, dan kesehatan perangkat keras.
                         </p>
                     </div>
                     <button
                         onClick={handleScanNow}
                         disabled={scanning}
-                        className={`inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-bold text-slate-950 shadow-md transition duration-150 ${
+                        className={`inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150 ${
                             scanning 
-                                ? 'bg-brand-primary/50 cursor-not-allowed' 
-                                : 'bg-brand-primary hover:bg-brand-primaryHover'
+                                ? 'bg-blue-400 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-700'
                         }`}
                     >
                         <svg className={`h-5 w-5 mr-2 ${scanning ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18" />
                         </svg>
-                        {scanning ? 'Scanning Nodes...' : 'Scan Now'}
+                        {scanning ? 'Memindai Perangkat...' : 'Pindai Sekarang'}
                     </button>
                 </div>
             }
         >
             <Head title="Live Monitoring" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
                     
                     {/* Summary Counters */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
@@ -69,7 +68,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
                             <div className="text-xs font-semibold text-brand-textSecondary uppercase tracking-wider">Active Device Nodes</div>
                             <div className="flex items-baseline mt-2">
-                                <span className="text-4xl font-extrabold text-white">{summary.online}</span>
+                                <span className="text-4xl font-extrabold text-slate-900">{summary.online}</span>
                                 <span className="text-xs text-brand-textSecondary ml-2">/ {summary.total} Live</span>
                             </div>
                             <div className="flex items-center space-x-1.5 text-xs text-emerald-450 mt-4 font-semibold">
@@ -80,7 +79,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
                             <div className="text-xs font-semibold text-brand-textSecondary uppercase tracking-wider">Offline Nodes</div>
                             <div className="flex items-baseline mt-2">
-                                <span className={`text-4xl font-extrabold ${summary.offline > 0 ? 'text-rose-450' : 'text-brand-textMuted'}`}>{summary.offline}</span>
+                                <span className={`text-4xl font-extrabold ${summary.offline > 0 ? 'text-red-700' : 'text-brand-textMuted'}`}>{summary.offline}</span>
                                 <span className="text-xs text-brand-textSecondary ml-2">requiring inspection</span>
                             </div>
                             <div className="text-xs text-brand-textMuted mt-4">
@@ -94,7 +93,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                         
                         {/* Device Monitoring Table (Left 2 Columns) */}
                         <div className="lg:col-span-2 rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
-                            <h3 className="text-lg font-bold text-white mb-6">Device Node Telemetry</h3>
+                            <h3 className="text-lg font-bold text-slate-900 mb-6">Device Node Telemetry</h3>
                             
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-brand-border text-left">
@@ -119,7 +118,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                             return (
                                                 <tr key={device.id} className="hover:bg-brand-bgSecondary/30 transition">
                                                     <td className="whitespace-nowrap py-4 pr-3 text-sm">
-                                                        <div className="font-bold text-white">{device.name}</div>
+                                                        <div className="font-bold text-slate-900">{device.name}</div>
                                                         <div className="text-xs text-brand-textSecondary font-mono mt-0.5">{device.ip_address}</div>
                                                     </td>
                                                     <td className="whitespace-nowrap px-3 py-4 text-sm">
@@ -143,7 +142,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                                         {isOnline && cpu !== null ? (
                                                             <div className="flex items-center space-x-2">
                                                                 <span className={`text-xs font-semibold font-mono ${
-                                                                    cpu > 80 ? 'text-rose-450' : cpu > 50 ? 'text-amber-400' : 'text-emerald-450'
+                                                                    cpu > 80 ? 'text-red-700' : cpu > 50 ? 'text-amber-700' : 'text-emerald-450'
                                                                 }`}>{cpu}%</span>
                                                                 <div className="w-12 bg-brand-bgSecondary rounded-full h-1 overflow-hidden">
                                                                     <div className={`h-1 rounded-full ${
@@ -166,7 +165,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                                     <td className="whitespace-nowrap py-4 text-right text-sm">
                                                         <button
                                                             onClick={() => router.get(route('monitoring.show', device.id))}
-                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-slate-950 px-3 py-1 text-xs font-bold transition"
+                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white px-3 py-1 text-xs font-bold transition"
                                                         >
                                                             Graphs
                                                         </button>
@@ -186,13 +185,13 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                             <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
-                                        <h3 className="text-sm font-bold text-white">ISP Gateway Bandwidth</h3>
+                                        <h3 className="text-sm font-bold text-slate-900">ISP Gateway Bandwidth</h3>
                                         <p className="text-[10px] text-brand-textSecondary">Measure actual campus gateway speeds.</p>
                                     </div>
                                     <button
                                         onClick={handleRunSpeedtest}
                                         disabled={testingSpeed}
-                                        className={`rounded-lg px-2.5 py-1 text-xs font-bold text-slate-950 transition duration-150 ${
+                                        className={`rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900 transition duration-150 ${
                                             testingSpeed
                                                 ? 'bg-brand-primary/40 cursor-not-allowed'
                                                 : 'bg-brand-primary hover:bg-brand-primaryHover'
@@ -205,7 +204,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                 {testingSpeed ? (
                                     <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
                                         <div className="h-10 w-10 rounded-full border-4 border-brand-primary/20 border-t-brand-primary animate-spin"></div>
-                                        <div className="text-xs font-semibold text-white animate-pulse">Running Speedtest...</div>
+                                        <div className="text-xs font-semibold text-slate-900 animate-pulse">Running Speedtest...</div>
                                         <div className="text-[9px] text-brand-textMuted">Measuring download and upload throughput.</div>
                                     </div>
                                 ) : latestSpeedtest ? (
@@ -214,20 +213,20 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                             <div className="bg-brand-bgSecondary/60 border border-brand-border rounded-xl p-3 text-center">
                                                 <div className="text-[10px] text-brand-textSecondary uppercase">Download</div>
                                                 <div className="text-xl font-black text-brand-primary mt-1 font-mono">
-                                                    {latestSpeedtest.download_speed_mbps} <span className="text-[10px] font-normal text-white">Mbps</span>
+                                                    {latestSpeedtest.download_speed_mbps} <span className="text-[10px] font-normal text-slate-900">Mbps</span>
                                                 </div>
                                             </div>
                                             <div className="bg-brand-bgSecondary/60 border border-brand-border rounded-xl p-3 text-center">
                                                 <div className="text-[10px] text-brand-textSecondary uppercase">Upload</div>
-                                                <div className="text-xl font-black text-white mt-1 font-mono">
+                                                <div className="text-xl font-black text-slate-900 mt-1 font-mono">
                                                     {latestSpeedtest.upload_speed_mbps} <span className="text-[10px] font-normal text-brand-textSecondary">Mbps</span>
                                                 </div>
                                             </div>
                                         </div>
                                         
                                         <div className="flex justify-between items-center text-[10px] text-brand-textSecondary border-t border-brand-border/40 pt-3">
-                                            <span>Ping: <strong className="text-white font-mono">{latestSpeedtest.ping_ms} ms</strong></span>
-                                            <span className="truncate max-w-[120px]" title={latestSpeedtest.isp}>ISP: <strong className="text-white">{latestSpeedtest.isp}</strong></span>
+                                            <span>Ping: <strong className="text-slate-900 font-mono">{latestSpeedtest.ping_ms} ms</strong></span>
+                                            <span className="truncate max-w-[120px]" title={latestSpeedtest.isp}>ISP: <strong className="text-slate-900">{latestSpeedtest.isp}</strong></span>
                                         </div>
                                     </div>
                                 ) : (
@@ -245,7 +244,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
 
                             {/* Live Alert Console System Logs */}
                             <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg flex flex-col">
-                                <h3 className="text-sm font-bold text-white mb-1">Live Alert Console</h3>
+                                <h3 className="text-sm font-bold text-slate-900 mb-1">Live Alert Console</h3>
                                 <p className="text-[10px] text-brand-textSecondary mb-4">Critical system notifications and triggers.</p>
                                 
                                 <div className="space-y-3 overflow-y-auto max-h-[300px] pr-1">
@@ -258,13 +257,13 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                             }`}>
                                                 <div className="flex items-center justify-between">
                                                     <span className={`text-[9px] uppercase font-bold tracking-wider ${
-                                                        alert.type === 'critical' ? 'text-rose-450' : 'text-amber-400'
+                                                        alert.type === 'critical' ? 'text-red-700' : 'text-amber-700'
                                                     }`}>
                                                         {alert.type}
                                                     </span>
                                                     <span className="text-[9px] text-brand-textMuted">{alert.timestamp}</span>
                                                 </div>
-                                                <div className="text-xs font-bold text-white mt-1">{alert.device_name}</div>
+                                                <div className="text-xs font-bold text-slate-900 mt-1">{alert.device_name}</div>
                                                 <div className="text-xs text-brand-textSecondary mt-0.5">{alert.message}</div>
                                             </div>
                                         ))
@@ -273,7 +272,7 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                             <div className="h-6 w-6 rounded-full bg-brand-primary/10 border border-brand-primary/25 flex items-center justify-center text-brand-primary mb-2 text-xs">
                                                 ✓
                                             </div>
-                                            <div className="text-xs font-bold text-white">All systems normal</div>
+                                            <div className="text-xs font-bold text-slate-900">All systems normal</div>
                                             <div className="text-[10px] text-brand-textSecondary mt-0.5">No critical alerts detected.</div>
                                         </div>
                                     )}
@@ -284,7 +283,6 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                     </div>
 
                 </div>
-            </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

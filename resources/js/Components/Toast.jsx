@@ -87,8 +87,8 @@ const ToastItem = ({ toast, onClose }) => {
 
     const styles = {
         success: {
-            bg: 'bg-emerald-950/80 border-emerald-500/30 text-emerald-300 shadow-emerald-950/40',
-            bar: 'bg-emerald-400',
+            bg: 'bg-white border-emerald-200 text-emerald-700',
+            bar: 'bg-emerald-500',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -96,8 +96,8 @@ const ToastItem = ({ toast, onClose }) => {
             )
         },
         error: {
-            bg: 'bg-rose-950/80 border-rose-500/30 text-rose-300 shadow-rose-950/40',
-            bar: 'bg-rose-450',
+            bg: 'bg-white border-red-200 text-red-700',
+            bar: 'bg-red-500',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -105,8 +105,8 @@ const ToastItem = ({ toast, onClose }) => {
             )
         },
         info: {
-            bg: 'bg-sky-950/80 border-sky-500/30 text-sky-300 shadow-sky-950/40',
-            bar: 'bg-sky-400',
+            bg: 'bg-white border-blue-200 text-blue-700',
+            bar: 'bg-blue-500',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -114,8 +114,8 @@ const ToastItem = ({ toast, onClose }) => {
             )
         },
         warning: {
-            bg: 'bg-amber-950/80 border-amber-500/30 text-amber-300 shadow-amber-950/40',
-            bar: 'bg-amber-400',
+            bg: 'bg-white border-amber-200 text-amber-700',
+            bar: 'bg-amber-500',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -128,19 +128,19 @@ const ToastItem = ({ toast, onClose }) => {
 
     return (
         <div
-            className={`pointer-events-auto relative overflow-hidden rounded-xl border p-4 shadow-xl backdrop-blur-md transition-all duration-300 flex items-start space-x-3 w-full ${
+            className={`pointer-events-auto relative overflow-hidden rounded-xl border p-4 shadow-lg transition-all duration-300 flex items-start space-x-3 w-full ${
                 config.bg
             } ${
-                isExiting 
-                    ? 'opacity-0 translate-x-10 scale-95' 
+                isExiting
+                    ? 'opacity-0 translate-x-10 scale-95'
                     : 'opacity-100 translate-x-0 scale-100 animate-slide-in'
             }`}
         >
             <div className="shrink-0 mt-0.5">{config.icon}</div>
-            <div className="flex-1 text-xs font-semibold leading-relaxed pr-2">{toast.message}</div>
+            <div className="flex-1 text-xs font-semibold leading-relaxed pr-2 text-slate-700">{toast.message}</div>
             <button
                 onClick={handleClose}
-                className="shrink-0 text-white/40 hover:text-white transition-colors"
+                className="shrink-0 text-slate-400 transition-colors hover:text-slate-900"
             >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />

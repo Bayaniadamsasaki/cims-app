@@ -78,18 +78,18 @@ export default function ReportFormModal({ mode = "create", report = null, tester
     const previewName = data.screenshot?.name ?? (existingUrl ? report.screenshot_name : null);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
             <div className="my-8 w-full max-w-3xl rounded-2xl border border-brand-border bg-brand-card p-6 shadow-2xl">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h3 className="text-lg font-bold text-white">
+                        <h3 className="text-lg font-bold text-slate-900">
                             {isEdit ? "Edit Laporan Speedtest" : "Tambah Laporan Speedtest"}
                         </h3>
                         <p className="mt-0.5 text-xs text-brand-textSecondary">
                             Nomor laporan dibuat otomatis oleh sistem, tidak perlu diisi manual.
                         </p>
                     </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-white" aria-label="Tutup form">
+                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-slate-900" aria-label="Tutup form">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -249,10 +249,10 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                                     type="file"
                                     accept="image/jpeg,image/png,image/webp"
                                     onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-                                    className="w-full text-xs text-brand-textSecondary file:mr-3 file:rounded-xl file:border-0 file:bg-brand-primary file:px-4 file:py-2 file:text-xs file:font-bold file:text-slate-950 hover:file:bg-brand-primaryHover"
+                                    className="w-full text-xs text-brand-textSecondary file:mr-3 file:rounded-xl file:border-0 file:bg-brand-primary file:px-4 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-brand-primaryHover"
                                 />
                                 <p className="text-[10px] text-brand-textMuted">Format JPG, JPEG, PNG, atau WEBP. Maksimal 4 MB.</p>
-                                {previewName && <p className="truncate text-[11px] font-semibold text-white">{previewName}</p>}
+                                {previewName && <p className="truncate text-[11px] font-semibold text-slate-900">{previewName}</p>}
 
                                 <div className="flex flex-wrap gap-2">
                                     {previewUrl && (
@@ -260,7 +260,7 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                                             href={previewUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-sky-400 transition hover:border-sky-500/50"
+                                            className="rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-sky-700 transition hover:border-sky-500/50"
                                         >
                                             Preview
                                         </a>
@@ -278,15 +278,15 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                                         <button
                                             type="button"
                                             onClick={removeExisting}
-                                            className="rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-rose-400 transition hover:border-rose-500/50"
+                                            className="rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-rose-700 transition hover:border-rose-500/50"
                                         >
                                             Hapus / Ganti
                                         </button>
                                     )}
                                 </div>
-                                {errors.screenshot && <p className="text-[11px] font-semibold text-rose-400">{errors.screenshot}</p>}
+                                {errors.screenshot && <p className="text-[11px] font-semibold text-rose-700">{errors.screenshot}</p>}
                                 {data.remove_screenshot && (
-                                    <p className="text-[11px] font-semibold text-amber-400">
+                                    <p className="text-[11px] font-semibold text-amber-700">
                                         Screenshot lama akan dihapus saat perubahan disimpan.
                                     </p>
                                 )}
@@ -295,13 +295,13 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                     </div>
 
                     <div className="flex items-center justify-end gap-2 border-t border-brand-border pt-4">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-white">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900">
                             Batal
                         </button>
                         <button
                             type="submit"
                             disabled={processing}
-                            className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-brand-primaryHover disabled:opacity-60"
+                            className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60"
                         >
                             {processing ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Laporan"}
                         </button>
@@ -317,7 +317,7 @@ function Field({ label, error, htmlFor, children }) {
         <div>
             <label className={labelClass} htmlFor={htmlFor}>{label}</label>
             {children}
-            {error && <p className="mt-1 text-[11px] font-semibold text-rose-400">{error}</p>}
+            {error && <p className="mt-1 text-[11px] font-semibold text-rose-700">{error}</p>}
         </div>
     );
 }

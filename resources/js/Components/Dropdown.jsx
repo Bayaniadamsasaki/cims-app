@@ -39,7 +39,7 @@ const Content = ({
     align = 'right',
     width = '48',
     placement = 'bottom',
-    contentClasses = 'py-1 bg-brand-cardElevated border border-brand-border',
+    contentClasses = 'py-1 bg-white border border-brand-border',
     children,
 }) => {
     const { open, setOpen } = useContext(DropDownContext);
@@ -72,12 +72,12 @@ const Content = ({
                 leaveTo="opacity-0 scale-95"
             >
                 <div
-                    className={`absolute z-50 rounded-xl shadow-2xl ${placementClasses} ${alignmentClasses} ${widthClasses}`}
+                    className={`absolute z-50 rounded-xl shadow-xl ${placementClasses} ${alignmentClasses} ${widthClasses}`}
                     onClick={() => setOpen(false)}
                 >
                     <div
                         className={
-                            `rounded-xl ring-1 ring-black ring-opacity-5 ` +
+                            `rounded-xl ring-1 ring-slate-900/5 ` +
                             contentClasses
                         }
                     >
@@ -94,7 +94,7 @@ const DropdownLink = ({ className = '', children, ...props }) => {
         <Link
             {...props}
             className={
-                'block w-full px-4 py-2.5 text-start text-sm leading-5 text-brand-textSecondary transition duration-150 ease-in-out hover:bg-brand-primary hover:text-slate-950 focus:bg-brand-primary focus:text-slate-950 focus:outline-none first:rounded-t-xl last:rounded-b-xl ' +
+                'block w-full px-4 py-2.5 text-start text-sm leading-5 text-brand-textSecondary transition duration-150 ease-in-out hover:bg-slate-50 hover:text-slate-900 focus:bg-slate-50 focus:text-slate-900 focus:outline-none first:rounded-t-xl last:rounded-b-xl ' +
                 className
             }
         >

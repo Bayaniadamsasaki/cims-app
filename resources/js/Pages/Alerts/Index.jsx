@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
 
@@ -108,21 +108,21 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
         switch (severity) {
             case "CRITICAL":
                 return (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/30 inline-flex items-center">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-700 border border-red-500/30 inline-flex items-center">
                         <span className="h-2 w-2 rounded-full bg-red-400 mr-1.5 animate-ping"></span>
                         CRITICAL
                     </span>
                 );
             case "WARNING":
                 return (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 inline-flex items-center">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 border border-amber-500/30 inline-flex items-center">
                         <span className="h-2 w-2 rounded-full bg-amber-400 mr-1.5"></span>
                         WARNING
                     </span>
                 );
             default:
                 return (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/30 inline-flex items-center">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-700 border border-blue-500/30 inline-flex items-center">
                         <span className="h-2 w-2 rounded-full bg-blue-400 mr-1.5"></span>
                         INFO
                     </span>
@@ -131,8 +131,8 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
     };
 
     return (
-        <AuthenticatedLayout user={auth.user}>
-            <Head title="Security & Anomaly Alerts Center" />
+        <CimsLayout>
+            <Head title="Pusat Peringatan Keamanan & Anomali" />
 
             <div className="space-y-6">
                 {/* Toast Notification Alert */}
@@ -140,8 +140,8 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                     <div
                         className={`p-4 rounded-xl border flex items-center justify-between text-sm transition ${
                             toastType === "error"
-                                ? "bg-red-500/10 border-red-500/30 text-red-400"
-                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                ? "bg-red-500/10 border-red-500/30 text-red-700"
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
                         }`}
                     >
                         <div className="flex items-center space-x-3">
@@ -157,15 +157,15 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-card border border-brand-border p-6 rounded-2xl">
                     <div className="flex items-center space-x-4">
-                        <div className="h-12 w-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-2xl">
+                        <div className="h-12 w-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-700 font-bold text-2xl">
                             🚨
                         </div>
                         <div>
                             <div className="flex items-center space-x-3">
-                                <h1 className="text-2xl font-bold text-white tracking-wide">
+                                <h1 className="text-2xl font-bold text-slate-900 tracking-wide">
                                     Security & Anomaly Alerts Center
                                 </h1>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-700 border border-red-500/30">
                                     Live Log Threat Scanner
                                 </span>
                             </div>
@@ -184,23 +184,23 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                                     </span>
-                                    <span className="text-emerald-400 font-bold">Auto Syncing ({countdown}s)</span>
+                                    <span className="text-emerald-700 font-bold">Auto Syncing ({countdown}s)</span>
                                 </>
                             ) : (
                                 <>
                                     <span className="h-2.5 w-2.5 rounded-full bg-zinc-500"></span>
-                                    <span className="text-zinc-400 font-semibold">Auto-Sync Off</span>
+                                    <span className="text-slate-500 font-semibold">Auto-Sync Off</span>
                                 </>
                             )}
                             <span className="text-zinc-600">•</span>
-                            <span className="text-zinc-400 font-mono">Last: {lastRefreshedAt}</span>
+                            <span className="text-slate-500 font-mono">Last: {lastRefreshedAt}</span>
                         </div>
 
                         {/* Interval Selector Dropdown */}
                         <select
                             value={autoRefresh ? refreshInterval : 0}
                             onChange={(e) => handleIntervalChange(e.target.value)}
-                            className="bg-brand-bg border border-brand-border text-white text-xs rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                            className="bg-brand-bg border border-brand-border text-slate-900 text-xs rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
                         >
                             <option value="10">Auto Refresh: 10s</option>
                             <option value="15">Auto Refresh: 15s</option>
@@ -238,51 +238,51 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                     <div className="bg-brand-card border border-brand-border p-4 rounded-2xl flex items-center justify-between">
                         <div>
                             <div className="text-xs text-brand-textSecondary uppercase font-semibold">Total Detected</div>
-                            <div className="text-2xl font-bold text-white mt-1">{stats.total_alerts || 0}</div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1">{stats.total_alerts || 0}</div>
                         </div>
-                        <div className="p-3 bg-brand-bgSecondary rounded-xl text-amber-400 font-bold">⚠️</div>
+                        <div className="p-3 bg-brand-bgSecondary rounded-xl text-amber-700 font-bold">⚠️</div>
                     </div>
 
                     <div className="bg-brand-card border border-brand-border p-4 rounded-2xl flex items-center justify-between">
                         <div>
                             <div className="text-xs text-brand-textSecondary uppercase font-semibold">Critical Threats</div>
-                            <div className="text-2xl font-bold text-red-400 mt-1">{stats.critical_count || 0}</div>
+                            <div className="text-2xl font-bold text-red-700 mt-1">{stats.critical_count || 0}</div>
                         </div>
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 font-bold">🛡️</div>
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-700 font-bold">🛡️</div>
                     </div>
 
                     <div className="bg-brand-card border border-brand-border p-4 rounded-2xl flex items-center justify-between">
                         <div>
                             <div className="text-xs text-brand-textSecondary uppercase font-semibold">Warning Overloads</div>
-                            <div className="text-2xl font-bold text-amber-400 mt-1">{stats.warning_count || 0}</div>
+                            <div className="text-2xl font-bold text-amber-700 mt-1">{stats.warning_count || 0}</div>
                         </div>
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 font-bold">⚡</div>
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-700 font-bold">⚡</div>
                     </div>
 
                     <div className="bg-brand-card border border-brand-border p-4 rounded-2xl flex items-center justify-between">
                         <div>
                             <div className="text-xs text-brand-textSecondary uppercase font-semibold">Info Events</div>
-                            <div className="text-2xl font-bold text-blue-400 mt-1">{stats.info_count || 0}</div>
+                            <div className="text-2xl font-bold text-blue-700 mt-1">{stats.info_count || 0}</div>
                         </div>
-                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 font-bold">ℹ️</div>
+                        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-700 font-bold">ℹ️</div>
                     </div>
                 </div>
 
                 {/* Telegram Bot Integration Status Bar */}
                 <div className="bg-brand-card border border-brand-border p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center space-x-3">
-                        <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-400 text-2xl font-bold">
+                        <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-700 text-2xl font-bold">
                             ✈️
                         </div>
                         <div>
                             <div className="flex items-center space-x-2">
-                                <h3 className="font-bold text-white text-base">Telegram Instant Alert Channel</h3>
+                                <h3 className="font-bold text-slate-900 text-base">Telegram Instant Alert Channel</h3>
                                 {telegramStatus?.configured ? (
-                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/30">
                                         Connected ({telegramStatus.chat_id})
                                     </span>
                                 ) : (
-                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/30">
                                         Not Configured (.env)
                                     </span>
                                 )}
@@ -317,7 +317,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                                     filterSeverity === btn.id
                                         ? "bg-purple-600 text-white"
-                                        : "bg-brand-bg text-brand-textSecondary hover:text-white hover:bg-brand-cardElevated"
+                                        : "bg-brand-bg text-brand-textSecondary hover:text-slate-900 hover:bg-brand-cardElevated"
                                 }`}
                             >
                                 {btn.label}
@@ -331,7 +331,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                     {filteredAlerts.length === 0 ? (
                         <div className="bg-brand-card border border-brand-border p-12 text-center rounded-2xl text-brand-textSecondary">
                             <div className="text-4xl mb-2">🎉</div>
-                            <div className="font-bold text-white text-base">No Security Anomalies Detected</div>
+                            <div className="font-bold text-slate-900 text-base">No Security Anomalies Detected</div>
                             <p className="text-xs mt-1">All MikroTik logs, CPU loads, and inventory devices are operating normally.</p>
                         </div>
                     ) : (
@@ -349,7 +349,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
                                     <div className="flex items-center space-x-3">
                                         {getSeverityBadge(item.severity)}
-                                        <h3 className="font-bold text-white text-base">{item.title}</h3>
+                                        <h3 className="font-bold text-slate-900 text-base">{item.title}</h3>
                                     </div>
                                     <div className="flex items-center space-x-3 text-xs text-brand-textSecondary font-mono">
                                         <span>🖥️ {item.device}</span>
@@ -363,7 +363,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                 </div>
 
                                 {item.suggestion && (
-                                    <div className="flex items-start space-x-2 text-xs bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl text-purple-300">
+                                    <div className="flex items-start space-x-2 text-xs bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl text-purple-700">
                                         <span className="font-bold">💡 Recommended Action:</span>
                                         <span>{item.suggestion}</span>
                                     </div>
@@ -372,7 +372,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                 <div className="flex justify-end pt-1">
                                     <button
                                         onClick={() => handleResolveAlert(item.id)}
-                                        className="px-3 py-1.5 bg-brand-bgSecondary hover:bg-brand-cardElevated border border-brand-border text-white text-xs font-medium rounded-lg transition"
+                                        className="px-3 py-1.5 bg-brand-bgSecondary hover:bg-brand-cardElevated border border-brand-border text-slate-900 text-xs font-medium rounded-lg transition"
                                     >
                                         Acknowledge & Mark Resolved ✓
                                     </button>
@@ -382,6 +382,6 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                     )}
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

@@ -29,16 +29,16 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
     };
 
     return (
-        <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
             <div className="my-8 w-full max-w-lg rounded-2xl border border-brand-border bg-brand-card p-6 shadow-2xl">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h3 className="text-lg font-bold text-white">Kelola Penguji</h3>
+                        <h3 className="text-lg font-bold text-slate-900">Kelola Penguji</h3>
                         <p className="mt-0.5 text-xs text-brand-textSecondary">
                             Nama yang ditambahkan di sini langsung tersedia pada dropdown Penguji.
                         </p>
                     </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-white" aria-label="Tutup pengelolaan penguji">
+                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-slate-900" aria-label="Tutup pengelolaan penguji">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -60,12 +60,12 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                         <button
                             type="submit"
                             disabled={processing}
-                            className="shrink-0 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-brand-primaryHover disabled:opacity-60"
+                            className="shrink-0 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60"
                         >
                             Tambah
                         </button>
                     </div>
-                    {errors.name && <p className="mt-1 text-[11px] font-semibold text-rose-400">{errors.name}</p>}
+                    {errors.name && <p className="mt-1 text-[11px] font-semibold text-rose-700">{errors.name}</p>}
                 </form>
 
                 <ul className="mt-5 divide-y divide-brand-border/60 rounded-xl border border-brand-border">
@@ -75,7 +75,7 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                     {testers.map((tester) => (
                         <li key={tester.id} className="flex items-center justify-between gap-3 px-4 py-3">
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-bold text-white">{tester.name}</p>
+                                <p className="truncate text-sm font-bold text-slate-900">{tester.name}</p>
                                 <p className="text-[11px] text-brand-textSecondary">
                                     {tester.reports_count ?? 0} laporan
                                 </p>
@@ -88,7 +88,7 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                                 <button
                                     type="button"
                                     onClick={() => remove(tester)}
-                                    className="shrink-0 rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-rose-400 transition hover:border-rose-500/50"
+                                    className="shrink-0 rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-rose-700 transition hover:border-rose-500/50"
                                 >
                                     Hapus
                                 </button>
@@ -101,7 +101,7 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-xl border border-brand-border px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-white"
+                        className="rounded-xl border border-brand-border px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900"
                     >
                         Selesai
                     </button>

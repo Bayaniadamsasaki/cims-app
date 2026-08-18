@@ -12,7 +12,7 @@ export default function ScreenshotLightbox({ report, onClose }) {
 
     return (
         <div
-            className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-slate-900/80 p-4 backdrop-blur-sm"
             onClick={onClose}
             role="dialog"
             aria-modal="true"
@@ -20,7 +20,7 @@ export default function ScreenshotLightbox({ report, onClose }) {
         >
             <div className="flex w-full max-w-5xl items-start justify-between gap-4" onClick={(e) => e.stopPropagation()}>
                 <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-white">{report.screenshot_name}</p>
+                    <p className="truncate text-sm font-bold text-slate-900">{report.screenshot_name}</p>
                     <p className="mt-0.5 text-xs text-brand-textSecondary">
                         {report.location} &middot; {report.ssid} &middot; {report.tested_at_display}
                     </p>
@@ -37,14 +37,14 @@ export default function ScreenshotLightbox({ report, onClose }) {
                         href={report.screenshot_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-lg border border-brand-border bg-brand-card px-3 py-1.5 text-[11px] font-bold text-sky-400 transition hover:border-sky-500/50"
+                        className="rounded-lg border border-brand-border bg-brand-card px-3 py-1.5 text-[11px] font-bold text-sky-700 transition hover:border-sky-500/50"
                     >
                         Buka Tab Baru
                     </a>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg border border-brand-border bg-brand-card p-1.5 text-brand-textSecondary transition hover:text-white"
+                        className="rounded-lg border border-brand-border bg-brand-card p-1.5 text-brand-textSecondary transition hover:text-slate-900"
                         aria-label="Tutup pratinjau"
                     >
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

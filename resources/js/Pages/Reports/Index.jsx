@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -51,28 +51,27 @@ export default function Index({ buildings = [] }) {
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-white">
-                        Reports & Export Hub
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                        Pusat Laporan & Ekspor
                     </h2>
-                    <p className="text-sm text-brand-textSecondary">
-                        Configure query filters and generate high-fidelity PDF documents or standard Excel sheets.
+                    <p className="text-sm text-slate-500">
+                        Konfigurasi filter kueri dan buat dokumen PDF atau file Excel standar.
                     </p>
                 </div>
             }
         >
-            <Head title="Reports & Export" />
+            <Head title="Laporan & Ekspor" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         
                         {/* Configuration Form (Left 2 columns) */}
                         <div className="md:col-span-2 rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg space-y-6">
-                            <h3 className="text-base font-bold text-white border-b border-brand-border/40 pb-3">
+                            <h3 className="text-base font-bold text-slate-900 border-b border-brand-border/40 pb-3">
                                 1. Select Filter Configurations
                             </h3>
 
@@ -98,7 +97,7 @@ export default function Index({ buildings = [] }) {
                                                 className={`p-4 rounded-xl border text-left flex flex-col justify-between transition ${
                                                     reportType === t.id
                                                         ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
-                                                        : 'bg-brand-bgSecondary/40 border-brand-border text-brand-textSecondary hover:text-white hover:border-brand-textMuted'
+                                                        : 'bg-brand-bgSecondary/40 border-brand-border text-brand-textSecondary hover:text-slate-900 hover:border-brand-textMuted'
                                                 }`}
                                             >
                                                 <span className="text-xs font-bold block">{t.label}</span>
@@ -117,7 +116,7 @@ export default function Index({ buildings = [] }) {
                                         <select
                                             value={selectedBuilding}
                                             onChange={(e) => setSelectedBuilding(e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2.5 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2.5 px-3 focus:outline-none focus:border-brand-primary text-sm"
                                         >
                                             <option value="">All Buildings / Locations</option>
                                             {buildings.map((b) => (
@@ -135,7 +134,7 @@ export default function Index({ buildings = [] }) {
                                     <select
                                         value={selectedStatus}
                                         onChange={(e) => setSelectedStatus(e.target.value)}
-                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2.5 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2.5 px-3 focus:outline-none focus:border-brand-primary text-sm"
                                     >
                                         <option value="">All Status Levels</option>
                                         {getStatusOptions().map((opt) => (
@@ -149,7 +148,7 @@ export default function Index({ buildings = [] }) {
                         {/* Export Action Card (Right 1 column) */}
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg flex flex-col justify-between">
                             <div>
-                                <h3 className="text-sm font-bold text-white border-b border-brand-border/40 pb-3 mb-4">
+                                <h3 className="text-sm font-bold text-slate-900 border-b border-brand-border/40 pb-3 mb-4">
                                     2. Action Outputs
                                 </h3>
                                 <p className="text-xs text-brand-textSecondary leading-relaxed mb-6">
@@ -160,7 +159,7 @@ export default function Index({ buildings = [] }) {
                             <div className="space-y-3">
                                 <button
                                     onClick={handleExportExcel}
-                                    className="w-full inline-flex items-center justify-center rounded-xl bg-brand-primary hover:bg-brand-primaryHover text-slate-950 py-3 text-xs font-bold shadow-md transition duration-150"
+                                    className="w-full inline-flex items-center justify-center rounded-xl bg-brand-primary hover:bg-brand-primaryHover text-white py-3 text-xs font-bold shadow-md transition duration-150"
                                 >
                                     <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -182,7 +181,6 @@ export default function Index({ buildings = [] }) {
                     </div>
 
                 </div>
-            </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

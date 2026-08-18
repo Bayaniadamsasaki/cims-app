@@ -51,17 +51,17 @@ export default function Login({ status, canResetPassword }) {
                         <div>
                             <div className="flex items-center space-x-3">
                                 <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center shadow-lg shadow-brand-primary/25">
-                                    <svg className="h-6 w-6 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <svg className="h-6 w-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25A2.25 2.25 0 015.25 3h13.5A2.25 2.25 0 0121 5.25z" />
                                     </svg>
                                 </div>
-                                <span className="text-xl font-bold text-white tracking-tight">CIMS</span>
+                                <span className="text-xl font-bold text-slate-900 tracking-tight">CIMS</span>
                             </div>
                         </div>
 
                         {/* Hero Text */}
                         <div className="max-w-md">
-                            <h1 className="text-4xl font-bold text-white leading-tight tracking-tight">
+                            <h1 className="text-4xl font-bold text-slate-900 leading-tight tracking-tight">
                                 Campus Infrastructure
                                 <br />
                                 <span className="text-brand-primary">Monitoring System</span>
@@ -98,16 +98,16 @@ export default function Login({ status, canResetPassword }) {
                         {/* Mobile logo */}
                         <div className="lg:hidden flex items-center space-x-3 mb-10">
                             <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center shadow-lg shadow-brand-primary/25">
-                                <svg className="h-6 w-6 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <svg className="h-6 w-6 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25A2.25 2.25 0 015.25 3h13.5A2.25 2.25 0 0121 5.25z" />
                                 </svg>
                             </div>
-                            <span className="text-xl font-bold text-white tracking-tight">CIMS</span>
+                            <span className="text-xl font-bold text-slate-900 tracking-tight">CIMS</span>
                         </div>
 
                         {/* Title */}
                         <div className="mb-8">
-                            <h2 className="text-2xl font-bold text-white tracking-tight">
+                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
                                 Welcome back
                             </h2>
                             <p className="mt-2 text-sm text-brand-textSecondary">
@@ -116,7 +116,7 @@ export default function Login({ status, canResetPassword }) {
                         </div>
 
                         {status && (
-                            <div className="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm font-medium text-emerald-400">
+                            <div className="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm font-medium text-emerald-700">
                                 {status}
                             </div>
                         )}
@@ -142,10 +142,10 @@ export default function Login({ status, canResetPassword }) {
                                         autoFocus
                                         placeholder="Masukkan email"
                                         onChange={(e) => setData('email', e.target.value)}
-                                        className="w-full pl-10 rounded-xl bg-brand-bg border-brand-border text-sm text-white placeholder-brand-textMuted focus:border-brand-primary focus:ring-brand-primary transition"
+                                        className="w-full pl-10 rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 placeholder-brand-textMuted focus:border-brand-primary focus:ring-brand-primary transition"
                                     />
                                 </div>
-                                <InputError message={errors.email} className="mt-1.5 text-xs text-rose-400" />
+                                <InputError message={errors.email} className="mt-1.5 text-xs text-rose-700" />
                             </div>
 
                             {/* Password */}
@@ -167,7 +167,7 @@ export default function Login({ status, canResetPassword }) {
                                         autoComplete="current-password"
                                         placeholder="Masukkan password"
                                         onChange={(e) => setData('password', e.target.value)}
-                                        className="w-full pl-10 pr-10 rounded-xl bg-brand-bg border-brand-border text-sm text-white placeholder-brand-textMuted focus:border-brand-primary focus:ring-brand-primary transition"
+                                        className="w-full pl-10 pr-10 rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 placeholder-brand-textMuted focus:border-brand-primary focus:ring-brand-primary transition"
                                     />
                                     <button
                                         type="button"
@@ -186,7 +186,7 @@ export default function Login({ status, canResetPassword }) {
                                         )}
                                     </button>
                                 </div>
-                                <InputError message={errors.password} className="mt-1.5 text-xs text-rose-400" />
+                                <InputError message={errors.password} className="mt-1.5 text-xs text-rose-700" />
                             </div>
 
                             {/* Remember & Forgot */}
@@ -199,7 +199,7 @@ export default function Login({ status, canResetPassword }) {
                                         onChange={(e) => setData('remember', e.target.checked)}
                                         className="rounded border-brand-border bg-brand-bg text-brand-primary shadow-sm focus:ring-brand-primary focus:ring-offset-0 focus:ring-offset-brand-bg"
                                     />
-                                    <span className="ms-2 text-sm text-brand-textSecondary group-hover:text-white transition">
+                                    <span className="ms-2 text-sm text-brand-textSecondary group-hover:text-slate-900 transition">
                                         Remember me
                                     </span>
                                 </label>
@@ -218,7 +218,7 @@ export default function Login({ status, canResetPassword }) {
                             <button
                                 type="submit"
                                 disabled={processing}
-                                className={`w-full rounded-xl bg-brand-primary px-4 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-brand-primary/20 hover:bg-brand-primaryHover hover:shadow-brand-primary/30 transition-all duration-200 ${
+                                className={`w-full rounded-xl bg-brand-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-brand-primary/20 hover:bg-brand-primaryHover hover:shadow-brand-primary/30 transition-all duration-200 ${
                                     processing ? 'opacity-60 cursor-not-allowed' : ''
                                 }`}
                             >

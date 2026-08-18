@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head } from '@inertiajs/react';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
@@ -6,14 +6,19 @@ import UpdateProfileInformationForm from './Partials/UpdateProfileInformationFor
 
 export default function Edit({ mustVerifyEmail, status }) {
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
-                <h2 className="text-xl font-bold leading-tight text-white">
-                    Profile Settings
-                </h2>
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                        Pengaturan Profil
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                        Kelola informasi akun dan kata sandi Anda.
+                    </p>
+                </div>
             }
         >
-            <Head title="Profile Settings" />
+            <Head title="Pengaturan Profil" />
 
             <div className="py-8">
                 <div className="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
@@ -34,6 +39,6 @@ export default function Edit({ mustVerifyEmail, status }) {
                     </div>
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

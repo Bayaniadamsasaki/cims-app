@@ -42,7 +42,7 @@ export default function ReportTable({
                 <button
                     type="button"
                     onClick={() => toggleSort(column)}
-                    className={`inline-flex items-center gap-1 transition hover:text-white ${active ? "text-brand-primary" : ""}`}
+                    className={`inline-flex items-center gap-1 transition hover:text-slate-900 ${active ? "text-brand-primary" : ""}`}
                     aria-label={`Urutkan berdasarkan ${SORTABLE[column]}`}
                 >
                     {SORTABLE[column]}
@@ -62,7 +62,7 @@ export default function ReportTable({
     return (
         <section className="rounded-2xl bg-brand-card border border-brand-border shadow-lg overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-border px-5 py-4">
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-slate-900">
                     Tabel Laporan
                     <span className="ml-2 text-[11px] font-normal text-brand-textSecondary">
                         Menampilkan {reports.from ?? 0}–{reports.to ?? 0} dari {reports.total ?? 0} laporan
@@ -121,16 +121,16 @@ export default function ReportTable({
                                         {report.tested_at_display}
                                     </td>
                                     <td className="px-3 py-4 text-sm">
-                                        <div className="font-bold text-white">{report.location}</div>
+                                        <div className="font-bold text-slate-900">{report.location}</div>
                                         <div className="text-xs text-brand-textSecondary">{report.ssid}</div>
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-white tabular-nums">
+                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-slate-900 tabular-nums">
                                         {fmt(report.download_mbps)}
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-white tabular-nums">
+                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-slate-900 tabular-nums">
                                         {fmt(report.upload_mbps)}
                                     </td>
-                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-white tabular-nums">
+                                    <td className="whitespace-nowrap px-3 py-4 text-right text-sm font-bold text-slate-900 tabular-nums">
                                         {fmt(report.ping_ms)}
                                     </td>
                                     <td className="whitespace-nowrap px-3 py-4">
@@ -178,9 +178,9 @@ export default function ReportTable({
                                         )}
                                     </td>
                                     <td className="whitespace-nowrap py-4 pr-6 text-right text-xs font-bold">
-                                        <button onClick={() => onDetail(report)} className="text-sky-400 hover:underline">Detail</button>
+                                        <button onClick={() => onDetail(report)} className="text-sky-700 hover:underline">Detail</button>
                                         <button onClick={() => onEdit(report)} className="ml-3 text-brand-primary hover:underline">Edit</button>
-                                        <button onClick={() => onDelete(report)} className="ml-3 text-rose-400 hover:underline">Hapus</button>
+                                        <button onClick={() => onDelete(report)} className="ml-3 text-rose-700 hover:underline">Hapus</button>
                                     </td>
                                 </tr>
                             );
@@ -199,9 +199,9 @@ export default function ReportTable({
                             onClick={() => link.url && router.get(link.url, {}, { preserveState: true, preserveScroll: true })}
                             className={`min-w-[36px] rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                                 link.active
-                                    ? "bg-brand-primary text-slate-950"
+                                    ? "bg-brand-primary text-white"
                                     : link.url
-                                      ? "text-brand-textSecondary hover:bg-brand-bgSecondary hover:text-white"
+                                      ? "text-brand-textSecondary hover:bg-slate-50 hover:text-slate-900"
                                       : "cursor-not-allowed text-brand-textMuted/40"
                             }`}
                             dangerouslySetInnerHTML={{ __html: link.label }}

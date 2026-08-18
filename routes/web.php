@@ -8,45 +8,10 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-Route::get('/dashboard', function () {
-    $totalDevices = \App\Models\Device::count();
-    $totalBuildings = \App\Models\Building::count();
-    $activeDevices = \App\Models\Device::where('status', 'active')->count();
-    $offlineDevices = \App\Models\Device::where('status', 'offline')->count();
-    $maintenanceDevices = \App\Models\Device::where('status', 'maintenance')->count();
-    
-    $recentDevices = \App\Models\Device::with(['vendor', 'category', 'building', 'floor', 'room', 'rack'])
-        ->latest()
-        ->take(5)
-        ->get();
-        
-    $categories = \App\Models\DeviceCategory::withCount('devices')->get()->map(function ($cat) {
-        return [
-            'name' => $cat->name,
-            'count' => $cat->devices_count
-        ];
-    });
-
-    $buildings = \App\Models\Building::withCount('devices')->get()->map(function ($bld) {
-        return [
-            'name' => $bld->name,
-            'count' => $bld->devices_count
-        ];
-    });
-
-    return Inertia::render('Dashboard', [
-        'stats' => [
-            'totalDevices' => $totalDevices,
-            'totalBuildings' => $totalBuildings,
-            'activeDevices' => $activeDevices,
-            'offlineDevices' => $offlineDevices,
-            'maintenanceDevices' => $maintenanceDevices,
-        ],
-        'recentDevices' => $recentDevices,
-        'categories' => $categories,
-        'buildings' => $buildings,
-    ]);
-})->middleware(['auth', 'verified'])->name('dashboard');
+// Dashboard CIMS — tema terang sesuai Docs/design_cims_dashboard.md
+Route::get('/dashboard', [\App\Http\Controllers\Web\DashboardWebController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

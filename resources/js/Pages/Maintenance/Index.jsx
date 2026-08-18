@@ -1,4 +1,4 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -93,36 +93,35 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
         : tickets.filter(t => t.status === filterStatus);
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-white">
-                            Maintenance Tickets
+                        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                            Tiket Pemeliharaan
                         </h2>
-                        <p className="text-sm text-brand-textSecondary">
-                            Schedule routines, assign tasks, log resolution history, and upload ticket attachments.
+                        <p className="text-sm text-slate-500">
+                            Jadwalkan pemeliharaan, tugaskan teknisi, catat riwayat perbaikan, dan unggah lampiran.
                         </p>
                     </div>
                     <button
                         onClick={() => setIsCreateOpen(true)}
-                        className="inline-flex items-center rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-slate-950 shadow-md transition duration-150"
+                        className="inline-flex items-center rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150"
                     >
-                        + Create Ticket
+                        + Buat Tiket
                     </button>
                 </div>
             }
         >
-            <Head title="Maintenance Tickets" />
+            <Head title="Tiket Pemeliharaan" />
 
-            <div className="min-h-screen bg-brand-bg pb-16 text-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-8">
+            <div className="text-slate-900">
 
                     {/* KPI Summary Cards */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-4 mb-8">
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Total Tasks</div>
-                            <div className="text-3xl font-extrabold text-white mt-1">{totalTickets}</div>
+                            <div className="text-3xl font-extrabold text-slate-900 mt-1">{totalTickets}</div>
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Pending Approval</div>
@@ -130,7 +129,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">In Progress</div>
-                            <div className="text-3xl font-extrabold text-sky-400 mt-1">{ongoingTickets}</div>
+                            <div className="text-3xl font-extrabold text-sky-700 mt-1">{ongoingTickets}</div>
                         </div>
                         <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Completed</div>
@@ -147,7 +146,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                 className={`rounded-xl px-4 py-2 text-xs font-bold border transition ${
                                     filterStatus === status
                                         ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
-                                        : 'bg-brand-card border-brand-border text-brand-textSecondary hover:text-white hover:border-brand-textMuted'
+                                        : 'bg-brand-card border-brand-border text-brand-textSecondary hover:text-slate-900 hover:border-brand-textMuted'
                                 }`}
                             >
                                 {status.toUpperCase().replace('_', ' ')}
@@ -174,13 +173,13 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         filteredTickets.map((ticket) => (
                                             <tr key={ticket.id} className="hover:bg-brand-bgSecondary/30 transition">
                                                 <td className="py-4 pl-6 pr-3">
-                                                    <div className="font-bold text-white text-sm">{ticket.title}</div>
+                                                    <div className="font-bold text-slate-900 text-sm">{ticket.title}</div>
                                                     <div className="text-xs text-brand-textSecondary mt-0.5 max-w-[280px] truncate" title={ticket.description}>
                                                         {ticket.description}
                                                     </div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    <div className="font-bold text-white">{ticket.device?.name}</div>
+                                                    <div className="font-bold text-slate-900">{ticket.device?.name}</div>
                                                     <div className="text-xs font-mono">{ticket.device?.ip_address}</div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary font-semibold">
@@ -194,7 +193,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                                         ticket.status === 'completed'
                                                             ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20'
                                                             : ticket.status === 'in_progress'
-                                                            ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                                            ? 'bg-sky-500/10 text-sky-700 border border-sky-500/20'
                                                             : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
                                                     }`}>
                                                         {ticket.status === 'in_progress' ? 'In Progress' : ticket.status.toUpperCase()}
@@ -209,7 +208,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(ticket.id)}
-                                                        className="text-rose-450 hover:underline font-bold text-xs"
+                                                        className="text-red-700 hover:underline font-bold text-xs"
                                                     >
                                                         Delete
                                                     </button>
@@ -230,9 +229,9 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
 
                     {/* Create Modal */}
                     {isCreateOpen && (
-                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
                             <div className="w-full max-w-lg bg-brand-card border border-brand-border rounded-2xl p-6 shadow-2xl relative">
-                                <h3 className="text-lg font-bold text-white mb-4">Create Maintenance Ticket</h3>
+                                <h3 className="text-lg font-bold text-slate-900 mb-4">Create Maintenance Ticket</h3>
                                 
                                 <form onSubmit={handleCreateSubmit} className="space-y-4">
                                     <div>
@@ -240,7 +239,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <select
                                             value={createForm.data.device_id}
                                             onChange={(e) => createForm.setData('device_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         >
                                             {devices.map((d) => (
                                                 <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
@@ -253,7 +252,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <select
                                             value={createForm.data.technician_id}
                                             onChange={(e) => createForm.setData('technician_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         >
                                             {technicians.map((t) => (
                                                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -268,7 +267,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             value={createForm.data.title}
                                             onChange={(e) => createForm.setData('title', e.target.value)}
                                             required
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         />
                                     </div>
 
@@ -278,7 +277,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             value={createForm.data.description}
                                             onChange={(e) => createForm.setData('description', e.target.value)}
                                             rows="3"
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         ></textarea>
                                     </div>
 
@@ -288,7 +287,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             <select
                                                 value={createForm.data.status}
                                                 onChange={(e) => createForm.setData('status', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                             >
                                                 <option value="pending">Pending</option>
                                                 <option value="in_progress">In Progress</option>
@@ -301,7 +300,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                                 type="datetime-local"
                                                 value={createForm.data.scheduled_at}
                                                 onChange={(e) => createForm.setData('scheduled_at', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
                                             />
                                         </div>
                                     </div>
@@ -310,14 +309,14 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <button
                                             type="button"
                                             onClick={() => setIsCreateOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-white transition"
+                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={createForm.processing}
-                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-slate-950 font-bold rounded-xl text-xs transition"
+                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition"
                                         >
                                             Create
                                         </button>
@@ -329,9 +328,9 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
 
                     {/* Edit Modal */}
                     {isEditOpen && (
-                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
                             <div className="w-full max-w-lg bg-brand-card border border-brand-border rounded-2xl p-6 shadow-2xl relative">
-                                <h3 className="text-lg font-bold text-white mb-4">Edit Maintenance Ticket</h3>
+                                <h3 className="text-lg font-bold text-slate-900 mb-4">Edit Maintenance Ticket</h3>
                                 
                                 <form onSubmit={handleEditSubmit} className="space-y-4">
                                     <div>
@@ -339,7 +338,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <select
                                             value={editForm.data.device_id}
                                             onChange={(e) => editForm.setData('device_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         >
                                             {devices.map((d) => (
                                                 <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
@@ -352,7 +351,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <select
                                             value={editForm.data.technician_id}
                                             onChange={(e) => editForm.setData('technician_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         >
                                             <option value="">Unassigned</option>
                                             {technicians.map((t) => (
@@ -368,7 +367,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             value={editForm.data.title}
                                             onChange={(e) => editForm.setData('title', e.target.value)}
                                             required
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         />
                                     </div>
 
@@ -378,7 +377,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             value={editForm.data.description}
                                             onChange={(e) => editForm.setData('description', e.target.value)}
                                             rows="3"
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         ></textarea>
                                     </div>
 
@@ -388,7 +387,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             <select
                                                 value={editForm.data.status}
                                                 onChange={(e) => editForm.setData('status', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                             >
                                                 <option value="pending">Pending</option>
                                                 <option value="in_progress">In Progress</option>
@@ -401,7 +400,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                                 type="datetime-local"
                                                 value={editForm.data.scheduled_at}
                                                 onChange={(e) => editForm.setData('scheduled_at', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
                                             />
                                         </div>
                                     </div>
@@ -413,7 +412,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                             onChange={(e) => editForm.setData('notes', e.target.value)}
                                             rows="2"
                                             placeholder="Write resolution comments here..."
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
                                         ></textarea>
                                     </div>
 
@@ -422,7 +421,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <input
                                             type="file"
                                             onChange={(e) => editForm.setData('attachment', e.target.files[0])}
-                                            className="w-full text-xs text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-slate-950 hover:file:bg-brand-primaryHover"
+                                            className="w-full text-xs text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-white hover:file:bg-brand-primaryHover"
                                         />
                                         {activeTicket?.attachment_path && (
                                             <div className="text-[10px] text-brand-primary mt-1">
@@ -435,14 +434,14 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                         <button
                                             type="button"
                                             onClick={() => setIsEditOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-white transition"
+                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={editForm.processing}
-                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-slate-950 font-bold rounded-xl text-xs transition"
+                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition"
                                         >
                                             Save Changes
                                         </button>
@@ -453,7 +452,6 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                     )}
 
                 </div>
-            </div>
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

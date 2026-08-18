@@ -12,7 +12,7 @@ export default function StatusDistribution({ statusCounts = {}, total = 0 }) {
     return (
         <figure className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
             <figcaption>
-                <h3 className="text-sm font-bold text-white">Distribusi Status Jaringan</h3>
+                <h3 className="text-sm font-bold text-slate-900">Distribusi Status Jaringan</h3>
                 <p className="text-[11px] text-brand-textSecondary mt-0.5">
                     Sebaran kondisi jaringan dari {total} pengujian pada rentang filter aktif.
                 </p>
@@ -42,7 +42,7 @@ export default function StatusDistribution({ statusCounts = {}, total = 0 }) {
                                     </svg>
                                     {meta.label}
                                 </span>
-                                <span className="text-white tabular-nums">
+                                <span className="text-slate-900 tabular-nums">
                                     {count} <span className="text-brand-textMuted font-normal">({fmt(percent, 1)}%)</span>
                                 </span>
                             </div>
@@ -60,7 +60,7 @@ export default function StatusDistribution({ statusCounts = {}, total = 0 }) {
 
                             {hovered === key && (
                                 <div className="pointer-events-none absolute right-0 -top-1 z-10 translate-y-[-100%] rounded-xl border border-brand-border bg-brand-cardElevated px-3 py-2 text-[11px] shadow-2xl">
-                                    <span className="font-bold text-white">{meta.label}</span>
+                                    <span className="font-bold text-slate-900">{meta.label}</span>
                                     <span className="text-brand-textSecondary">
                                         {" "}
                                         — {count} pengujian ({fmt(percent, 1)}% dari total)

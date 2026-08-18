@@ -1,6 +1,6 @@
 import { Head, router } from "@inertiajs/react";
 import { useState } from "react";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import CimsLayout from "@/Layouts/CimsLayout";
 import { useConfirmation } from "@/Components/ConfirmationModal";
 import { SERIES } from "./constants";
 import SummaryCards from "./Partials/SummaryCards";
@@ -48,19 +48,19 @@ export default function Index({
     };
 
     return (
-        <AuthenticatedLayout
+        <CimsLayout
             header={
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h2 className="text-xl font-bold text-white">Laporan Speedtest Jaringan Bulanan</h2>
-                        <p className="mt-0.5 text-xs text-brand-textSecondary">
+                        <h2 className="text-xl font-bold text-slate-900">Laporan Speedtest Jaringan Bulanan</h2>
+                        <p className="mt-0.5 text-xs text-slate-500">
                             Pencatatan, monitoring, dan dokumentasi kualitas jaringan per lokasi &amp; SSID.
                         </p>
                     </div>
                     <button
                         type="button"
                         onClick={() => setForm({ mode: "create", report: null })}
-                        className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-brand-primaryHover"
+                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 shadow-sm"
                     >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -97,7 +97,7 @@ export default function Index({
                     sort={sort}
                 />
 
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                {/* <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
                     <div className="xl:col-span-2">
                         <LineTrendChart
                             title="Tren kecepatan download & upload"
@@ -111,15 +111,15 @@ export default function Index({
                         />
                     </div>
                     <StatusDistribution statusCounts={summary.statusCounts} total={summary.total} />
-                </div>
+                </div> */}
 
-                <LineTrendChart
+                {/* <LineTrendChart
                     title="Tren latensi (ping)"
                     subtitle="Rata-rata ping per tanggal pengujian — semakin rendah semakin baik."
                     unit="ms"
                     data={trend}
                     series={[{ key: "avgPing", label: "Ping", color: SERIES.ping }]}
-                />
+                /> */}
 
                 <ReportTable
                     reports={reports}
@@ -169,6 +169,6 @@ export default function Index({
             )}
 
             {lightbox && <ScreenshotLightbox report={lightbox} onClose={() => setLightbox(null)} />}
-        </AuthenticatedLayout>
+        </CimsLayout>
     );
 }

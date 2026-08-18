@@ -47,9 +47,9 @@ export const STATUS_META = {
 };
 
 export const ACTION_META = {
-    maintenance: { label: "Maintenance", tone: "text-amber-300 border-amber-500/30 bg-amber-500/10" },
-    selesai: { label: "Selesai", tone: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10" },
-    monitoring_traffic: { label: "Monitoring Traffic", tone: "text-sky-300 border-sky-500/30 bg-sky-500/10" },
+    maintenance: { label: "Maintenance", tone: "text-amber-700 border-amber-500/30 bg-amber-500/10" },
+    selesai: { label: "Selesai", tone: "text-emerald-700 border-emerald-500/30 bg-emerald-500/10" },
+    monitoring_traffic: { label: "Monitoring Traffic", tone: "text-sky-700 border-sky-500/30 bg-sky-500/10" },
 };
 
 /** Format angka desimal dengan pemisah ribuan Indonesia. */
@@ -70,7 +70,7 @@ export const fmtDateShort = (value) => {
 
 /** Kelas input yang dipakai seragam pada form & filter modul ini. */
 export const inputClass =
-    "w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-white text-sm py-2 px-3 focus:outline-none focus:border-brand-primary placeholder:text-brand-textMuted";
+    "w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 text-sm py-2 px-3 focus:outline-none focus:border-brand-primary placeholder:text-brand-textMuted";
 
 export const labelClass =
     "block text-[11px] font-bold text-brand-textSecondary uppercase tracking-wide mb-1";
