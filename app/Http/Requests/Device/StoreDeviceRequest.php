@@ -11,6 +11,22 @@ class StoreDeviceRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Convert the is_monitored checkbox into the persisted `source` value
+     * before validation runs. Checked = live_api, unchecked = inventory.
+     */
+    protected function prepareForValidation(): void
+    {
+        $isMonitored = filter_var(
+            $this->input('is_monitored', false),
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        $this->merge([
+            'source' => $isMonitored ? 'live_api' : 'inventory',
+        ]);
+    }
+
     public function rules(): array
     {
         return [
@@ -30,6 +46,7 @@ class StoreDeviceRequest extends FormRequest
             'room_id' => ['nullable', 'exists:rooms,id'],
             'rack_id' => ['nullable', 'exists:racks,id'],
             'status' => ['nullable', 'string', 'in:active,maintenance,inactive,offline,online'],
+            'source' => ['nullable', 'string', 'in:inventory,live_api'],
             'notes' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ];

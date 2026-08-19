@@ -15,6 +15,10 @@ Homestead.json
 Homestead.yaml
 npm-debug.log
 yarn-error.log
+test_logs.php
+test_logs_stream.php
+test_routers.php
+test_tg_markdown.php
 /auth.json
 /.fleet
 /.idea

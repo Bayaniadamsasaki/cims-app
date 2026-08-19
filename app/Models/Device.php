@@ -35,6 +35,7 @@ class Device extends Model
         'room_id',
         'rack_id',
         'status',
+        'source',
         'notes',
         'image_path',
     ];
