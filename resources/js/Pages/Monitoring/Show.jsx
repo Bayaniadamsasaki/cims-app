@@ -66,22 +66,22 @@ export default function Show({ device = {}, historyLogs = [] }) {
                     
                     {/* Top Device Specs Grid */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary font-bold">Network Address</div>
                             <div className="text-lg font-bold font-mono text-slate-900 mt-1">{device.ip_address || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">MAC: {device.mac_address || '-'}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary font-bold">Hardware Model</div>
                             <div className="text-lg font-bold text-slate-900 mt-1 truncate">{device.model || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">SN: {device.serial_number || '-'}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary font-bold">Location Zone</div>
                             <div className="text-lg font-bold text-slate-900 mt-1">{device.building?.name || '-'}</div>
                             <div className="text-xs text-brand-textMuted mt-1">Rack Node: {device.rack?.name || '-'}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary font-bold">System Uptime</div>
                             <div className="text-lg font-bold text-brand-primary mt-1">
                                 {m.last_uptime_seconds 
@@ -96,7 +96,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                     <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 mb-8">
                         
                         {/* Ping Latency Trend */}
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6">
                             <h3 className="text-sm font-bold text-slate-900 mb-4">ICMP Latency Trend (24 Hours)</h3>
                             {historyLogs.length > 0 && latencyPoints ? (
                                 <div className="w-full h-40 bg-brand-bgSecondary/30 rounded-xl border border-brand-border/40 p-2 flex items-center justify-center">
@@ -121,7 +121,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                         </div>
 
                         {/* CPU & RAM Utilization Trend */}
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6">
                             <h3 className="text-sm font-bold text-slate-900 mb-4">CPU & RAM load Trend (24 Hours)</h3>
                             {historyLogs.length > 0 && cpuPoints ? (
                                 <div className="w-full h-40 bg-brand-bgSecondary/30 rounded-xl border border-brand-border/40 p-2 flex items-center justify-center">
@@ -163,7 +163,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                     </div>
 
                     {/* Historical Log Points Table */}
-                    <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg">
+                    <div className="rounded-2xl bg-brand-card border border-brand-border p-6">
                         <h3 className="text-lg font-bold text-slate-900 mb-6">Historical Log Points</h3>
                         
                         <div className="overflow-x-auto">

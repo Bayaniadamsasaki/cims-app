@@ -58,7 +58,7 @@ export default function ScreenshotLightbox({ report, onClose }) {
                 src={report.screenshot_url}
                 alt={`Bukti screenshot ${report.location} — ${report.ssid}`}
                 onClick={(e) => e.stopPropagation()}
-                className="mt-3 max-h-[80vh] w-auto max-w-full rounded-xl border border-brand-border object-contain shadow-2xl"
+                className="mt-3 max-h-[80vh] w-auto max-w-full rounded-xl border border-brand-border object-contain"
             />
         </div>
     );

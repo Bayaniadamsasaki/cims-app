@@ -80,7 +80,7 @@ export default function Vendors({ vendors = [] }) {
                     </div>
                     <button
                         onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
+                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition duration-150"
                     >
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -157,7 +157,7 @@ export default function Vendors({ vendors = [] }) {
             {/* Create/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6 shadow-xl">
+                    <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6">
                         <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
                             <h3 className="text-lg font-bold text-slate-900">
                                 {editingVendor ? 'Edit Data Vendor' : 'Tambah Vendor Baru'}
@@ -245,7 +245,7 @@ export default function Vendors({ vendors = [] }) {
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150"
+                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white transition duration-150"
                                 >
                                     {editingVendor ? 'Simpan Perubahan' : 'Tambah Vendor'}
                                 </button>

@@ -70,7 +70,7 @@ export default function Index({ buildings = [] }) {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         
                         {/* Configuration Form (Left 2 columns) */}
-                        <div className="md:col-span-2 rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg space-y-6">
+                        <div className="md:col-span-2 rounded-2xl bg-brand-card border border-brand-border p-6 space-y-6">
                             <h3 className="text-base font-bold text-slate-900 border-b border-brand-border/40 pb-3">
                                 1. Select Filter Configurations
                             </h3>
@@ -146,7 +146,7 @@ export default function Index({ buildings = [] }) {
                         </div>
 
                         {/* Export Action Card (Right 1 column) */}
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6 shadow-lg flex flex-col justify-between">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-6 flex flex-col justify-between">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 border-b border-brand-border/40 pb-3 mb-4">
                                     2. Action Outputs

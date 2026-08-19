@@ -119,19 +119,19 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
 
                     {/* KPI Summary Cards */}
                     <div className="grid grid-cols-1 gap-5 sm:grid-cols-4 mb-8">
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Total Tasks</div>
                             <div className="text-3xl font-extrabold text-slate-900 mt-1">{totalTickets}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Pending Approval</div>
                             <div className="text-3xl font-extrabold text-amber-500 mt-1">{pendingTickets}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">In Progress</div>
                             <div className="text-3xl font-extrabold text-sky-700 mt-1">{ongoingTickets}</div>
                         </div>
-                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+                        <div className="rounded-2xl bg-brand-card border border-brand-border p-5">
                             <div className="text-xs text-brand-textSecondary uppercase font-bold tracking-wider">Completed</div>
                             <div className="text-3xl font-extrabold text-brand-primary mt-1">{completedTickets}</div>
                         </div>
@@ -155,7 +155,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                     </div>
 
                     {/* Tickets List */}
-                    <div className="rounded-2xl bg-brand-card border border-brand-border overflow-hidden shadow-lg">
+                    <div className="rounded-2xl bg-brand-card border border-brand-border overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-brand-border text-left">
                                 <thead className="bg-brand-bgSecondary/40">

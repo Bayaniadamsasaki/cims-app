@@ -50,7 +50,7 @@ export default function FilterBar({ filters, options, testers, locationOptions, 
     ).toString()}`;
 
     return (
-        <section className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+        <section className="rounded-2xl bg-brand-card border border-brand-border p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-bold text-slate-900">
                     Filter &amp; Pencarian

@@ -79,7 +79,7 @@ export default function ReportFormModal({ mode = "create", report = null, tester
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-2xl border border-brand-border bg-brand-card p-6 shadow-2xl">
+            <div className="my-8 w-full max-w-3xl rounded-2xl border border-brand-border bg-brand-card p-6">
                 <div className="flex items-start justify-between">
                     <div>
                         <h3 className="text-lg font-bold text-slate-900">

@@ -60,7 +60,7 @@ export default function ReportTable({
     };
 
     return (
-        <section className="rounded-2xl bg-brand-card border border-brand-border shadow-lg overflow-hidden">
+        <section className="rounded-2xl bg-brand-card border border-brand-border overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-border px-5 py-4">
                 <h3 className="text-sm font-bold text-slate-900">
                     Tabel Laporan

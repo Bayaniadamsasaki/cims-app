@@ -7,7 +7,7 @@ export default function DetailModal({ report, onClose, onEdit, onPreview }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="my-8 w-full max-w-2xl rounded-2xl border border-brand-border bg-brand-card p-6 shadow-2xl">
+            <div className="my-8 w-full max-w-2xl rounded-2xl border border-brand-border bg-brand-card p-6">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h3 className="text-lg font-bold text-slate-900">Detail Laporan Speedtest</h3>

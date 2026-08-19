@@ -37,7 +37,7 @@ export default function LineTrendChart({ title, subtitle, unit, data = [], serie
 
     if (!data.length) {
         return (
-            <figure className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+            <figure className="rounded-2xl bg-brand-card border border-brand-border p-5">
                 <ChartHeading title={title} subtitle={subtitle} series={series} />
                 <div className="flex h-40 items-center justify-center text-xs text-brand-textSecondary">
                     Belum ada data pengujian untuk rentang filter ini.
@@ -61,7 +61,7 @@ export default function LineTrendChart({ title, subtitle, unit, data = [], serie
     };
 
     return (
-        <figure className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+        <figure className="rounded-2xl bg-brand-card border border-brand-border p-5">
             <ChartHeading title={title} subtitle={subtitle} series={series} />
 
             <div className="relative mt-3">
@@ -182,7 +182,7 @@ export default function LineTrendChart({ title, subtitle, unit, data = [], serie
 
                 {hover !== null && (
                     <div
-                        className="pointer-events-none absolute top-0 z-10 min-w-[150px] -translate-x-1/2 rounded-xl border border-brand-border bg-brand-cardElevated p-3 shadow-2xl"
+                        className="pointer-events-none absolute top-0 z-10 min-w-[150px] -translate-x-1/2 rounded-xl border border-brand-border bg-brand-cardElevated p-3"
                         style={{
                             left: `${Math.min(88, Math.max(12, (xAt(hover) / VIEW.w) * 100))}%`,
                         }}

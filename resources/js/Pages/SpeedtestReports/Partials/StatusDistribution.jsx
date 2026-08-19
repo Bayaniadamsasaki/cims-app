@@ -10,7 +10,7 @@ export default function StatusDistribution({ statusCounts = {}, total = 0 }) {
     const max = Math.max(...Object.values(statusCounts), 1);
 
     return (
-        <figure className="rounded-2xl bg-brand-card border border-brand-border p-5 shadow-lg">
+        <figure className="rounded-2xl bg-brand-card border border-brand-border p-5">
             <figcaption>
                 <h3 className="text-sm font-bold text-slate-900">Distribusi Status Jaringan</h3>
                 <p className="text-[11px] text-brand-textSecondary mt-0.5">
@@ -59,7 +59,7 @@ export default function StatusDistribution({ statusCounts = {}, total = 0 }) {
                             </div>
 
                             {hovered === key && (
-                                <div className="pointer-events-none absolute right-0 -top-1 z-10 translate-y-[-100%] rounded-xl border border-brand-border bg-brand-cardElevated px-3 py-2 text-[11px] shadow-2xl">
+                                <div className="pointer-events-none absolute right-0 -top-1 z-10 translate-y-[-100%] rounded-xl border border-brand-border bg-brand-cardElevated px-3 py-2 text-[11px]">
                                     <span className="font-bold text-slate-900">{meta.label}</span>
                                     <span className="text-brand-textSecondary">
                                         {" "}
