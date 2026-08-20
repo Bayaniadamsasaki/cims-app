@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 
+
 class DevicesImport implements ToCollection, WithStartRow
 {
     /**
@@ -22,7 +23,7 @@ class DevicesImport implements ToCollection, WithStartRow
     /**
      * Memproses kumpulan baris dari Excel dan melakukan updateOrCreate ke model Device.
      */
-    public function collection(Collection $rows)
+    public function collection(Collection $rows): void
     {
         // Pastikan kategori default Router tersedia
         $defaultCategory = DeviceCategory::firstOrCreate(['name' => 'Router']);
