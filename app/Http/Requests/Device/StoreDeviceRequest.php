@@ -22,7 +22,9 @@ class StoreDeviceRequest extends FormRequest
             FILTER_VALIDATE_BOOLEAN
         );
 
+        // Keep the original boolean so controller logic can read it via $request->input().
         $this->merge([
+            'is_monitored' => $isMonitored,
             'source' => $isMonitored ? 'live_api' : 'inventory',
         ]);
     }
@@ -47,6 +49,7 @@ class StoreDeviceRequest extends FormRequest
             'rack_id' => ['nullable', 'exists:racks,id'],
             'status' => ['nullable', 'string', 'in:active,maintenance,inactive,offline,online'],
             'source' => ['nullable', 'string', 'in:inventory,live_api'],
+            'is_monitored' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ];

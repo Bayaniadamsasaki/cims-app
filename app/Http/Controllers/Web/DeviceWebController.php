@@ -15,6 +15,8 @@ use App\Models\Rack;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\DevicesImport;
 
 class DeviceWebController extends Controller
 {
@@ -68,6 +70,21 @@ class DeviceWebController extends Controller
     {
         $data = $request->validated();
 
+        // Tangkap input checkbox is_monitored sebelum dihapus dari payload:
+        //  - checked (true)  → source = live_api   (perangkat masuk Live Monitoring API)
+        //  - unchecked (false) → source = inventory (perangkat hanya masuk inventaris statis)
+        $isMonitored = filter_var(
+            $request->input('is_monitored', false),
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        if (!$request->has('source')) {
+            $data['source'] = $isMonitored ? 'live_api' : 'inventory';
+        }
+
+        // Buang key is_monitored agar tidak ikut terkirim ke repository/create().
+        unset($data['is_monitored']);
+
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('devices', 'public');
             $data['image_path'] = $path;
@@ -112,7 +129,7 @@ class DeviceWebController extends Controller
     public function importExcel(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls|max:10240'
+            'file' => 'required|file|mimes:xlsx,xls,max:10240'
         ]);
 
         $file = $request->file('file');
@@ -124,5 +141,20 @@ class DeviceWebController extends Controller
         ]);
 
         return redirect()->route('devices.index')->with('success', 'Data inventaris Excel berhasil diimport ke sistem CIMS!');
+    }
+
+    /**
+     * Import Excel Inventaris UBG menggunakan Maatwebsite\Excel.
+     * Validasi file (xlsx/xls/csv, max 10 MB), lalu delegasikan ke DevicesImport.
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        Excel::import(new DevicesImport, $request->file('file'));
+
+        return back()->with('success', 'Data inventaris berhasil diimport dari file Excel!');
     }
 }
