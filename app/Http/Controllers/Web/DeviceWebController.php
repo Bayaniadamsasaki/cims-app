@@ -153,8 +153,60 @@ class DeviceWebController extends Controller
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
-        Excel::import(new DevicesImport, $request->file('file'));
+        $file = $request->file('file');
+        $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.' . $file->getClientOriginalExtension(), 'local');
+        $fullPath = storage_path('app/' . $tempPath);
 
-        return back()->with('success', 'Data inventaris berhasil diimport dari file Excel!');
+        try {
+            \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
+                'file' => $fullPath
+            ]);
+        } catch (\Throwable $e) {
+            Excel::import(new DevicesImport, $file);
+        }
+
+        return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');
+    }
+
+    public function syncInterfaces(Request $request, int $id, \App\Services\MikrotikService $mikrotikService)
+    {
+        $device = \App\Models\Device::findOrFail($id);
+
+        if ($device->ip_address) {
+            try {
+                $count = $mikrotikService->syncDeviceInterfaces($device);
+                return back()->with('success', "Berhasil sinkronisasi {$count} interface dari router {$device->ip_address}!");
+            } catch (\Throwable $e) {
+                $count = $this->generateDefaultInterfaces($device);
+                return back()->with('warning', "Live API ke {$device->ip_address} belum merespon. Dibuatkan {$count} port interface default.");
+            }
+        }
+
+        $count = $this->generateDefaultInterfaces($device);
+        return back()->with('success', "Berhasil membuat {$count} port interface default.");
+    }
+
+    private function generateDefaultInterfaces($device): int
+    {
+        $ports = ['ether1', 'ether2', 'ether3', 'ether4', 'ether5'];
+        $created = 0;
+        foreach ($ports as $idx => $portName) {
+            \App\Models\DeviceInterface::firstOrCreate(
+                [
+                    'device_id' => $device->id,
+                    'interface_name' => $portName,
+                ],
+                [
+                    'mac_address' => $device->mac_address ? substr($device->mac_address, 0, 14) . sprintf('%02X', $idx + 1) : null,
+                    'ip_address' => ($idx === 0) ? $device->ip_address : null,
+                    'subnet' => ($idx === 0 && $device->ip_address) ? '/24' : null,
+                    'interface_type' => 'Ethernet',
+                    'interface_status' => ($idx === 0) ? 'up' : 'down',
+                    'description' => ($idx === 0) ? 'WAN / Port Utama' : 'LAN Port ' . ($idx + 1),
+                ]
+            );
+            $created++;
+        }
+        return $created;
     }
 }

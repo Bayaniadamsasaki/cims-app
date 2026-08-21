@@ -47,6 +47,23 @@ class Device extends Model
         'password_encrypted',
     ];
 
+    protected $appends = [
+        'password_plain',
+    ];
+
+    public function getPasswordPlainAttribute(): ?string
+    {
+        if (empty($this->password_encrypted)) {
+            return null;
+        }
+
+        try {
+            return decrypt($this->password_encrypted);
+        } catch (\Throwable $e) {
+            return $this->password_encrypted;
+        }
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

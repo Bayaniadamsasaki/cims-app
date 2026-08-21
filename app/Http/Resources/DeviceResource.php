@@ -34,6 +34,7 @@ class DeviceResource extends JsonResource
             'purchase_date' => $this->purchase_date,
             'warranty' => $this->warranty,
             'username' => $this->username,
+            'password' => $this->password_plain,
             
             'building_id' => $this->building_id,
             'building' => new BuildingResource($this->whenLoaded('building')),

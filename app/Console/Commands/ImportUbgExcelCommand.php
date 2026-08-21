@@ -105,10 +105,8 @@ class ImportUbgExcelCommand extends Command
             }
         }
 
-        // Update rooms count on buildings
-        foreach (Building::all() as $b) {
-            $b->update(['rooms_count' => Room::whereHas('floor', fn($q) => $q->where('building_id', $b->id))->count()]);
-        }
+        // Ensure every building has a Ruang Server
+        \Illuminate\Support\Facades\Artisan::call('cims:ensure-server-rooms');
 
         // 2. Process Routers & Devices
         $this->info("Importing Routers & Devices (" . count($data['routers']) . " devices)...");

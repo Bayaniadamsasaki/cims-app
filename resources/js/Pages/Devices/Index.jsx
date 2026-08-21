@@ -13,7 +13,26 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingDevice, setEditingDevice] = useState(null);
     const [viewingDevice, setViewingDevice] = useState(null);
+    const [isSyncing, setIsSyncing] = useState(false);
     const { confirmAction } = useConfirmation();
+
+    const handleSyncInterfaces = (deviceId) => {
+        setIsSyncing(true);
+        router.post(route('devices.sync-interfaces', deviceId), {}, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                setIsSyncing(false);
+                if (viewingDevice && viewingDevice.id === deviceId) {
+                    const updated = page.props.devices?.find(d => d.id === deviceId);
+                    if (updated) {
+                        setViewingDevice(updated);
+                    }
+                }
+            },
+            onError: () => setIsSyncing(false),
+            onFinish: () => setIsSyncing(false)
+        });
+    };
 
     // Form Import Excel
     const importForm = useForm({
@@ -269,7 +288,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                 <div className="font-mono text-xs text-slate-900">{device.serial_number || '-'}</div>
-                                                <div className="text-xs text-slate-400 mt-0.5 font-mono">User: {device.username || '-'}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5 font-mono">User: {device.username || '-'} | Pass: {device.password_plain || device.password || '-'}</div>
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                 {device.source === 'live_api' ? (
@@ -790,9 +809,10 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-slate-500">Kredensial Akses</span>
-                                    <span className="font-mono text-slate-900 text-xs">
-                                        User: <strong>{viewingDevice.username || '-'}</strong>
-                                    </span>
+                                    <div className="font-mono text-slate-900 text-xs mt-0.5 space-y-0.5">
+                                        <div>User: <strong className="text-slate-900">{viewingDevice.username || '-'}</strong></div>
+                                        <div>Pass: <strong className="text-blue-700 font-bold">{viewingDevice.password_plain || viewingDevice.password || '-'}</strong></div>
+                                    </div>
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-slate-500">IP Utama</span>
@@ -820,14 +840,25 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
                             {/* Section Interfaces */}
                             <div>
-                                <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center justify-between">
-                                    <span className="flex items-center">
+                                <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <h4 className="text-sm font-bold text-slate-900 flex items-center">
                                         <svg className="w-4 h-4 mr-1.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
-                                        Daftar Interface & Port ({viewingDevice.device_interfaces?.length || 0} Port)
-                                    </span>
-                                </h4>
+                                        Daftar Interface & Port ({(viewingDevice.device_interfaces || viewingDevice.interfaces || []).length} Port)
+                                    </h4>
+                                    <button
+                                        type="button"
+                                        disabled={isSyncing}
+                                        onClick={() => handleSyncInterfaces(viewingDevice.id)}
+                                        className="inline-flex items-center px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white text-xs font-bold transition disabled:opacity-50 shadow-sm"
+                                    >
+                                        <svg className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        {isSyncing ? 'Menghubungkan...' : '⚡ Sinkronkan Port & Interface'}
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                                     <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
                                         <thead className="bg-slate-50 text-slate-500">
@@ -840,9 +871,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-slate-600 font-mono">
-                                            {viewingDevice.device_interfaces && viewingDevice.device_interfaces.length > 0 ? (
-                                                viewingDevice.device_interfaces.map((iface) => (
-                                                    <tr key={iface.id} className="hover:bg-slate-50">
+                                            {(viewingDevice.device_interfaces || viewingDevice.interfaces || []).length > 0 ? (
+                                                (viewingDevice.device_interfaces || viewingDevice.interfaces || []).map((iface, i) => (
+                                                    <tr key={iface.id || i} className="hover:bg-slate-50">
                                                         <td className="py-2 px-3 font-bold text-slate-900">{iface.interface_name}</td>
                                                         <td className="py-2 px-3">{iface.mac_address || '-'}</td>
                                                         <td className="py-2 px-3 text-emerald-700 font-bold">
@@ -863,7 +894,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             ) : (
                                                 <tr>
                                                     <td colSpan="5" className="py-4 text-center text-slate-400 italic font-sans">
-                                                        Belum ada port interface yang terdaftar untuk perangkat ini.
+                                                        Belum ada port interface yang terdaftar. Klik <strong>"⚡ Sinkronkan Port & Interface"</strong> di atas untuk menarik port langsung dari router MikroTik atau membuat port default.
                                                     </td>
                                                 </tr>
                                             )}

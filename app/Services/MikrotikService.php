@@ -658,4 +658,65 @@ class MikrotikService
 
         return $bps . ' bps';
     }
+
+    /**
+     * Fetch interfaces and IP addresses from MikroTik router and sync to database.
+     */
+    public function syncDeviceInterfaces(\App\Models\Device $device): int
+    {
+        if (!$device->ip_address) {
+            throw new \Exception("IP Address perangkat tidak diisi.");
+        }
+
+        $client = $this->client(
+            $device->ip_address,
+            $device->username,
+            $device->password_plain
+        );
+
+        $interfaces = $client->query('/interface/print')->read();
+        $ipAddresses = $client->query('/ip/address/print')->read();
+
+        $ipMap = [];
+        foreach ($ipAddresses as $ipItem) {
+            $ifName = $ipItem['interface'] ?? null;
+            if ($ifName && !empty($ipItem['address'])) {
+                $parts = explode('/', $ipItem['address']);
+                $ipMap[$ifName] = [
+                    'ip' => $parts[0],
+                    'subnet' => isset($parts[1]) ? '/' . $parts[1] : null,
+                ];
+            }
+        }
+
+        $count = 0;
+        foreach ($interfaces as $iface) {
+            $name = $iface['name'] ?? null;
+            if (!$name) continue;
+
+            $mac = $iface['mac-address'] ?? null;
+            $type = $iface['type'] ?? 'Ethernet';
+            $status = (($iface['running'] ?? 'false') === 'true' && ($iface['disabled'] ?? 'false') !== 'true') ? 'up' : 'down';
+            
+            $ipInfo = $ipMap[$name] ?? ['ip' => null, 'subnet' => null];
+
+            \App\Models\DeviceInterface::updateOrCreate(
+                [
+                    'device_id' => $device->id,
+                    'interface_name' => $name,
+                ],
+                [
+                    'mac_address' => $mac,
+                    'ip_address' => $ipInfo['ip'],
+                    'subnet' => $ipInfo['subnet'],
+                    'interface_type' => ucfirst($type),
+                    'interface_status' => $status,
+                    'description' => $iface['comment'] ?? null,
+                ]
+            );
+            $count++;
+        }
+
+        return $count;
+    }
 }

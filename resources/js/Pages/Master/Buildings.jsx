@@ -280,7 +280,12 @@ export default function Buildings({ buildings = [] }) {
 
                                     {/* Custom Rooms per Floor Inputs */}
                                     <div className="bg-brand-bgSecondary/30 border border-brand-border/40 rounded-xl p-4 space-y-3">
-                                        <h4 className="text-xs font-bold text-brand-primary">Tentukan Jumlah Ruangan per Lantai</h4>
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-bold text-brand-primary">Tentukan Jumlah Ruangan per Lantai</h4>
+                                            <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">
+                                                🖥️ Ruang Server Otomatis di Lt. 1
+                                            </span>
+                                        </div>
                                         <div className="max-h-48 overflow-y-auto pr-1 space-y-2.5">
                                             {data.floor_rooms && data.floor_rooms.map((roomCount, idx) => (
                                                 <div key={idx} className="flex items-center justify-between space-x-4 bg-brand-bg/50 border border-brand-border/30 rounded-lg p-2">

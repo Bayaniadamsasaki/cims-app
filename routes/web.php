@@ -22,6 +22,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'index'])->name('devices.index');
     Route::post('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'store'])->name('devices.store');
     Route::post('/devices/import', [\App\Http\Controllers\Web\DeviceWebController::class, 'import'])->name('devices.import');
+    Route::post('/devices/{id}/sync-interfaces', [\App\Http\Controllers\Web\DeviceWebController::class, 'syncInterfaces'])->name('devices.sync-interfaces');
     Route::post('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'update'])->name('devices.update');
     Route::delete('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'destroy'])->name('devices.destroy');
 

@@ -74,6 +74,20 @@ class MasterWebController extends Controller
                     'description' => 'Generated automatically for ' . $building->name,
                 ]);
 
+                // Otomatis buatkan Ruang Server di Lantai 1 untuk setiap gedung
+                if ($i === 1) {
+                    \App\Models\Room::firstOrCreate(
+                        [
+                            'floor_id' => $floor->id,
+                            'name' => 'Ruang Server',
+                        ],
+                        [
+                            'code' => strtoupper($building->code) . '-F1-RS',
+                            'description' => 'Ruang Server & Core Network ' . $building->name,
+                        ]
+                    );
+                }
+
                 $roomsForThisFloor = isset($data['floor_rooms'][$i - 1]) ? intval($data['floor_rooms'][$i - 1]) : 0;
 
                 for ($r = 1; $r <= $roomsForThisFloor; $r++) {
@@ -87,6 +101,11 @@ class MasterWebController extends Controller
                     $roomTotalCounter++;
                 }
             }
+
+            // Recalculate total rooms count for building
+            $building->update([
+                'rooms_count' => \App\Models\Room::whereHas('floor', fn($q) => $q->where('building_id', $building->id))->count()
+            ]);
         });
 
         return redirect()->back()->with('success', 'Building, floors, and rooms created successfully.');
