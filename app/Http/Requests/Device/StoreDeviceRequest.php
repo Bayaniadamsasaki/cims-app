@@ -41,6 +41,8 @@ class StoreDeviceRequest extends FormRequest
             'model' => ['nullable', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255'],
             'firmware' => ['nullable', 'string', 'max:255'],
+            'username' => ['nullable', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'max:255'],
             'purchase_date' => ['nullable', 'date'],
             'warranty' => ['nullable', 'string', 'max:255'],
             'building_id' => ['nullable', 'exists:buildings,id'],

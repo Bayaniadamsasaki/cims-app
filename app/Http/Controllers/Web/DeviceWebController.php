@@ -85,6 +85,13 @@ class DeviceWebController extends Controller
         // Buang key is_monitored agar tidak ikut terkirim ke repository/create().
         unset($data['is_monitored']);
 
+        if (array_key_exists('password', $data)) {
+            if (!empty($data['password'])) {
+                $data['password_encrypted'] = encrypt($data['password']);
+            }
+            unset($data['password']);
+        }
+
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('devices', 'public');
             $data['image_path'] = $path;
@@ -99,6 +106,13 @@ class DeviceWebController extends Controller
     {
         $data = $request->validated();
         $device = $this->deviceRepo->find($id);
+
+        if (array_key_exists('password', $data)) {
+            if (!empty($data['password'])) {
+                $data['password_encrypted'] = encrypt($data['password']);
+            }
+            unset($data['password']);
+        }
 
         if ($request->hasFile('image')) {
             if ($device->image_path) {

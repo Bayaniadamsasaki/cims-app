@@ -105,7 +105,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
             serial_number: device.serial_number || '',
             firmware: device.firmware || '',
             username: device.username || '',
-            password: '',
+            password: device.password_plain || '',
             purchase_date: device.purchase_date || '',
             warranty: device.warranty || '',
             building_id: device.building_id || '',
@@ -459,128 +459,148 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                     </div>
                                 </div>
 
-                                {/* Group 2: Software & Kredensial */}
-                                <div className="border-t border-slate-200 pt-4">
-                                    <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                        <span className="h-2 w-2 rounded-full bg-cyan-500"></span>
-                                        2. Software & Kredensial Akses
-                                    </h4>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Versi Software / Firmware</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Contoh: RouterOS 7.14"
-                                                value={data.firmware}
-                                                onChange={(e) => setData('firmware', e.target.value)}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Username Akses</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Contoh: admin"
-                                                value={data.username}
-                                                onChange={(e) => setData('username', e.target.value)}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Password Akses</label>
-                                            <input
-                                                type="password"
-                                                placeholder={editingDevice ? 'Kosongkan jika tidak diubah' : 'Ketik password'}
-                                                value={data.password}
-                                                onChange={(e) => setData('password', e.target.value)}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
+                                 {/* Group 2: Software & Kredensial */}
+                                 <div className="border-t border-slate-200 pt-4">
+                                     <h4 className="text-xs font-bold text-cyan-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                         <span className="h-2 w-2 rounded-full bg-cyan-500"></span>
+                                         2. Software & Kredensial Akses
+                                     </h4>
+                                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Versi Software / Firmware</label>
+                                             <input
+                                                 type="text"
+                                                 placeholder="Contoh: RouterOS 7.14"
+                                                 value={data.firmware}
+                                                 onChange={(e) => setData('firmware', e.target.value)}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                                             />
+                                         </div>
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Username Akses</label>
+                                             <input
+                                                 type="text"
+                                                 placeholder="Contoh: admin"
+                                                 value={data.username}
+                                                 onChange={(e) => setData('username', e.target.value)}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
+                                             />
+                                         </div>
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Password Akses (Transparan)</label>
+                                             <input
+                                                 type="text"
+                                                 placeholder="Contoh: admin123"
+                                                 value={data.password}
+                                                 onChange={(e) => setData('password', e.target.value)}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono font-medium"
+                                             />
+                                         </div>
+                                     </div>
+                                 </div>
 
-                                {/* Group 3: Lokasi & IP Network */}
-                                <div className="border-t border-slate-200 pt-4">
-                                    <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                        <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                                        3. Posisi Perangkat (Lokasi) & IP Address
-                                    </h4>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Gedung*</label>
-                                            <select
-                                                required
-                                                value={data.building_id}
-                                                onChange={(e) => {
-                                                    const bId = e.target.value;
-                                                    setData(prev => {
-                                                        const updated = { ...prev, building_id: bId, rack_id: '' };
-                                                        const firstFloor = floors.find(f => f.building_id == bId);
-                                                        if (firstFloor) {
-                                                            updated.floor_id = firstFloor.id;
-                                                            const firstRoom = rooms.find(r => r.floor_id == firstFloor.id);
-                                                            if (firstRoom) {
-                                                                updated.room_id = firstRoom.id;
-                                                            } else {
-                                                                updated.room_id = '';
-                                                            }
-                                                        } else {
-                                                            updated.floor_id = '';
-                                                            updated.room_id = '';
-                                                        }
-                                                        return updated;
-                                                    });
-                                                }}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                            >
-                                                <option value="">-- Pilih Gedung --</option>
-                                                {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                            </select>
-                                            {errors.building_id && <span className="text-xs text-red-600 mt-1 block">{errors.building_id}</span>}
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Lantai</label>
-                                            <select
-                                                value={data.floor_id}
-                                                onChange={(e) => {
-                                                    const fId = e.target.value;
-                                                    setData(prev => {
-                                                        const updated = { ...prev, floor_id: fId, rack_id: '' };
-                                                        const firstRoom = rooms.find(r => r.floor_id == fId);
-                                                        if (firstRoom) {
-                                                            updated.room_id = firstRoom.id;
-                                                        } else {
-                                                            updated.room_id = '';
-                                                        }
-                                                        return updated;
-                                                    });
-                                                }}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                            >
-                                                <option value="">-- Pilih Lantai --</option>
-                                                {floors.filter(f => f.building_id == data.building_id).map(f => (
-                                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Ruangan / Kode Tempat</label>
-                                            <select
-                                                value={data.room_id}
-                                                onChange={(e) => {
-                                                    const rId = e.target.value;
-                                                    setData(prev => ({ ...prev, room_id: rId, rack_id: '' }));
-                                                }}
-                                                className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                            >
-                                                <option value="">-- Pilih Ruangan --</option>
-                                                {rooms.filter(r => r.floor_id == data.floor_id).map(r => (
-                                                    <option key={r.id} value={r.id}>
-                                                        {r.code ? `[${r.code}] ` : ''}{r.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                 {/* Group 3: Lokasi & IP Network */}
+                                 <div className="border-t border-slate-200 pt-4">
+                                     <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                         <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                         3. Posisi Perangkat (Lokasi) & IP Address
+                                     </h4>
+                                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Gedung*</label>
+                                             <select
+                                                 required
+                                                 value={data.building_id}
+                                                 onChange={(e) => {
+                                                     const bId = e.target.value;
+                                                     setData(prev => {
+                                                         const updated = { ...prev, building_id: bId, rack_id: '' };
+                                                         const firstFloor = floors.find(f => f.building_id == bId);
+                                                         if (firstFloor) {
+                                                             updated.floor_id = firstFloor.id;
+                                                             const availableRooms = rooms
+                                                                 .filter(r => r.floor_id == firstFloor.id)
+                                                                 .sort((a, b) => {
+                                                                     const aIsServer = (a.name || '').toLowerCase().includes('server') || (a.code || '').includes('RS');
+                                                                     const bIsServer = (b.name || '').toLowerCase().includes('server') || (b.code || '').includes('RS');
+                                                                     if (aIsServer && !bIsServer) return -1;
+                                                                     if (!aIsServer && bIsServer) return 1;
+                                                                     return 0;
+                                                                 });
+                                                             updated.room_id = availableRooms.length > 0 ? availableRooms[0].id : '';
+                                                         } else {
+                                                             updated.floor_id = '';
+                                                             updated.room_id = '';
+                                                         }
+                                                         return updated;
+                                                     });
+                                                 }}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                                             >
+                                                 <option value="">-- Pilih Gedung --</option>
+                                                 {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                             </select>
+                                             {errors.building_id && <span className="text-xs text-red-600 mt-1 block">{errors.building_id}</span>}
+                                         </div>
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Lantai</label>
+                                             <select
+                                                 value={data.floor_id}
+                                                 onChange={(e) => {
+                                                     const fId = e.target.value;
+                                                     setData(prev => {
+                                                         const updated = { ...prev, floor_id: fId, rack_id: '' };
+                                                         const availableRooms = rooms
+                                                             .filter(r => r.floor_id == fId)
+                                                             .sort((a, b) => {
+                                                                 const aIsServer = (a.name || '').toLowerCase().includes('server') || (a.code || '').includes('RS');
+                                                                 const bIsServer = (b.name || '').toLowerCase().includes('server') || (b.code || '').includes('RS');
+                                                                 if (aIsServer && !bIsServer) return -1;
+                                                                 if (!aIsServer && bIsServer) return 1;
+                                                                 return 0;
+                                                             });
+                                                         updated.room_id = availableRooms.length > 0 ? availableRooms[0].id : '';
+                                                         return updated;
+                                                     });
+                                                 }}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                                             >
+                                                 <option value="">-- Pilih Lantai --</option>
+                                                 {floors.filter(f => f.building_id == data.building_id).map(f => (
+                                                     <option key={f.id} value={f.id}>{f.name}</option>
+                                                 ))}
+                                             </select>
+                                         </div>
+                                         <div>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Ruangan / Kode Tempat</label>
+                                             <select
+                                                 value={data.room_id}
+                                                 onChange={(e) => {
+                                                     const rId = e.target.value;
+                                                     setData(prev => ({ ...prev, room_id: rId, rack_id: '' }));
+                                                 }}
+                                                 className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-medium"
+                                             >
+                                                 <option value="">-- Pilih Ruangan --</option>
+                                                 {rooms
+                                                     .filter(r => r.floor_id == data.floor_id)
+                                                     .sort((a, b) => {
+                                                         const aIsServer = (a.name || '').toLowerCase().includes('server') || (a.code || '').includes('RS');
+                                                         const bIsServer = (b.name || '').toLowerCase().includes('server') || (b.code || '').includes('RS');
+                                                         if (aIsServer && !bIsServer) return -1;
+                                                         if (!aIsServer && bIsServer) return 1;
+                                                         return 0;
+                                                     })
+                                                     .map(r => {
+                                                         const isServer = (r.name || '').toLowerCase().includes('server') || (r.code || '').includes('RS');
+                                                         return (
+                                                             <option key={r.id} value={r.id}>
+                                                                 {isServer ? '🖥️ ' : ''}{r.code ? `[${r.code}] ` : ''}{r.name}{isServer ? ' (Utama)' : ''}
+                                                             </option>
+                                                         );
+                                                     })}
+                                             </select>
+                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-600 mb-1">
                                                 IP Address Utama
