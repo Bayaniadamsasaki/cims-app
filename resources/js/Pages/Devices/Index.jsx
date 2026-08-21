@@ -1,6 +1,6 @@
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Index({ devices = [], vendors = [], categories = [], buildings = [], floors = [], rooms = [], racks = [], filters = {} }) {
@@ -61,8 +61,15 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                 alert(error?.response?.data?.message || 'Gagal mengimport data. Periksa format file Excel.');
             }
         });
-    };
-
+};
+    
+    // Auto-view imported device after successful import
+    useEffect(() => {
+        if (devices.length > 0 && !editingDevice && !viewingDevice) {
+            setViewingDevice(devices[0]);
+        }
+    }, [devices, editingDevice]);
+    
     // Form Input / Edit Manual Perangkat
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         name: '',
@@ -909,8 +916,8 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                         <td className="py-2 px-3 font-bold text-slate-900">{iface.interface_name}</td>
                                                         <td className="py-2 px-3">{iface.mac_address || '-'}</td>
                                                         <td className="py-2 px-3 text-emerald-700 font-bold">
-                                                            {iface.ip_address ? `${iface.ip_address}${iface.subnet || ''}` : '-'}
-                                                        </td>
+                                                             {iface.ip_address ? iface.subnet ? `${iface.ip_address}/${iface.subnet}` : iface.ip_address : '-'}
+                                                         </td>
                                                         <td className="py-2 px-3">{iface.interface_type || 'Ethernet'}</td>
                                                         <td className="py-2 px-3">
                                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${

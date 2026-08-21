@@ -14,9 +14,15 @@ use App\Models\Room;
 use App\Models\Rack;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Artisan;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\DevicesImport;
+use App\Imports\SingleDeviceAuditImport;
+use App\Models\Device;
+use App\Models\DeviceInterface;
+use App\Services\MikrotikService;
 
 class DeviceWebController extends Controller
 {
@@ -148,7 +154,7 @@ class DeviceWebController extends Controller
      */
     public function import(Request $request)
     {
-        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Entered");
+        Log::info("DeviceWebController::import - Entered");
         
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
@@ -158,48 +164,48 @@ class DeviceWebController extends Controller
         $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.' . $file->getClientOriginalExtension(), 'local');
         $fullPath = storage_path('app/' . $tempPath);
         
-        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Saved file to " . $fullPath);
+        Log::info("DeviceWebController::import - Saved file to " . $fullPath);
 
         // 1. Detect single-device audit format (Ringkasan Perangkat + Interface sheets)
-        $canHandle = \App\Imports\SingleDeviceAuditImport::canHandle($fullPath);
-        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - SingleDeviceAuditImport::canHandle: " . ($canHandle ? "YES" : "NO"));
+        $canHandle = SingleDeviceAuditImport::canHandle($fullPath);
+        Log::info("DeviceWebController::import - SingleDeviceAuditImport::canHandle: " . ($canHandle ? "YES" : "NO"));
         
         if ($canHandle) {
-            $importer = new \App\Imports\SingleDeviceAuditImport();
+            $importer = new SingleDeviceAuditImport();
             $device = $importer->import($fullPath);
 
             if ($device) {
-                \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Successfully imported single device: " . $device->name);
+                Log::info("DeviceWebController::import - Successfully imported single device: " . $device->name);
                 return back()->with('success', "Perangkat '{$device->name}' beserta " .
                     $device->deviceInterfaces()->count() . " port/interface berhasil diimport dari file audit Excel!");
             }
 
-            \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Failed to import single device");
+            Log::error("DeviceWebController::import - Failed to import single device");
             return back()->with('error', 'Gagal mengimport data dari file audit Excel. Periksa format file.');
         }
 
-        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Falling back to UBG master import format");
+        Log::info("DeviceWebController::import - Falling back to UBG master import format");
         $importSuccess = false;
 
         // 2. Fallback: Master UBG inventory format (GEDUNG & RUANGAN + Router sheets)
         try {
-            \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
+            Artisan::call('import:ubg-excel', [
                 'file' => $fullPath
             ]);
-            \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback import:ubg-excel Artisan command completed");
+            Log::info("DeviceWebController::import - Fallback import:ubg-excel Artisan command completed");
             $importSuccess = true;
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Fallback import:ubg-excel failed: " . $e->getMessage());
+            Log::error("DeviceWebController::import - Fallback import:ubg-excel failed: " . $e->getMessage());
         }
 
         // 3. If Artisan fallback failed, try direct Excel import
         if (!$importSuccess) {
             try {
-                \Illuminate\Support\Facades\Excel::import(new DevicesImport, $fullPath);
-                \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback Excel::import completed");
+                Excel::import(new DevicesImport, $fullPath);
+                Log::info("DeviceWebController::import - Fallback Excel::import completed");
                 $importSuccess = true;
             } catch (\Throwable $e2) {
-                \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Fallback Excel::import failed: " . $e2->getMessage());
+                Log::error("DeviceWebController::import - Fallback Excel::import failed: " . $e2->getMessage());
             }
         }
 
@@ -207,13 +213,25 @@ class DeviceWebController extends Controller
             return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');
         }
 
-        \Illuminate\Support\Facades\Log::error("DeviceWebController::import - All import methods failed");
+        Log::error("DeviceWebController::import - All import methods failed");
         return back()->with('error', 'Gagal mengimport data dari file Excel. Periksa format file dan cek log untuk detail.');
     }
 
-    public function syncInterfaces(Request $request, int $id, \App\Services\MikrotikService $mikrotikService)
+    public function uploadExcelView(Request $request)
     {
-        $device = \App\Models\Device::findOrFail($id);
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        $path = $request->file('file')->store('excels', 'public');
+        $url = asset('storage/' . $path);
+
+        return back()->with('excel_path', $path)->with('excel_url', $url)->with('success', 'File Excel berhasil diupload. Anda dapat melihat dan mengeditnya di bawah.');
+    }
+
+    public function syncInterfaces(Request $request, int $id, MikrotikService $mikrotikService)
+    {
+        $device = Device::findOrFail($id);
 
         if ($device->ip_address) {
             try {
@@ -234,7 +252,7 @@ class DeviceWebController extends Controller
         $ports = ['ether1', 'ether2', 'ether3', 'ether4', 'ether5'];
         $created = 0;
         foreach ($ports as $idx => $portName) {
-            \App\Models\DeviceInterface::firstOrCreate(
+            DeviceInterface::firstOrCreate(
                 [
                     'device_id' => $device->id,
                     'interface_name' => $portName,

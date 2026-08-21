@@ -32,7 +32,8 @@ class ImportUbgExcelCommand extends Command
 
     public function handle()
     {
-        $filePath = base_path($this->argument('file'));
+        $arg = $this->argument('file');
+        $filePath = str_starts_with($arg, '/') || str_starts_with($arg, 'C:\\') || str_starts_with($arg, 'c:\\') ? $arg : base_path($arg);
         if (!file_exists($filePath)) {
             $this->error("File not found: {$filePath}");
             return 1;
