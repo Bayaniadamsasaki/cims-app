@@ -47,6 +47,18 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
             onSuccess: () => {
                 setIsImportModalOpen(false);
                 importForm.reset();
+                router.get(route('devices.index'), {}, { preserveState: true }, () => {
+                    // After device list refresh, try to view the last device in the list
+                    // This gives the user immediate feedback on the imported data
+                    if (devices.length > 0) {
+                        setViewingDevice(devices[devices.length - 1]);
+                    }
+                });
+            },
+            onError: (error) => {
+                importForm.setErrors(error);
+                // Show error message from backend
+                alert(error?.response?.data?.message || 'Gagal mengimport data. Periksa format file Excel.');
             }
         });
     };

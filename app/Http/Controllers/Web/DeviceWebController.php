@@ -140,23 +140,6 @@ class DeviceWebController extends Controller
         return redirect()->route('devices.index')->with('success', 'Device deleted successfully.');
     }
 
-    public function importExcel(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,max:10240'
-        ]);
-
-        $file = $request->file('file');
-        $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.xlsx', 'local');
-        $fullPath = storage_path('app/' . $tempPath);
-
-        \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
-            'file' => $fullPath
-        ]);
-
-        return redirect()->route('devices.index')->with('success', 'Data inventaris Excel berhasil diimport ke sistem CIMS!');
-    }
-
     /**
      * Import Excel Inventaris UBG menggunakan Maatwebsite\Excel.
      * Supports two formats:
@@ -196,19 +179,36 @@ class DeviceWebController extends Controller
         }
 
         \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Falling back to UBG master import format");
+        $importSuccess = false;
+
         // 2. Fallback: Master UBG inventory format (GEDUNG & RUANGAN + Router sheets)
         try {
             \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
                 'file' => $fullPath
             ]);
             \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback import:ubg-excel Artisan command completed");
+            $importSuccess = true;
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Fallback import:ubg-excel failed: " . $e->getMessage());
-            Excel::import(new DevicesImport, $file);
-            \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback Excel::import completed");
         }
 
-        return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');
+        // 3. If Artisan fallback failed, try direct Excel import
+        if (!$importSuccess) {
+            try {
+                \Illuminate\Support\Facades\Excel::import(new DevicesImport, $fullPath);
+                \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback Excel::import completed");
+                $importSuccess = true;
+            } catch (\Throwable $e2) {
+                \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Fallback Excel::import failed: " . $e2->getMessage());
+            }
+        }
+
+        if ($importSuccess) {
+            return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');
+        }
+
+        \Illuminate\Support\Facades\Log::error("DeviceWebController::import - All import methods failed");
+        return back()->with('error', 'Gagal mengimport data dari file Excel. Periksa format file dan cek log untuk detail.');
     }
 
     public function syncInterfaces(Request $request, int $id, \App\Services\MikrotikService $mikrotikService)
