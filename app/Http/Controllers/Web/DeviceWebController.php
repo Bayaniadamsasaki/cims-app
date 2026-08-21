@@ -159,7 +159,9 @@ class DeviceWebController extends Controller
 
     /**
      * Import Excel Inventaris UBG menggunakan Maatwebsite\Excel.
-     * Validasi file (xlsx/xls/csv, max 10 MB), lalu delegasikan ke DevicesImport.
+     * Supports two formats:
+     *   1. Single-device audit (sheets: Ringkasan Perangkat, Interface, IP Address)
+     *   2. Master UBG inventory (sheets: GEDUNG & RUANGAN, Router)
      */
     public function import(Request $request)
     {
@@ -171,6 +173,20 @@ class DeviceWebController extends Controller
         $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.' . $file->getClientOriginalExtension(), 'local');
         $fullPath = storage_path('app/' . $tempPath);
 
+        // 1. Detect single-device audit format (Ringkasan Perangkat + Interface sheets)
+        if (\App\Imports\SingleDeviceAuditImport::canHandle($fullPath)) {
+            $importer = new \App\Imports\SingleDeviceAuditImport();
+            $device = $importer->import($fullPath);
+
+            if ($device) {
+                return back()->with('success', "Perangkat '{$device->name}' beserta " .
+                    $device->deviceInterfaces()->count() . " port/interface berhasil diimport dari file audit Excel!");
+            }
+
+            return back()->with('error', 'Gagal mengimport data dari file audit Excel. Periksa format file.');
+        }
+
+        // 2. Fallback: Master UBG inventory format (GEDUNG & RUANGAN + Router sheets)
         try {
             \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
                 'file' => $fullPath
