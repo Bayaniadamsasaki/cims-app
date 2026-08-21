@@ -165,6 +165,8 @@ class DeviceWebController extends Controller
      */
     public function import(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Entered");
+        
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
@@ -172,27 +174,38 @@ class DeviceWebController extends Controller
         $file = $request->file('file');
         $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.' . $file->getClientOriginalExtension(), 'local');
         $fullPath = storage_path('app/' . $tempPath);
+        
+        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Saved file to " . $fullPath);
 
         // 1. Detect single-device audit format (Ringkasan Perangkat + Interface sheets)
-        if (\App\Imports\SingleDeviceAuditImport::canHandle($fullPath)) {
+        $canHandle = \App\Imports\SingleDeviceAuditImport::canHandle($fullPath);
+        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - SingleDeviceAuditImport::canHandle: " . ($canHandle ? "YES" : "NO"));
+        
+        if ($canHandle) {
             $importer = new \App\Imports\SingleDeviceAuditImport();
             $device = $importer->import($fullPath);
 
             if ($device) {
+                \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Successfully imported single device: " . $device->name);
                 return back()->with('success', "Perangkat '{$device->name}' beserta " .
                     $device->deviceInterfaces()->count() . " port/interface berhasil diimport dari file audit Excel!");
             }
 
+            \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Failed to import single device");
             return back()->with('error', 'Gagal mengimport data dari file audit Excel. Periksa format file.');
         }
 
+        \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Falling back to UBG master import format");
         // 2. Fallback: Master UBG inventory format (GEDUNG & RUANGAN + Router sheets)
         try {
             \Illuminate\Support\Facades\Artisan::call('import:ubg-excel', [
                 'file' => $fullPath
             ]);
+            \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback import:ubg-excel Artisan command completed");
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("DeviceWebController::import - Fallback import:ubg-excel failed: " . $e->getMessage());
             Excel::import(new DevicesImport, $file);
+            \Illuminate\Support\Facades\Log::info("DeviceWebController::import - Fallback Excel::import completed");
         }
 
         return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');

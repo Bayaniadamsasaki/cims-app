@@ -49,6 +49,7 @@ class SingleDeviceAuditImport
             return in_array('Ringkasan Perangkat', $sheetNames)
                 && in_array('Interface', $sheetNames);
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("SingleDeviceAuditImport::canHandle error: " . $e->getMessage());
             return false;
         }
     }
