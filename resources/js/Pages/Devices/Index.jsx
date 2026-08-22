@@ -935,6 +935,57 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                     </table>
                                 </div>
                             </div>
+
+                            {/* Section Neighbor (hasil discovery MNDP/CDP/LLDP dari file audit) */}
+                            <div>
+                                <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <h4 className="text-sm font-bold text-slate-900 flex items-center">
+                                        <svg className="w-4 h-4 mr-1.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342A3 3 0 108.684 10.658m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                        </svg>
+                                        Perangkat Tetangga / Neighbor ({(viewingDevice.device_neighbors || []).length} Terdeteksi)
+                                    </h4>
+                                    <span className="text-[11px] text-slate-400 italic">
+                                        Hasil discovery MNDP / CDP / LLDP
+                                    </span>
+                                </div>
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                    <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                            <tr>
+                                                <th className="py-2.5 px-3 font-bold">Interface Lokal</th>
+                                                <th className="py-2.5 px-3 font-bold">Identity</th>
+                                                <th className="py-2.5 px-3 font-bold">IP Address</th>
+                                                <th className="py-2.5 px-3 font-bold">MAC Address</th>
+                                                <th className="py-2.5 px-3 font-bold">Platform</th>
+                                                <th className="py-2.5 px-3 font-bold">Board</th>
+                                                <th className="py-2.5 px-3 font-bold">Versi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-slate-600 font-mono">
+                                            {(viewingDevice.device_neighbors || []).length > 0 ? (
+                                                (viewingDevice.device_neighbors || []).map((nb, i) => (
+                                                    <tr key={nb.id || i} className="hover:bg-slate-50">
+                                                        <td className="py-2 px-3 font-bold text-slate-900">{nb.interface_name}</td>
+                                                        <td className="py-2 px-3">{nb.identity || '-'}</td>
+                                                        <td className="py-2 px-3 text-emerald-700 font-bold">{nb.ip_address || '-'}</td>
+                                                        <td className="py-2 px-3">{nb.mac_address || '-'}</td>
+                                                        <td className="py-2 px-3">{nb.platform || '-'}</td>
+                                                        <td className="py-2 px-3">{nb.board || '-'}</td>
+                                                        <td className="py-2 px-3">{nb.version || '-'}</td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="7" className="py-4 text-center text-slate-400 italic font-sans">
+                                                        Belum ada perangkat tetangga yang terdeteksi. Data ini terisi otomatis saat Anda mengimport file audit Excel yang memiliki sheet <strong>"Neighbor"</strong>.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Modal Footer */}

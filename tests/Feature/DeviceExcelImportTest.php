@@ -43,6 +43,62 @@ class DeviceExcelImportTest extends TestCase
         $this->assertSame('down', $ether2->interface_status);
     }
 
+    public function test_neighbor_sheet_is_imported_and_exposed_to_the_device_detail_view(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('devices.import'), ['file' => $this->auditWorkbook()])
+            ->assertSessionHas('success');
+
+        $device = Device::where('serial_number', 'TEST-SN-001')->firstOrFail();
+
+        // Baris ether4 hanya berisi "-" di semua kolom, jadi tidak ikut tersimpan.
+        $this->assertSame(4, $device->deviceNeighbors()->count());
+
+        $balkon = $device->deviceNeighbors()->where('mac_address', 'F4:1E:57:A2:88:3C')->first();
+        $this->assertNotNull($balkon);
+        $this->assertSame('ether2', $balkon->interface_name);
+        $this->assertSame('192.168.90.253', $balkon->ip_address);
+        $this->assertSame('MIkrotik_Balkon_FK', $balkon->identity);
+        $this->assertSame('MikroTik', $balkon->platform);
+        $this->assertSame('RB450Gx4', $balkon->board);
+        $this->assertSame('7.23.2', $balkon->version);
+
+        // Kolom "-" jadi null, bukan literal "-".
+        $polos = $device->deviceNeighbors()->where('mac_address', 'D0:50:99:9E:1C:DA')->firstOrFail();
+        $this->assertNull($polos->ip_address);
+        $this->assertNull($polos->identity);
+
+        // Satu interface boleh muncul lebih dari sekali.
+        $this->assertSame(2, $device->deviceNeighbors()->where('interface_name', 'ether3')->count());
+
+        // Halaman inventaris harus membawa relasi ini agar modal detail bisa
+        // menampilkannya tanpa request tambahan.
+        $this->actingAs($user)
+            ->get(route('devices.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('devices.0.device_neighbors', 4)
+                ->has('devices.0.device_neighbors.0', fn ($neighbor) => $neighbor
+                    ->hasAll(['interface_name', 'mac_address', 'ip_address', 'identity', 'platform', 'board', 'version'])
+                    ->etc())
+                ->where('devices.0.device_neighbors_count', 4)
+                ->etc());
+    }
+
+    public function test_reimport_replaces_neighbors_instead_of_duplicating_them(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('devices.import'), ['file' => $this->auditWorkbook()]);
+        $this->actingAs($user)->post(route('devices.import'), ['file' => $this->auditWorkbook()]);
+
+        $device = Device::where('serial_number', 'TEST-SN-001')->firstOrFail();
+
+        $this->assertSame(1, Device::count());
+        $this->assertSame(4, $device->deviceNeighbors()->count());
+    }
+
     public function test_unrecognised_file_reports_failure_instead_of_false_success(): void
     {
         // Kolom B kosong di semua baris, jadi tidak ada satu pun baris yang layak diimport.
@@ -105,6 +161,19 @@ class DeviceExcelImportTest extends TestCase
         $ipAddresses->fromArray([
             ['Interface', 'Address', 'Network', 'Tipe'],
             ['ether1', '118.98.127.21/29', '118.98.127.16', 'static'],
+        ], null, 'A1');
+
+        // Satu interface bisa punya beberapa neighbor, dan hanya MAC yang selalu
+        // terisi — baris "-" murni placeholder dan harus diabaikan importer.
+        $neighbors = $spreadsheet->createSheet();
+        $neighbors->setTitle('Neighbor');
+        $neighbors->fromArray([
+            ['Interface', 'IP Address', 'MAC Address', 'Identity', 'Platform', 'Board', 'Version'],
+            ['ether1', '-', 'D0:50:99:9E:1C:DA', '-', '-', '-', '-'],
+            ['ether2', '192.168.90.253', 'F4:1E:57:A2:88:3C', 'MIkrotik_Balkon_FK', 'MikroTik', 'RB450Gx4', '7.23.2'],
+            ['ether3', '-', '04:0E:3C:9F:6C:FD', '-', '-', '-', '-'],
+            ['ether3', '-', '28:D2:44:F8:2C:29', '-', '-', '-', '-'],
+            ['ether4', '-', '-', '-', '-', '-', '-'],
         ], null, 'A1');
 
         $path = tempnam(sys_get_temp_dir(), 'cims_audit_') . '.xlsx';

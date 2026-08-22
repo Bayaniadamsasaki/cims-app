@@ -121,6 +121,11 @@ class Device extends Model
         return $this->hasMany(DeviceInterface::class);
     }
 
+    public function deviceNeighbors(): HasMany
+    {
+        return $this->hasMany(DeviceNeighbor::class);
+    }
+
     public function metrics(): HasOne
     {
         return $this->hasOne(DeviceMetric::class);

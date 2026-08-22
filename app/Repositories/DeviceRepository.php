@@ -9,13 +9,14 @@ class DeviceRepository implements DeviceRepositoryInterface
 {
     protected array $defaultRelations = [
         'vendor', 'category', 'operatingSystem', 'deviceType',
-        'building', 'floor', 'room', 'rack', 'deviceInterfaces'
+        'building', 'floor', 'room', 'rack', 'deviceInterfaces',
+        'deviceNeighbors'
     ];
 
     public function paginate(int $perPage = 15, array $filters = [])
     {
         $query = Device::query()->with($this->defaultRelations)
-            ->withCount('deviceInterfaces');
+            ->withCount(['deviceInterfaces', 'deviceNeighbors']);
 
         if (!empty($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);

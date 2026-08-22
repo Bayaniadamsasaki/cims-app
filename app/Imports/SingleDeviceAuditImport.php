@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\Device;
 use App\Models\DeviceInterface;
+use App\Models\DeviceNeighbor;
 use App\Models\Vendor;
 use App\Models\DeviceCategory;
 use App\Models\OperatingSystem;
@@ -104,6 +105,14 @@ class SingleDeviceAuditImport
         // 3. Parse "IP Address" sheet (optional, for enrichment)
         $ipAddresses = $this->parseIpAddressSheet($z, $sheetPaths['IP Address'] ?? null);
 
+        // 4. Parse "Neighbor" sheet (optional).
+        //    Sheet tidak ada dan sheet ada tapi kosong harus dibedakan: yang
+        //    pertama tidak boleh menghapus neighbor hasil import sebelumnya.
+        $hasNeighborSheet = isset($sheetPaths['Neighbor']);
+        $neighbors = $hasNeighborSheet
+            ? $this->parseNeighborSheet($z, $sheetPaths['Neighbor'])
+            : [];
+
         $z->close();
 
         // Build device record
@@ -200,7 +209,28 @@ class SingleDeviceAuditImport
             }
         }
 
-        Log::info("SingleDeviceAuditImport: imported device '{$device->name}' with " . count($interfaces) . " interfaces");
+        // Neighbor adalah snapshot hasil discovery (MNDP/CDP/LLDP), bukan data
+        // yang diedit manual, dan satu interface bisa punya beberapa neighbor
+        // tanpa kunci unik yang stabil. Jadi diganti penuh, bukan updateOrCreate.
+        if ($hasNeighborSheet) {
+            $device->deviceNeighbors()->delete();
+
+            foreach ($neighbors as $nb) {
+                DeviceNeighbor::create([
+                    'device_id'      => $device->id,
+                    'interface_name' => $nb['interface'],
+                    'ip_address'     => $nb['ip'],
+                    'mac_address'    => $nb['mac'],
+                    'identity'       => $nb['identity'],
+                    'platform'       => $nb['platform'],
+                    'board'          => $nb['board'],
+                    'version'        => $nb['version'],
+                ]);
+            }
+        }
+
+        Log::info("SingleDeviceAuditImport: imported device '{$device->name}' with "
+            . count($interfaces) . ' interfaces and ' . count($neighbors) . ' neighbors');
         return $device;
     }
 
@@ -323,6 +353,52 @@ class SingleDeviceAuditImport
         }
 
         return $result;
+    }
+
+    /**
+     * Parse the "Neighbor" sheet: devices discovered on each local interface.
+     *
+     * Columns: A=Interface, B=IP Address, C=MAC Address, D=Identity,
+     *          E=Platform, F=Board, G=Version.
+     *
+     * Unlike the other sheets this one is a plain list, not a map: the same
+     * interface may appear on several rows (one per discovered neighbor), and
+     * everything except the interface name can be empty.
+     */
+    private function parseNeighborSheet(\ZipArchive $z, ?string $path): array
+    {
+        if (!$path) return [];
+
+        $xml = $z->getFromName($path);
+        if ($xml === false) return [];
+
+        $rows = $this->parseSheetRows($xml);
+        $neighbors = [];
+
+        foreach ($rows as $row) {
+            if (($row['A'] ?? '') === 'Interface') continue;
+
+            $interface = $this->cleanValue($row['A'] ?? null);
+            $ip        = $this->cleanValue($row['B'] ?? null);
+            $mac       = $this->cleanValue($row['C'] ?? null);
+            $identity  = $this->cleanValue($row['D'] ?? null);
+
+            // Tanpa MAC, IP, maupun identity baris ini tidak mengidentifikasi
+            // perangkat apa pun — hanya placeholder "tidak ada neighbor".
+            if (!$interface || (!$mac && !$ip && !$identity)) continue;
+
+            $neighbors[] = [
+                'interface' => $interface,
+                'ip'        => $ip,
+                'mac'       => $mac,
+                'identity'  => $identity,
+                'platform'  => $this->cleanValue($row['E'] ?? null),
+                'board'     => $this->cleanValue($row['F'] ?? null),
+                'version'   => $this->cleanValue($row['G'] ?? null),
+            ];
+        }
+
+        return $neighbors;
     }
 
     /**
@@ -456,6 +532,16 @@ class SingleDeviceAuditImport
             'running', 'up', 'aktif' => 'up',
             default                  => 'down',
         };
+    }
+
+    /**
+     * Normalise a cell value: the audit tool writes "-" for "no data".
+     */
+    private function cleanValue(?string $value): ?string
+    {
+        $value = trim((string)$value);
+
+        return ($value === '' || $value === '-') ? null : $value;
     }
 
     private function cidrToSubnet(int $prefix): string
