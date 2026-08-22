@@ -65,7 +65,7 @@ class DeviceRepository implements DeviceRepositoryInterface
             });
         }
 
-        return $query->paginate($perPage);
+        return $query->orderByDesc('id')->paginate($perPage);
     }
 
     public function find(int $id)

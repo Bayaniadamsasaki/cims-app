@@ -23,6 +23,39 @@ use Illuminate\Support\Facades\Log;
 class SingleDeviceAuditImport
 {
     /**
+     * Shared string table of the workbook being parsed.
+     * Empty for the audit tool's own files, which use inline strings; populated
+     * when the file has been re-saved by Excel/LibreOffice.
+     *
+     * @var string[]
+     */
+    private array $sharedStrings = [];
+
+    /**
+     * List the worksheet names inside an .xlsx file.
+     *
+     * @param string $filePath Absolute path to the .xlsx file
+     * @return string[] Empty when the file is missing or unreadable
+     */
+    public static function sheetNames(string $filePath): array
+    {
+        try {
+            $z = new \ZipArchive();
+            if ($z->open($filePath) !== true) {
+                return [];
+            }
+
+            $wbXml = $z->getFromName('xl/workbook.xml');
+            $z->close();
+
+            return $wbXml === false ? [] : self::getSheetNames($wbXml);
+        } catch (\Throwable $e) {
+            Log::error("SingleDeviceAuditImport::sheetNames error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Detect whether an Excel file matches the single-device audit format.
      *
      * @param string $filePath Absolute path to the .xlsx file
@@ -30,28 +63,11 @@ class SingleDeviceAuditImport
      */
     public static function canHandle(string $filePath): bool
     {
-        try {
-            $z = new \ZipArchive();
-            if ($z->open($filePath) !== true) {
-                return false;
-            }
+        $sheetNames = self::sheetNames($filePath);
 
-            $wbXml = $z->getFromName('xl/workbook.xml');
-            if ($wbXml === false) {
-                $z->close();
-                return false;
-            }
-
-            $sheetNames = self::getSheetNames($wbXml);
-            $z->close();
-
-            // This format has "Ringkasan Perangkat" and "Interface" sheets
-            return in_array('Ringkasan Perangkat', $sheetNames)
-                && in_array('Interface', $sheetNames);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("SingleDeviceAuditImport::canHandle error: " . $e->getMessage());
-            return false;
-        }
+        // This format has "Ringkasan Perangkat" and "Interface" sheets
+        return in_array('Ringkasan Perangkat', $sheetNames, true)
+            && in_array('Interface', $sheetNames, true);
     }
 
     /**
@@ -70,6 +86,9 @@ class SingleDeviceAuditImport
 
         // Resolve sheet paths from workbook relationships
         $sheetPaths = $this->resolveSheetPaths($z);
+
+        // Files re-saved by Excel move their text into a shared string table
+        $this->sharedStrings = $this->loadSharedStrings($z);
 
         // 1. Parse "Ringkasan Perangkat" (device summary)
         $summary = $this->parseSummarySheet($z, $sheetPaths['Ringkasan Perangkat'] ?? null);
@@ -307,6 +326,37 @@ class SingleDeviceAuditImport
     }
 
     /**
+     * Read xl/sharedStrings.xml into an index-ordered list of plain strings.
+     *
+     * @return string[]
+     */
+    private function loadSharedStrings(\ZipArchive $z): array
+    {
+        $xml = $z->getFromName('xl/sharedStrings.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $doc = new \SimpleXMLElement($xml);
+        $doc->registerXPathNamespace('m', $ns);
+
+        $strings = [];
+        foreach ($doc->xpath('//m:si') as $si) {
+            $si->registerXPathNamespace('m', $ns);
+
+            // An <si> is either one <t>, or several <r><t> runs that concatenate
+            $text = '';
+            foreach ($si->xpath('.//m:t') as $t) {
+                $text .= (string)$t;
+            }
+            $strings[] = $text;
+        }
+
+        return $strings;
+    }
+
+    /**
      * Parse all rows from a worksheet XML, handling both shared strings and inline strings.
      */
     private function parseSheetRows(string $xml): array
@@ -330,12 +380,20 @@ class SingleDeviceAuditImport
                 $type = (string)$cell['t'];
 
                 // Inline string
-                $isElem = $cell->xpath('m:is/m:t');
+                $isElem = $cell->xpath('m:is//m:t');
                 if (!empty($isElem)) {
-                    $val = (string)$isElem[0];
+                    $val = '';
+                    foreach ($isElem as $t) {
+                        $val .= (string)$t;
+                    }
                 } else {
                     $vElem = $cell->xpath('m:v');
                     $val = !empty($vElem) ? (string)$vElem[0] : '';
+
+                    // t="s": <v> holds an index into the shared string table
+                    if ($type === 's' && $val !== '' && isset($this->sharedStrings[(int)$val])) {
+                        $val = $this->sharedStrings[(int)$val];
+                    }
                 }
 
                 if (trim($val) !== '') {

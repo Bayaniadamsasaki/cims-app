@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\DevicesImport;
@@ -154,67 +155,94 @@ class DeviceWebController extends Controller
      */
     public function import(Request $request)
     {
-        Log::info("DeviceWebController::import - Entered");
-        
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
         $file = $request->file('file');
-        $tempPath = $file->storeAs('imports', 'inventaris_' . time() . '.' . $file->getClientOriginalExtension(), 'local');
-        $fullPath = storage_path('app/' . $tempPath);
-        
-        Log::info("DeviceWebController::import - Saved file to " . $fullPath);
+        $relativePath = $file->storeAs(
+            'imports',
+            'inventaris_' . time() . '.' . $file->getClientOriginalExtension(),
+            'local'
+        );
 
-        // 1. Detect single-device audit format (Ringkasan Perangkat + Interface sheets)
-        $canHandle = SingleDeviceAuditImport::canHandle($fullPath);
-        Log::info("DeviceWebController::import - SingleDeviceAuditImport::canHandle: " . ($canHandle ? "YES" : "NO"));
-        
-        if ($canHandle) {
-            $importer = new SingleDeviceAuditImport();
-            $device = $importer->import($fullPath);
+        // Resolve lewat disk-nya sendiri: root disk 'local' adalah
+        // storage/app/private (Laravel 11+), bukan storage/app.
+        $fullPath = Storage::disk('local')->path($relativePath);
+        Log::info("DeviceWebController::import - upload disimpan di {$fullPath}");
 
-            if ($device) {
-                Log::info("DeviceWebController::import - Successfully imported single device: " . $device->name);
-                return back()->with('success', "Perangkat '{$device->name}' beserta " .
-                    $device->deviceInterfaces()->count() . " port/interface berhasil diimport dari file audit Excel!");
+        if (!is_file($fullPath)) {
+            Log::error("DeviceWebController::import - file tidak ditemukan di {$fullPath}");
+            return back()->with('error', 'File terunggah tidak ditemukan di server. Periksa izin tulis folder storage/app.');
+        }
+
+        // 1. Format audit satu perangkat (sheet: Ringkasan Perangkat + Interface)
+        if (SingleDeviceAuditImport::canHandle($fullPath)) {
+            try {
+                $device = (new SingleDeviceAuditImport())->import($fullPath);
+            } catch (\Throwable $e) {
+                Log::error('DeviceWebController::import - SingleDeviceAuditImport gagal: ' . $e->getMessage());
+                return back()->with('error', 'Gagal memproses file audit Excel: ' . Str::limit($e->getMessage(), 200));
             }
 
-            Log::error("DeviceWebController::import - Failed to import single device");
-            return back()->with('error', 'Gagal mengimport data dari file audit Excel. Periksa format file.');
+            if (!$device) {
+                return back()->with('error', 'File audit terbaca tetapi sheet "Ringkasan Perangkat" kosong. Periksa isi file.');
+            }
+
+            $ports = $device->deviceInterfaces()->count();
+            Log::info("DeviceWebController::import - berhasil import '{$device->name}' ({$ports} interface)");
+
+            return back()->with('success', "Perangkat '{$device->name}' beserta {$ports} port/interface berhasil diimport dari file audit Excel.");
         }
 
-        Log::info("DeviceWebController::import - Falling back to UBG master import format");
-        $importSuccess = false;
+        // 2. Format master inventaris UBG (sheet: GEDUNG & RUANGAN + Router)
+        $devicesBefore = Device::count();
+        $interfacesBefore = DeviceInterface::count();
+        $failures = [];
+        $exitCode = 1;
 
-        // 2. Fallback: Master UBG inventory format (GEDUNG & RUANGAN + Router sheets)
         try {
-            Artisan::call('import:ubg-excel', [
-                'file' => $fullPath
-            ]);
-            Log::info("DeviceWebController::import - Fallback import:ubg-excel Artisan command completed");
-            $importSuccess = true;
+            // Artisan::call() mengembalikan exit code dan TIDAK melempar exception,
+            // jadi exit code wajib diperiksa agar kegagalan tidak dilaporkan sukses.
+            $exitCode = Artisan::call('import:ubg-excel', ['file' => $fullPath]);
+            $output = trim(Artisan::output());
+            Log::info("DeviceWebController::import - import:ubg-excel exit={$exitCode} output={$output}");
+
+            if ($exitCode !== 0) {
+                $failures[] = 'import:ubg-excel: ' . ($output !== '' ? $output : "exit code {$exitCode}");
+            }
         } catch (\Throwable $e) {
-            Log::error("DeviceWebController::import - Fallback import:ubg-excel failed: " . $e->getMessage());
+            Log::error('DeviceWebController::import - import:ubg-excel exception: ' . $e->getMessage());
+            $failures[] = 'import:ubg-excel: ' . $e->getMessage();
         }
 
-        // 3. If Artisan fallback failed, try direct Excel import
-        if (!$importSuccess) {
+        // 3. Cadangan terakhir: pembacaan baris generik lewat Maatwebsite
+        if ($exitCode !== 0) {
             try {
                 Excel::import(new DevicesImport, $fullPath);
-                Log::info("DeviceWebController::import - Fallback Excel::import completed");
-                $importSuccess = true;
-            } catch (\Throwable $e2) {
-                Log::error("DeviceWebController::import - Fallback Excel::import failed: " . $e2->getMessage());
+                Log::info('DeviceWebController::import - fallback DevicesImport selesai');
+            } catch (\Throwable $e) {
+                Log::error('DeviceWebController::import - fallback DevicesImport gagal: ' . $e->getMessage());
+                $failures[] = 'DevicesImport: ' . $e->getMessage();
             }
         }
 
-        if ($importSuccess) {
-            return back()->with('success', 'Data inventaris & port interface berhasil diimport dari file Excel!');
+        $newDevices = Device::count() - $devicesBefore;
+        $newInterfaces = DeviceInterface::count() - $interfacesBefore;
+
+        if ($exitCode === 0 || $newDevices > 0 || $newInterfaces > 0) {
+            return back()->with('success', "Import selesai: {$newDevices} perangkat & {$newInterfaces} port/interface baru ditambahkan.");
         }
 
-        Log::error("DeviceWebController::import - All import methods failed");
-        return back()->with('error', 'Gagal mengimport data dari file Excel. Periksa format file dan cek log untuk detail.');
+        Log::error('DeviceWebController::import - semua metode import gagal: ' . implode(' | ', $failures));
+
+        $sheets = SingleDeviceAuditImport::sheetNames($fullPath);
+        $detail = $sheets
+            ? 'Sheet yang terbaca: ' . implode(', ', $sheets) . '.'
+            : 'Tidak ada sheet yang bisa dibaca dari file ini.';
+
+        return back()->with('error', trim("Gagal mengimport data dari file Excel. {$detail} " .
+            ($failures ? 'Penyebab: ' . Str::limit(implode(' | ', $failures), 200) : '')));
     }
 
     public function uploadExcelView(Request $request)

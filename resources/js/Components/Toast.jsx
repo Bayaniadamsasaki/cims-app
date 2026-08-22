@@ -29,8 +29,11 @@ export const ToastProvider = ({ children }) => {
         if (props.flash?.success) {
             addToast('success', props.flash.success);
         }
+        if (props.flash?.warning) {
+            addToast('warning', props.flash.warning);
+        }
         if (props.flash?.error) {
-            addToast('error', props.flash.error);
+            addToast('error', props.flash.error, 8000);
         }
     }, [props.flash]);
 

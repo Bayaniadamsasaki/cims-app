@@ -1,6 +1,6 @@
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
 
 export default function Index({ devices = [], vendors = [], categories = [], buildings = [], floors = [], rooms = [], racks = [], filters = {} }) {
@@ -43,32 +43,26 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
         e.preventDefault();
         if (!importForm.data.file) return;
 
+        // Controller membalas dengan redirect back(), jadi respons visit ini sudah
+        // membawa daftar perangkat terbaru — cukup dibaca dari page.props.
         importForm.post(route('devices.import'), {
-            onSuccess: () => {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: (page) => {
+                // Import gagal: modal dibiarkan terbuka, pesannya tampil lewat Toast.
+                if (page.props.flash?.error) return;
+
                 setIsImportModalOpen(false);
                 importForm.reset();
-                router.get(route('devices.index'), {}, { preserveState: true }, () => {
-                    // After device list refresh, try to view the last device in the list
-                    // This gives the user immediate feedback on the imported data
-                    if (devices.length > 0) {
-                        setViewingDevice(devices[devices.length - 1]);
-                    }
-                });
+
+                // Daftar diurut terbaru dahulu, jadi entri pertama adalah hasil import.
+                const refreshed = page.props.devices ?? [];
+                if (refreshed.length > 0) {
+                    setViewingDevice(refreshed[0]);
+                }
             },
-            onError: (error) => {
-                importForm.setErrors(error);
-                // Show error message from backend
-                alert(error?.response?.data?.message || 'Gagal mengimport data. Periksa format file Excel.');
-            }
         });
-};
-    
-    // Auto-view imported device after successful import
-    useEffect(() => {
-        if (devices.length > 0 && !editingDevice && !viewingDevice) {
-            setViewingDevice(devices[0]);
-        }
-    }, [devices, editingDevice]);
+    };
     
     // Form Input / Edit Manual Perangkat
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
