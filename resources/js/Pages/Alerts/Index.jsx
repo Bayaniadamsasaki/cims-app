@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
@@ -12,11 +12,34 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
     const [toastMessage, setToastMessage] = useState(null);
     const [toastType, setToastType] = useState("success");
 
+    // `alerts` & `stats` dikirim sebagai deferred prop dari controller, jadi render
+    // pertama sengaja kosong (halaman langsung tampil) dan datanya baru menyusul.
+    // Selama prop-nya masih undefined, scan pertama dianggap masih berjalan.
+    const isInitialScanPending = initialAlerts === undefined;
+
     // Auto-Refresh state
     const [autoRefresh, setAutoRefresh] = useState(true);
     const [refreshInterval, setRefreshInterval] = useState(15); // Default 15 seconds
     const [countdown, setCountdown] = useState(15);
     const [lastRefreshedAt, setLastRefreshedAt] = useState(new Date().toLocaleTimeString());
+
+    // Dibaca efek sinkronisasi deferred prop tanpa ikut jadi dependency-nya.
+    const refreshIntervalRef = useRef(refreshInterval);
+    refreshIntervalRef.current = refreshInterval;
+
+    // Satu scan menembak MikroTik dan bisa memakan belasan detik. Tanpa penjaga
+    // ini, auto-refresh 15 detik akan menumpuk request yang saling menunggu dan
+    // membuat seluruh aplikasi ikut lambat.
+    const scanInFlight = useRef(false);
+
+    useEffect(() => {
+        if (initialAlerts !== undefined) {
+            setAlerts(initialAlerts);
+            setStats(initialStats ?? {});
+            setLastRefreshedAt(new Date().toLocaleTimeString());
+            setCountdown(refreshIntervalRef.current);
+        }
+    }, [initialAlerts, initialStats]);
 
     const showToast = (msg, type = "success") => {
         setToastMessage(msg);
@@ -25,6 +48,8 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
     };
 
     const handleRunScan = async (isSilent = false) => {
+        if (scanInFlight.current) return;
+        scanInFlight.current = true;
         if (!isSilent) setIsScanning(true);
         try {
             const res = await axios.post(route("alerts.scan"));
@@ -45,26 +70,37 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
         } catch (e) {
             if (!isSilent) showToast("Failed executing security scan.", "error");
         } finally {
+            scanInFlight.current = false;
             if (!isSilent) setIsScanning(false);
         }
     };
 
-    // Auto Refresh Countdown Hook
+    // Hitungan mundur auto-refresh. Ditahan selama scan pertama (deferred prop)
+    // belum selesai supaya tidak ada dua scan berjalan bersamaan.
     useEffect(() => {
-        if (!autoRefresh || refreshInterval <= 0) return;
+        if (!autoRefresh || refreshInterval <= 0 || isInitialScanPending) return;
 
-        const timer = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    handleRunScan(true);
-                    return refreshInterval;
-                }
-                return prev - 1;
-            });
-        }, 1000);
+        const timer = setInterval(() => setCountdown((prev) => Math.max(prev - 1, 0)), 1000);
 
         return () => clearInterval(timer);
-    }, [autoRefresh, refreshInterval]);
+    }, [autoRefresh, refreshInterval, isInitialScanPending]);
+
+    // Pemicu scan dipisah dari updater `setCountdown`: efek samping di dalam
+    // updater dieksekusi dua kali oleh React StrictMode (dua scan per siklus).
+    // Countdown baru diisi ulang setelah scan selesai, jadi jarak antar scan
+    // dihitung dari selesainya scan sebelumnya — tidak pernah bertumpuk.
+    useEffect(() => {
+        if (countdown > 0 || !autoRefresh || refreshInterval <= 0 || isInitialScanPending) return;
+
+        let cancelled = false;
+        handleRunScan(true).finally(() => {
+            if (!cancelled) setCountdown(refreshInterval);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [countdown, autoRefresh, refreshInterval, isInitialScanPending]);
 
     // Reset countdown when refreshInterval changes
     const handleIntervalChange = (newInterval) => {
@@ -212,11 +248,11 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                         {/* Manual Trigger Scan Button */}
                         <button
                             onClick={() => handleRunScan(false)}
-                            disabled={isScanning}
+                            disabled={isScanning || isInitialScanPending}
                             className="flex items-center space-x-2 px-4 py-2 bg-brand-primary hover:bg-emerald-500 text-white font-medium rounded-xl text-xs transition duration-200 disabled:opacity-50"
                         >
                             <svg
-                                className={`w-3.5 h-3.5 ${isScanning ? "animate-spin" : ""}`}
+                                className={`w-3.5 h-3.5 ${isScanning || isInitialScanPending ? "animate-spin" : ""}`}
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -228,7 +264,7 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
                                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                 />
                             </svg>
-                            <span>{isScanning ? "Scanning..." : "Scan Now"}</span>
+                            <span>{isScanning || isInitialScanPending ? "Scanning..." : "Scan Now"}</span>
                         </button>
                     </div>
                 </div>
@@ -328,7 +364,27 @@ export default function AlertsIndex({ auth, alerts: initialAlerts, stats: initia
 
                 {/* Alert Cards Feed */}
                 <div className="space-y-4">
-                    {filteredAlerts.length === 0 ? (
+                    {isInitialScanPending ? (
+                        <div className="bg-brand-card border border-brand-border p-12 text-center rounded-2xl text-brand-textSecondary">
+                            <svg
+                                className="w-8 h-8 mx-auto mb-3 animate-spin text-purple-600"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                            <div className="font-bold text-slate-900 text-base">Menjalankan security scan…</div>
+                            <p className="text-xs mt-1">
+                                Log MikroTik, beban CPU, dan perangkat inventaris sedang diperiksa. Hasilnya muncul otomatis.
+                            </p>
+                        </div>
+                    ) : filteredAlerts.length === 0 ? (
                         <div className="bg-brand-card border border-brand-border p-12 text-center rounded-2xl text-brand-textSecondary">
                             <div className="text-4xl mb-2">🎉</div>
                             <div className="font-bold text-slate-900 text-base">No Security Anomalies Detected</div>

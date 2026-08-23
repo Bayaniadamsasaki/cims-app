@@ -27,25 +27,59 @@ class MikrotikWebController extends Controller
 
     /**
      * Main RouterOS Explorer page — renders the Inertia view with initial data.
+     *
+     * Halaman ini butuh sampai delapan round-trip ke RouterOS (testConnection,
+     * metrics, ip, route, user, package, dns) yang totalnya bisa puluhan detik.
+     * Semuanya dikirim sebagai deferred prop supaya klik menu langsung membuka
+     * halaman, lalu data router menyusul dalam satu request lanjutan.
      */
     public function index(Request $request)
     {
         $envHost = config('services.mikrotik.host');
+        $targetHost = $request->query('host') ?? $envHost;
+
+        // Seluruh prop deferred berada di grup yang sama, jadi closure ini
+        // dievaluasi dalam satu request; hasil probe di-memoize agar router
+        // benar-benar hanya dihubungi sekali per kunjungan.
+        $probe = null;
+        $live = function () use (&$probe, $envHost, $targetHost) {
+            return $probe ??= $this->probeRouters($envHost, $targetHost);
+        };
+
+        return Inertia::render('Mikrotik/Explorer', [
+            'routerConfig' => [
+                'host' => $targetHost,
+                'port' => config('services.mikrotik.port'),
+                'user' => config('services.mikrotik.user'),
+                'ssl'  => config('services.mikrotik.ssl'),
+            ],
+            'selectedHost'     => $targetHost,
+            'availableRouters' => Inertia::defer(fn() => $live()['availableRouters']),
+            'selectedRouter'   => Inertia::defer(fn() => $live()['selectedRouter']),
+            'connection'       => Inertia::defer(fn() => $live()['connection']),
+            'systemMetrics'    => Inertia::defer(fn() => $live()['systemMetrics']),
+            'ipAddresses'      => Inertia::defer(fn() => $live()['ipAddresses']),
+            'routes'           => Inertia::defer(fn() => $live()['routes']),
+            'users'            => Inertia::defer(fn() => $live()['users']),
+            'packages'         => Inertia::defer(fn() => $live()['packages']),
+            'dns'              => Inertia::defer(fn() => $live()['dns']),
+        ]);
+    }
+
+    /**
+     * Kumpulkan daftar router yang tersedia beserta seluruh data live milik
+     * `$targetHost`. Dipanggil dari closure deferred pada index(), bukan dari
+     * jalur render awal.
+     */
+    private function probeRouters(?string $envHost, ?string $targetHost): array
+    {
         $availableRouters = [];
         $addedIps = [];
 
-        // 1. Selalu sertakan router default dari environment
-            // Ambil identity dan model router melalui API untuk dijadikan nilai default
-            $coreConn = $this->mikrotik->testConnection($envHost);
-            $routerName = $coreConn['success'] && isset($coreConn['identity']) ? $coreConn['identity'] : 'Core Router';
-            $routerModel = $coreConn['success'] && isset($coreConn['board']) ? $coreConn['board'] : 'Unknown Model';
-            $defaultRouter = [
-                'id' => 'env-default',
-                'name' => $routerName,
-                'model' => $routerModel,
-                'location' => 'Data Center',
-                'ip' => $envHost,
-            ];
+        // 1. Router dari environment tidak lagi diprobe terpisah di sini: hasilnya
+        //    dulu ditaruh di $defaultRouter yang tidak pernah dipakai, sehingga
+        //    hanya menambah satu round-trip ke RouterOS. Bila $targetHost memang
+        //    router env, datanya tetap didapat dari testConnection di langkah 4.
 
         // 2. Ambil router dari database yang khusus vendor/kategori MikroTik
         $dbRouters = \App\Models\Device::with(['building', 'vendor', 'category'])
@@ -97,7 +131,6 @@ class MikrotikWebController extends Controller
             }
         }
 
-        $targetHost = $request->query('host') ?? $envHost;
         $connection = $this->mikrotik->testConnection($targetHost);
 
         $selectedRouter = null;
@@ -136,16 +169,9 @@ class MikrotikWebController extends Controller
             $availableRouters[] = $selectedRouter;
         }
 
-        return Inertia::render('Mikrotik/Explorer', [
-            'routerConfig' => [
-                'host' => $targetHost,
-                'port' => config('services.mikrotik.port'),
-                'user' => config('services.mikrotik.user'),
-                'ssl'  => config('services.mikrotik.ssl'),
-            ],
+        return [
             'availableRouters' => $availableRouters,
             'selectedRouter'   => $selectedRouter,
-            'selectedHost'     => $targetHost,
             'connection'       => $connection,
             'systemMetrics'    => $connection['success'] ? $this->mikrotik->getSystemMetrics($targetHost) : null,
             'ipAddresses'      => $connection['success'] ? $this->mikrotik->getIpAddresses($targetHost) : [],
@@ -153,7 +179,7 @@ class MikrotikWebController extends Controller
             'users'            => $connection['success'] ? $this->mikrotik->getUsers($targetHost) : [],
             'packages'         => $connection['success'] ? $this->mikrotik->getSystemPackages($targetHost) : [],
             'dns'              => $connection['success'] ? $this->mikrotik->getDnsConfig($targetHost) : [],
-        ]);
+        ];
     }
 
     /**

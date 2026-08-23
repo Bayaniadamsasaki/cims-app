@@ -9,6 +9,17 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
     const [filterType, setFilterType] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // `topologyData` adalah deferred prop: discovery MikroTik berjalan setelah
+    // halaman tampil, jadi render pertama memakai graf kosong dan diisi di sini
+    // begitu datanya tiba.
+    const isInitialLoadPending = initialData === undefined;
+
+    useEffect(() => {
+        if (initialData !== undefined) {
+            setData(initialData);
+        }
+    }, [initialData]);
     // Pan & Zoom controls state
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -196,11 +207,11 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
 
                     <button
                         onClick={refreshData}
-                        disabled={isRefreshing}
+                        disabled={isRefreshing || isInitialLoadPending}
                         className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl text-sm transition duration-200 disabled:opacity-50 shadow-sm"
                     >
                         <svg
-                            className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+                            className={`w-4 h-4 ${isRefreshing || isInitialLoadPending ? "animate-spin" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -212,7 +223,7 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                             />
                         </svg>
-                        <span>{isRefreshing ? "Pindai Topologi..." : "Pindai Ulang Topologi"}</span>
+                        <span>{isRefreshing || isInitialLoadPending ? "Pindai Topologi..." : "Pindai Ulang Topologi"}</span>
                     </button>
                 </div>
 
@@ -306,6 +317,18 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* SVG Interactive Visualizer Canvas */}
                     <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 overflow-hidden relative min-h-[720px] flex items-center justify-center">
+                        {/* Overlay selama discovery MikroTik masih berjalan (deferred prop). */}
+                        {isInitialLoadPending && (
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white/85 backdrop-blur-sm">
+                                <svg className="w-9 h-9 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                                <p className="text-sm font-semibold text-slate-900">Memindai topologi jaringan…</p>
+                                <p className="text-xs text-slate-500">Menunggu jawaban router (MNDP neighbor discovery).</p>
+                            </div>
+                        )}
+
                         {/* Floating Zoom / Pan Controls Toolbar */}
                         <div className="absolute top-4 right-4 bg-white/95 border border-slate-200 backdrop-blur-md p-1.5 rounded-xl flex items-center space-x-1.5 shadow-md z-10 select-none">
                             <button

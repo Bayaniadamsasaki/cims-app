@@ -44,11 +44,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/rooms/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsUpdate'])->name('rooms.update');
     Route::delete('/rooms/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'roomsDestroy'])->name('rooms.destroy');
 
-    Route::get('/racks', [\App\Http\Controllers\Web\MasterWebController::class, 'racksIndex'])->name('racks.index');
-    Route::post('/racks', [\App\Http\Controllers\Web\MasterWebController::class, 'racksStore'])->name('racks.store');
-    Route::post('/racks/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'racksUpdate'])->name('racks.update');
-    Route::delete('/racks/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'racksDestroy'])->name('racks.destroy');
-
     Route::get('/vendors', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsIndex'])->name('vendors.index');
     Route::post('/vendors', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsStore'])->name('vendors.store');
     Route::post('/vendors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'vendorsUpdate'])->name('vendors.update');

@@ -8,7 +8,6 @@ use App\Interface\VendorRepositoryInterface;
 use App\Interface\DeviceCategoryRepositoryInterface;
 use App\Interface\FloorRepositoryInterface;
 use App\Interface\RoomRepositoryInterface;
-use App\Interface\RackRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
@@ -22,22 +21,19 @@ class MasterWebController extends Controller
     protected $categoryRepo;
     protected $floorRepo;
     protected $roomRepo;
-    protected $rackRepo;
 
     public function __construct(
         BuildingRepositoryInterface $buildingRepo,
         VendorRepositoryInterface $vendorRepo,
         DeviceCategoryRepositoryInterface $categoryRepo,
         FloorRepositoryInterface $floorRepo,
-        RoomRepositoryInterface $roomRepo,
-        RackRepositoryInterface $rackRepo
+        RoomRepositoryInterface $roomRepo
     ) {
         $this->buildingRepo = $buildingRepo;
         $this->vendorRepo = $vendorRepo;
         $this->categoryRepo = $categoryRepo;
         $this->floorRepo = $floorRepo;
         $this->roomRepo = $roomRepo;
-        $this->rackRepo = $rackRepo;
     }
 
     // Buildings CRUD
@@ -384,48 +380,5 @@ class MasterWebController extends Controller
                 'floor_id' => 'Lantai yang dipilih bukan bagian dari gedung tersebut.',
             ]);
         }
-    }
-
-    // Racks CRUD
-    public function racksIndex()
-    {
-        $racks = $this->rackRepo->paginate(100)->items();
-        $rooms = $this->roomRepo->all();
-        return Inertia::render('Master/Racks', [
-            'racks' => $racks,
-            'rooms' => $rooms
-        ]);
-    }
-
-    public function racksStore(Request $request)
-    {
-        $data = $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:racks,code',
-            'height_u' => 'required|integer|min:1',
-            'description' => 'nullable|string',
-        ]);
-        $this->rackRepo->create($data);
-        return redirect()->back()->with('success', 'Rack created successfully.');
-    }
-
-    public function racksUpdate(Request $request, int $id)
-    {
-        $data = $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:racks,code,' . $id,
-            'height_u' => 'required|integer|min:1',
-            'description' => 'nullable|string',
-        ]);
-        $this->rackRepo->update($id, $data);
-        return redirect()->back()->with('success', 'Rack updated successfully.');
-    }
-
-    public function racksDestroy(int $id)
-    {
-        $this->rackRepo->delete($id);
-        return redirect()->back()->with('success', 'Rack deleted successfully.');
     }
 }

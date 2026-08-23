@@ -17,10 +17,18 @@ class TopologyWebController extends Controller
         $this->mikrotik = $mikrotik;
     }
 
+    /**
+     * Graf topologi dibangun dari discovery MikroTik yang hidup (testConnection,
+     * getNeighbors, getIpAddresses), jadi sepuluhan detik per request. Datanya
+     * dikirim sebagai deferred prop supaya kanvas topologi langsung tampil saat
+     * menu diklik, bukan menahan navigasi sampai router menjawab.
+     */
     public function index(Request $request)
     {
+        $host = $request->query('host');
+
         return Inertia::render('Topology/Map', [
-            'topologyData' => $this->buildTopologyGraph($request->query('host')),
+            'topologyData' => Inertia::defer(fn() => $this->buildTopologyGraph($host)),
         ]);
     }
 

@@ -25,6 +25,21 @@ export default function MikrotikExplorer({
     const [packages, setPackages] = useState(initialPackages || []);
     const [dns, setDns] = useState(initialDns || {});
 
+    // Semua data router dikirim sebagai deferred prop: halaman tampil lebih dulu,
+    // hasil probe RouterOS (bisa puluhan detik) menyusul di request berikutnya.
+    // Selama `connection` masih undefined, statusnya "belum diketahui" — bukan
+    // gagal — jadi banner error tidak boleh ikut muncul.
+    const isLiveDataPending = connection === undefined;
+
+    useEffect(() => {
+        if (initialMetrics !== undefined) setMetrics(initialMetrics);
+        if (initialIps !== undefined) setIpAddresses(initialIps || []);
+        if (initialRoutes !== undefined) setRoutes(initialRoutes || []);
+        if (initialUsers !== undefined) setUsers(initialUsers || []);
+        if (initialPackages !== undefined) setPackages(initialPackages || []);
+        if (initialDns !== undefined) setDns(initialDns || {});
+    }, [initialMetrics, initialIps, initialRoutes, initialUsers, initialPackages, initialDns]);
+
     // Dynamic loaded state for secondary tabs
     const [natRules, setNatRules] = useState([]);
     const [firewallFilter, setFirewallFilter] = useState([]);
@@ -400,7 +415,12 @@ export default function MikrotikExplorer({
                                     <h1 className="text-2xl font-bold text-slate-900 tracking-wide">
                                         MikroTik Live API Explorer
                                     </h1>
-                                    {connection?.success ? (
+                                    {isLiveDataPending ? (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700 border border-blue-500/30">
+                                            <span className="h-2 w-2 rounded-full bg-blue-400 mr-2 animate-pulse"></span>
+                                            Menghubungkan…
+                                        </span>
+                                    ) : connection?.success ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/30">
                                             <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
                                             API Terhubung
@@ -533,8 +553,26 @@ export default function MikrotikExplorer({
                     </div>
                 </div>
 
+                {/* Probe RouterOS masih jalan — tampilkan status, bukan error. */}
+                {isLiveDataPending && (
+                    <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl flex items-center space-x-3 shadow-sm">
+                        <svg className="w-6 h-6 shrink-0 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <div>
+                            <div className="font-semibold text-blue-900 text-base">
+                                Menghubungi RouterOS di {currentHost}…
+                            </div>
+                            <p className="text-sm text-blue-700 mt-0.5">
+                                Identity, metrik sistem, IP, route, dan DNS sedang diambil. Isi tab akan terisi otomatis.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Connection Error Alert with Diagnostics */}
-                {!connection?.success && (
+                {!isLiveDataPending && !connection?.success && (
                     <div className="bg-red-50 border border-red-200 p-6 rounded-2xl space-y-5 shadow-sm">
                         <div className="flex items-start space-x-3">
                             <svg
