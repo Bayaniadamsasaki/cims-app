@@ -78,7 +78,8 @@ const NAV_SECTIONS = [
 /** Submenu Master Data — semua punya rute & halaman sendiri di routes/web.php. */
 const MASTER_ITEMS = [
     { name: "Buildings (Gedung)", route: "buildings.index" },
-    { name: "Floors (Lantai)", route: "floors.index" },
+    // Detail lantai (floors.show) tetap menyalakan menu Floors.
+    { name: "Floors (Lantai)", route: "floors.index", match: "floors.*" },
     { name: "Rooms (Ruangan)", route: "rooms.index" },
     { name: "Racks", route: "racks.index" },
     { name: "Vendors & Brand", route: "vendors.index" },
@@ -150,7 +151,7 @@ export default function CimsLayout({ header, unreadAlerts = 0, onExport, childre
     const user = usePage().props.auth?.user;
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [confirmLogout, setConfirmLogout] = useState(false);
-    const masterActive = MASTER_ITEMS.some((item) => isCurrent(item.route));
+    const masterActive = MASTER_ITEMS.some((item) => isCurrent(item.match ?? item.route));
     const [masterOpen, setMasterOpen] = useState(masterActive);
     const canManageUsers = user?.roles?.includes("Super Admin") || user?.permissions?.includes("manage users");
 
@@ -251,7 +252,7 @@ export default function CimsLayout({ header, unreadAlerts = 0, onExport, childre
                                 {masterOpen && (
                                     <ul className="mt-1 space-y-1 border-l-2 border-slate-100 pl-3.5">
                                         {MASTER_ITEMS.map((item) => {
-                                            const active = isCurrent(item.route);
+                                            const active = isCurrent(item.match ?? item.route);
                                             return (
                                                 <li key={item.route}>
                                                     <Link

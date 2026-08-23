@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/buildings/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'buildingsDestroy'])->name('buildings.destroy');
 
     Route::get('/floors', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsIndex'])->name('floors.index');
+    Route::get('/floors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsShow'])->name('floors.show');
     Route::post('/floors', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsStore'])->name('floors.store');
     Route::post('/floors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsUpdate'])->name('floors.update');
     Route::delete('/floors/{id}', [\App\Http\Controllers\Web\MasterWebController::class, 'floorsDestroy'])->name('floors.destroy');

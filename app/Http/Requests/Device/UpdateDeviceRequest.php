@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Device;
 
+use App\Http\Requests\Concerns\ValidatesLocationChain;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateDeviceRequest extends FormRequest
 {
+    use ValidatesLocationChain;
+
     public function authorize(): bool
     {
         return true;

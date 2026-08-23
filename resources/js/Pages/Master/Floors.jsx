@@ -1,10 +1,13 @@
 import CimsLayout from '@/Layouts/CimsLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
+import { useConfirmation } from '@/Components/ConfirmationModal';
 
-export default function Floors({ floors = [], buildings = [] }) {
+export default function Floors({ floors = [], buildings = [], usedLevels = {}, filters = {} }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
+    const [buildingFilter, setBuildingFilter] = useState(filters.building_id || '');
+    const { confirmAction } = useConfirmation();
 
     const { data, setData, post, delete: destroy, reset, errors, processing } = useForm({
         building_id: '',
@@ -13,11 +16,40 @@ export default function Floors({ floors = [], buildings = [] }) {
         description: ''
     });
 
+    // Level pertama yang belum terpakai di gedung tersebut, supaya lantai baru
+    // tidak menabrak UNIQUE(building_id, level).
+    const suggestNextLevel = (buildingId) => {
+        const used = usedLevels[String(buildingId)] || [];
+        let next = 1;
+        while (used.includes(next)) next += 1;
+        return next;
+    };
+
+    const applyBuildingSelection = (buildingId) => {
+        const level = suggestNextLevel(buildingId);
+        setData(prev => ({
+            ...prev,
+            building_id: buildingId,
+            level,
+            name: `Lantai ${level}`
+        }));
+    };
+
+    const handleFilterChange = (buildingId) => {
+        setBuildingFilter(buildingId);
+        router.get(route('floors.index'), buildingId ? { building_id: buildingId } : {}, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true
+        });
+    };
+
     const handleOpenCreateModal = () => {
         setEditingFloor(null);
         reset();
-        if (buildings.length > 0) {
-            setData('building_id', buildings[0].id);
+        const defaultBuilding = buildingFilter || (buildings.length > 0 ? buildings[0].id : '');
+        if (defaultBuilding) {
+            applyBuildingSelection(defaultBuilding);
         }
         setIsModalOpen(true);
     };
@@ -35,28 +67,31 @@ export default function Floors({ floors = [], buildings = [] }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (editingFloor) {
-            post(route('floors.update', editingFloor.id), {
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    reset();
-                }
-            });
-        } else {
-            post(route('floors.store'), {
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    reset();
-                }
-            });
-        }
+        const target = editingFloor
+            ? route('floors.update', editingFloor.id)
+            : route('floors.store');
+
+        post(target, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsModalOpen(false);
+                reset();
+            }
+        });
     };
 
-    const handleDelete = (id) => {
-        if (confirm('Are you sure you want to delete this floor?')) {
-            destroy(route('floors.destroy', id));
-        }
+    const handleDelete = (floor) => {
+        confirmAction({
+            title: 'Hapus Lantai',
+            message: `Hapus ${floor.name}? Semua ruangan di lantai ini akan terhapus permanen dan penempatan perangkat di dalamnya akan dilepas.`,
+            confirmLabel: 'Hapus',
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => destroy(route('floors.destroy', floor.id), { preserveScroll: true })
+        });
     };
+
+    const selectedBuilding = buildings.find(b => String(b.id) === String(data.building_id));
 
     return (
         <CimsLayout
@@ -67,12 +102,13 @@ export default function Floors({ floors = [], buildings = [] }) {
                             Data Master Lantai
                         </h2>
                         <p className="text-sm text-slate-500">
-                            Konfigurasi tingkat lantai untuk penempatan di dalam gedung.
+                            Setiap lantai terikat pada satu gedung. Buka detail lantai untuk mengelola ruangan di dalamnya.
                         </p>
                     </div>
                     <button
                         onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition duration-150"
+                        disabled={buildings.length === 0}
+                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -85,7 +121,32 @@ export default function Floors({ floors = [], buildings = [] }) {
             <Head title="Master Lantai" />
 
             <div className="text-slate-900">
-                    
+                    {/* Breadcrumb hierarki lokasi */}
+                    <nav className="mb-4 flex items-center space-x-2 text-xs font-semibold text-brand-textSecondary">
+                        <Link href={route('buildings.index')} className="hover:text-brand-primary transition">Gedung</Link>
+                        <span className="text-brand-textMuted">/</span>
+                        <span className="text-slate-900">Lantai</span>
+                        <span className="text-brand-textMuted">/</span>
+                        <Link href={route('rooms.index')} className="hover:text-brand-primary transition">Ruangan</Link>
+                    </nav>
+
+                    {/* Filter Gedung */}
+                    <div className="mb-6 rounded-2xl bg-brand-card border border-brand-border p-4">
+                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Filter Gedung</label>
+                        <select
+                            value={buildingFilter}
+                            onChange={(e) => handleFilterChange(e.target.value)}
+                            className="w-full sm:w-80 rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        >
+                            <option value="">Semua Gedung</option>
+                            {buildings.map((building) => (
+                                <option key={building.id} value={building.id}>
+                                    {building.name} ({building.code})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     {/* Floors Table */}
                     <div className="overflow-hidden rounded-2xl bg-brand-card border border-brand-border">
                         <div className="overflow-x-auto">
@@ -94,7 +155,8 @@ export default function Floors({ floors = [], buildings = [] }) {
                                     <tr>
                                         <th className="py-4 pl-6 pr-3 text-xs font-bold text-brand-textSecondary">Building</th>
                                         <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Floor Name</th>
-                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Level</th>
+                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary text-center">Level</th>
+                                        <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary text-center">Rooms</th>
                                         <th className="px-3 py-4 text-xs font-bold text-brand-textSecondary">Description</th>
                                         <th className="py-4 pl-3 pr-6 text-right text-xs font-bold text-brand-textSecondary">Actions</th>
                                     </tr>
@@ -109,14 +171,25 @@ export default function Floors({ floors = [], buildings = [] }) {
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-900 font-semibold">
                                                     {floor.name}
                                                 </td>
-                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-brand-textSecondary">
-                                                    {floor.level}
+                                                <td className="whitespace-nowrap px-3 py-4 text-center">
+                                                    <span className="text-[10px] bg-brand-primary/10 text-brand-primary px-2.5 py-0.5 rounded-full font-semibold">
+                                                        Level {floor.level}
+                                                    </span>
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-900 text-center font-semibold">
+                                                    {floor.rooms_count ?? 0}
                                                 </td>
                                                 <td className="px-3 py-4 text-sm text-brand-textSecondary max-w-md truncate">
                                                     {floor.description || '-'}
                                                 </td>
                                                 <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
                                                     <div className="flex justify-end space-x-2">
+                                                        <Link
+                                                            href={route('floors.show', floor.id)}
+                                                            className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
+                                                        >
+                                                            Kelola Ruangan
+                                                        </Link>
                                                         <button
                                                             onClick={() => handleOpenEditModal(floor)}
                                                             className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white px-3 py-1.5 text-xs font-semibold transition"
@@ -124,7 +197,7 @@ export default function Floors({ floors = [], buildings = [] }) {
                                                             Edit
                                                         </button>
                                                         <button
-                                                            onClick={() => handleDelete(floor.id)}
+                                                            onClick={() => handleDelete(floor)}
                                                             className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-red-700 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
                                                         >
                                                             Delete
@@ -135,8 +208,10 @@ export default function Floors({ floors = [], buildings = [] }) {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="text-center py-8 text-brand-textSecondary text-sm">
-                                                No floors registered yet.
+                                            <td colSpan="6" className="text-center py-8 text-brand-textSecondary text-sm">
+                                                {buildings.length === 0
+                                                    ? 'Belum ada gedung. Daftarkan gedung terlebih dahulu di menu Buildings.'
+                                                    : 'No floors registered yet.'}
                                             </td>
                                         </tr>
                                     )}
@@ -170,7 +245,9 @@ export default function Floors({ floors = [], buildings = [] }) {
                                 <select
                                     required
                                     value={data.building_id}
-                                    onChange={(e) => setData('building_id', e.target.value)}
+                                    onChange={(e) => editingFloor
+                                        ? setData('building_id', e.target.value)
+                                        : applyBuildingSelection(e.target.value)}
                                     className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
                                 >
                                     <option value="" disabled>Select Building</option>
@@ -182,32 +259,42 @@ export default function Floors({ floors = [], buildings = [] }) {
                                 </select>
                                 {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
                             </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor Name*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. Lantai 1"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Level (Numeric)*</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        placeholder="e.g. 1"
+                                        value={data.level}
+                                        onChange={(e) => setData('level', e.target.value)}
+                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                                    />
+                                    {errors.level && <span className="text-xs text-red-700 mt-1 block">{errors.level}</span>}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor Name*</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="e.g. Lantai 1"
+                                        value={data.name}
+                                        onChange={(e) => setData('name', e.target.value)}
+                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                                    />
+                                    {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Level (Numeric)*</label>
-                                <input
-                                    type="number"
-                                    required
-                                    placeholder="e.g. 1"
-                                    value={data.level}
-                                    onChange={(e) => setData('level', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.level && <span className="text-xs text-red-700 mt-1 block">{errors.level}</span>}
-                            </div>
+                            {selectedBuilding && (
+                                <p className="text-[11px] text-brand-textMuted">
+                                    Level yang sudah terpakai di {selectedBuilding.name}:{' '}
+                                    <span className="font-semibold text-brand-textSecondary">
+                                        {(usedLevels[String(selectedBuilding.id)] || []).join(', ') || 'belum ada'}
+                                    </span>
+                                    . Satu level hanya boleh sekali per gedung.
+                                </p>
+                            )}
 
                             <div>
                                 <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
