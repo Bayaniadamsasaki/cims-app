@@ -45,6 +45,20 @@ return [
         'attempts' => (int) env('MIKROTIK_ATTEMPTS', 2),
     ],
 
+    // Identitas hotspot kampus untuk dicetak di kartu voucher mahasiswa.
+    'hotspot' => [
+        'ssid' => env('HOTSPOT_SSID', 'WiFi Kampus'),
+        'login_url' => env('HOTSPOT_LOGIN_URL'),
+
+        // Router yang benar-benar menjalankan /ip/hotspot. Sering berbeda dari
+        // MIKROTIK_HOST (router monitoring/uplink), jadi voucher dipush ke sini.
+        'router_host' => env('HOTSPOT_ROUTER_HOST'),
+
+        // User profile RouterOS untuk voucher baru bila tidak dipilih di form.
+        // Kosongkan bila ingin memakai profile "default" milik router.
+        'default_profile' => env('HOTSPOT_DEFAULT_PROFILE'),
+    ],
+
     'ruijie' => [
         'app_id' => env('RUIJIE_APP_ID'),
         'secret' => env('RUIJIE_SECRET'),

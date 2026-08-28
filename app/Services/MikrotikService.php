@@ -610,6 +610,239 @@ class MikrotikService
     }
 
     // ══════════════════════════════════════════════════════
+    //  HOTSPOT USER MANAGEMENT  (/ip/hotspot/user)
+    //  Dipakai fitur Voucher WiFi Mahasiswa. Berbeda dengan
+    //  getter di atas, method tulis di sini SENGAJA melempar
+    //  exception supaya kegagalan push bisa dicatat per NIM.
+    // ══════════════════════════════════════════════════════
+
+    /**
+     * Daftar user profile hotspot (Winbox: IP → Hotspot → User Profiles).
+     */
+    public function getHotspotProfiles(?string $host = null): array
+    {
+        try {
+            $rows = $this->client($host)->query('/ip/hotspot/user/profile/print')->read();
+
+            return array_values(array_map(fn ($r) => [
+                'name'            => $r['name'] ?? null,
+                'rate_limit'      => $r['rate-limit'] ?? null,
+                'shared_users'    => $r['shared-users'] ?? null,
+                'session_timeout' => $r['session-timeout'] ?? null,
+                'idle_timeout'    => $r['idle-timeout'] ?? null,
+            ], array_filter($rows, fn ($r) => isset($r['name']))));
+        } catch (\Throwable $e) {
+            Log::warning("MikroTik hotspot profiles fetch failed: {$e->getMessage()}");
+            return [];
+        }
+    }
+
+    /**
+     * Daftar hotspot server (Winbox: IP → Hotspot → Servers).
+     */
+    public function getHotspotServers(?string $host = null): array
+    {
+        try {
+            $rows = $this->client($host)->query('/ip/hotspot/print')->read();
+
+            return array_values(array_map(fn ($r) => [
+                'name'      => $r['name'] ?? null,
+                'interface' => $r['interface'] ?? null,
+                'profile'   => $r['profile'] ?? null,
+                'disabled'  => ($r['disabled'] ?? 'false') === 'true',
+            ], array_filter($rows, fn ($r) => isset($r['name']))));
+        } catch (\Throwable $e) {
+            Log::warning("MikroTik hotspot servers fetch failed: {$e->getMessage()}");
+            return [];
+        }
+    }
+
+    /**
+     * Daftar seluruh user hotspot yang terdaftar di router.
+     */
+    public function getHotspotUsers(?string $host = null): array
+    {
+        try {
+            $rows = $this->client($host)->query('/ip/hotspot/user/print')->read();
+
+            return array_values(array_map(fn ($r) => $this->mapHotspotUser($r), array_filter($rows, fn ($r) => isset($r['name']))));
+        } catch (\Throwable $e) {
+            Log::warning("MikroTik hotspot users fetch failed: {$e->getMessage()}");
+            return [];
+        }
+    }
+
+    /**
+     * Cari satu user hotspot berdasarkan username (NIM). Null bila belum ada.
+     */
+    public function findHotspotUser(?string $host, string $name): ?array
+    {
+        $rows = $this->client($host)->query(
+            (new Query('/ip/hotspot/user/print'))->where('name', $name)
+        )->read();
+
+        foreach ($rows as $row) {
+            if (($row['name'] ?? null) === $name) {
+                return $this->mapHotspotUser($row);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Buat user hotspot baru. Mengembalikan internal id RouterOS (mis. "*1A").
+     *
+     * @param array<string,string> $attributes Pasangan atribut RouterOS, mis. ['name' => '2101001', 'password' => '2101001'].
+     */
+    public function createHotspotUser(?string $host, array $attributes): string
+    {
+        $query = new Query('/ip/hotspot/user/add');
+
+        foreach ($attributes as $key => $value) {
+            $query->equal($key, $value);
+        }
+
+        $response = $this->writeQuery($host, $query);
+
+        return (string) ($response['after']['ret'] ?? '');
+    }
+
+    /**
+     * Ubah atribut user hotspot yang sudah ada berdasarkan internal id RouterOS.
+     *
+     * @param array<string,string> $attributes
+     */
+    public function updateHotspotUser(?string $host, string $id, array $attributes): void
+    {
+        $query = (new Query('/ip/hotspot/user/set'))->equal('.id', $id);
+
+        foreach ($attributes as $key => $value) {
+            $query->equal($key, $value);
+        }
+
+        $this->writeQuery($host, $query);
+    }
+
+    /**
+     * Buat user bila belum ada, update bila sudah ada (idempoten per username).
+     * Mengembalikan internal id RouterOS milik entri tersebut.
+     *
+     * @param array<string,string> $attributes Wajib memuat key 'name'.
+     */
+    public function upsertHotspotUser(?string $host, array $attributes): string
+    {
+        $name = $attributes['name'] ?? null;
+
+        if (blank($name)) {
+            throw new \InvalidArgumentException('Atribut "name" (username hotspot) wajib diisi.');
+        }
+
+        $existing = $this->findHotspotUser($host, $name);
+
+        if ($existing === null) {
+            return $this->createHotspotUser($host, $attributes);
+        }
+
+        // 'name' tidak perlu di-set ulang karena dipakai sebagai kunci pencarian.
+        $payload = $attributes;
+        unset($payload['name']);
+
+        $this->updateHotspotUser($host, $existing['id'], $payload);
+
+        return $existing['id'];
+    }
+
+    /**
+     * Aktifkan / nonaktifkan user hotspot tanpa menghapusnya dari router.
+     */
+    public function setHotspotUserDisabled(?string $host, string $id, bool $disabled): void
+    {
+        $this->writeQuery($host, (new Query('/ip/hotspot/user/set'))
+            ->equal('.id', $id)
+            ->equal('disabled', $disabled ? 'yes' : 'no'));
+    }
+
+    /**
+     * Hapus user hotspot dari router.
+     */
+    public function deleteHotspotUser(?string $host, string $id): void
+    {
+        $this->writeQuery($host, (new Query('/ip/hotspot/user/remove'))->equal('.id', $id));
+    }
+
+    /**
+     * Putuskan sesi aktif milik satu username (Winbox: Hotspot → Active → Remove).
+     * Mengembalikan jumlah sesi yang diputus.
+     */
+    public function kickHotspotActive(?string $host, string $user): int
+    {
+        $rows = $this->client($host)->query(
+            (new Query('/ip/hotspot/active/print'))->where('user', $user)
+        )->read();
+
+        $kicked = 0;
+
+        foreach ($rows as $row) {
+            if (empty($row['.id'])) {
+                continue;
+            }
+
+            $this->writeQuery($host, (new Query('/ip/hotspot/active/remove'))->equal('.id', $row['.id']));
+            $kicked++;
+        }
+
+        return $kicked;
+    }
+
+    /**
+     * Jalankan query tulis dan ubah balasan !trap RouterOS menjadi exception.
+     * Library ini mengembalikan trap sebagai data biasa di ['after']['message'],
+     * jadi tanpa pemeriksaan ini kegagalan akan terlihat seperti sukses.
+     *
+     * @return array<string,mixed>
+     */
+    protected function writeQuery(?string $host, Query $query): array
+    {
+        $response = $this->client($host)->query($query)->read();
+
+        $message = $response['after']['message'] ?? null;
+
+        if ($message !== null) {
+            throw new \RuntimeException("RouterOS menolak perintah: {$message}");
+        }
+
+        if (isset($response[0]) && $response[0] === '!fatal') {
+            throw new \RuntimeException('Koneksi RouterOS terputus saat menjalankan perintah.');
+        }
+
+        return $response;
+    }
+
+    /**
+     * Normalisasi satu baris /ip/hotspot/user/print.
+     *
+     * @param array<string,string> $row
+     * @return array<string,mixed>
+     */
+    protected function mapHotspotUser(array $row): array
+    {
+        return [
+            'id'           => $row['.id'] ?? null,
+            'name'         => $row['name'] ?? null,
+            'password'     => $row['password'] ?? null,
+            'profile'      => $row['profile'] ?? null,
+            'server'       => $row['server'] ?? null,
+            'limit_uptime' => $row['limit-uptime'] ?? null,
+            'uptime'       => $row['uptime'] ?? null,
+            'bytes_in'     => (int) ($row['bytes-in'] ?? 0),
+            'bytes_out'    => (int) ($row['bytes-out'] ?? 0),
+            'disabled'     => ($row['disabled'] ?? 'false') === 'true',
+            'comment'      => $row['comment'] ?? null,
+        ];
+    }
+
+    // ══════════════════════════════════════════════════════
     //  HELPER UTILITIES
     // ══════════════════════════════════════════════════════
 

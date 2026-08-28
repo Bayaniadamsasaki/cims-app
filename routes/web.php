@@ -109,6 +109,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/dns-config', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dnsConfig'])->name('api.dns-config');
     });
 
+    // Voucher WiFi Mahasiswa (MikroTik Hotspot)
+    Route::prefix('hotspot/vouchers')->name('hotspot.vouchers.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'index'])->name('index');
+        Route::get('/template', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'template'])->name('template');
+        Route::get('/export', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'export'])->name('export');
+        Route::get('/print', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'printCards'])->name('print');
+        Route::get('/active', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'activeUsers'])->name('active');
+        Route::post('/', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'store'])->name('store');
+        Route::post('/import', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'import'])->name('import');
+        Route::post('/push', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'push'])->name('push');
+        Route::post('/{id}/push', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'pushOne'])->name('push-one');
+        Route::post('/{id}/toggle', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'toggle'])->name('toggle');
+        Route::post('/{id}/kick', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'kick'])->name('kick');
+        Route::post('/{id}', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'update'])->name('update');
+        Route::delete('/{id}', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'destroy'])->name('destroy');
+    });
+
     // Ruijie Reyee Cloud API Explorer Routes
     Route::prefix('ruijie')->name('ruijie.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Web\RuijieWebController::class, 'index'])->name('index');

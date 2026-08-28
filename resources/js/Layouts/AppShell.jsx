@@ -18,6 +18,7 @@ import {
     IconSpeedtest,
     IconTopology,
     IconUsers,
+    IconWifi,
 } from "@/Components/Cims/icons";
 
 /**
@@ -65,6 +66,14 @@ const NAV_SECTIONS = [
                 badge: "Cloud",
                 badgeClass: "bg-blue-50 text-blue-700",
                 live: true,
+            },
+            {
+                name: "Voucher WiFi Mahasiswa",
+                icon: IconWifi,
+                route: "hotspot.vouchers.index",
+                match: "hotspot.*",
+                badge: "Hotspot",
+                badgeClass: "bg-indigo-50 text-indigo-700",
             },
             { name: "Live Monitoring", icon: IconMonitoring, route: "monitoring.index", match: "monitoring.*" },
         ],
