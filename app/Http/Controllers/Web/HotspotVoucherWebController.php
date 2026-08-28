@@ -125,7 +125,7 @@ class HotspotVoucherWebController extends Controller
             'filters' => $filters,
             'routerHost' => $host,
             'routers' => $this->mikrotikRouters(),
-            'defaultProfile' => $this->defaultProfile(),
+            'hotspot' => $this->hotspotIdentity(),
             'batches' => HotspotVoucher::where('router_host', $host)
                 ->whereNotNull('batch_label')
                 ->distinct()
@@ -172,6 +172,25 @@ class HotspotVoucherWebController extends Controller
     protected function defaultProfile(): ?string
     {
         return config('services.hotspot.default_profile') ?: null;
+    }
+
+    /**
+     * Identitas hotspot kampus apa adanya dari .env (lewat config/services.php).
+     *
+     * Dikirim ke halaman voucher supaya SSID, portal login, router, dan profile
+     * yang dipakai aplikasi tidak pernah ditulis ulang di komponen React —
+     * cukup ubah HOTSPOT_* di .env, semua tampilan & PDF ikut berubah.
+     *
+     * @return array<string,string|null>
+     */
+    protected function hotspotIdentity(): array
+    {
+        return [
+            'ssid' => config('services.hotspot.ssid') ?: null,
+            'login_url' => config('services.hotspot.login_url') ?: null,
+            'router_host' => config('services.hotspot.router_host') ?: null,
+            'default_profile' => $this->defaultProfile(),
+        ];
     }
 
     /**
@@ -559,10 +578,12 @@ class HotspotVoucherWebController extends Controller
             return back()->with('error', 'Tidak ada voucher yang cocok untuk dicetak.');
         }
 
+        $identity = $this->hotspotIdentity();
+
         $pdf = Pdf::loadView('hotspot.voucher_cards', [
             'vouchers' => $vouchers,
-            'ssid' => $request->query('ssid', config('services.hotspot.ssid')),
-            'loginUrl' => $request->query('login_url', config('services.hotspot.login_url')),
+            'ssid' => $request->query('ssid') ?: $identity['ssid'],
+            'loginUrl' => $request->query('login_url') ?: $identity['login_url'],
             'institution' => config('app.name'),
             'printedAt' => now()->format('d/m/Y H:i'),
         ])->setPaper('a4', 'portrait');

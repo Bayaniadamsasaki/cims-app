@@ -43,7 +43,7 @@ export default function Vouchers({
     connection,
     hotspotProfiles,
     hotspotServers,
-    defaultProfile = '',
+    hotspot = {},
 }) {
     const { confirmAction } = useConfirmation();
     const [search, setSearch] = useState(filters.search ?? '');
@@ -55,9 +55,14 @@ export default function Vouchers({
     const [sessions, setSessions] = useState(null);
     const [loadingSessions, setLoadingSessions] = useState(false);
 
-    // Voucher baru langsung memakai profile kampus (mis. "mahasiswa") supaya
-    // limit bandwidth-nya benar, bukan profile "default" milik router.
-    const profileDefault = defaultProfile ?? '';
+    // Identitas hotspot (SSID, portal, profile) selalu datang dari HOTSPOT_* di
+    // .env lewat props — jangan tulis nilai kampus sebagai literal di file ini.
+    // Voucher baru ikut profile kampus supaya limit bandwidth-nya benar, bukan
+    // profile "default" milik router.
+    const profileDefault = hotspot.default_profile ?? '';
+
+    // Contoh isian profile pun mengikuti .env, bukan nama profile yang ditulis tangan.
+    const profilePlaceholder = profileDefault ? `mis. ${profileDefault}` : 'mis. profile hotspot di router';
 
     const form = useForm({ ...EMPTY_FORM, profile: profileDefault });
     const importForm = useForm({ file: null, profile: profileDefault, server: '', batch_label: '', valid_until: '' });
@@ -262,6 +267,25 @@ export default function Vouchers({
                         disimpan, push akan gagal sampai koneksi API RouterOS pulih.
                     </span>
                 )}
+
+                {/* Identitas hotspot kampus — dibaca dari HOTSPOT_* di .env, satu-satunya
+                    tempat nilai ini disimpan. Ditampilkan agar operator bisa memastikan
+                    kartu voucher tercetak dengan SSID & portal yang benar. */}
+                <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                    {[
+                        ['SSID', hotspot.ssid, 'HOTSPOT_SSID'],
+                        ['Portal login', hotspot.login_url, 'HOTSPOT_LOGIN_URL'],
+                        ['Router hotspot', hotspot.router_host, 'HOTSPOT_ROUTER_HOST'],
+                        ['Profile default', hotspot.default_profile, 'HOTSPOT_DEFAULT_PROFILE'],
+                    ].map(([label, value, envKey]) => (
+                        <div key={envKey} className="flex items-baseline gap-1.5">
+                            <dt className="font-semibold">{label}:</dt>
+                            <dd className={value ? 'font-mono text-slate-700' : 'italic text-slate-400'}>
+                                {value || `belum diisi (${envKey})`}
+                            </dd>
+                        </div>
+                    ))}
+                </dl>
             </div>
 
             {/* Voucher hanya berguna bila router tujuan benar-benar menjalankan hotspot.
@@ -272,7 +296,7 @@ export default function Vouchers({
                     <strong>Router ini tidak menjalankan hotspot.</strong> Daftar <code>/ip/hotspot</code> di{' '}
                     {connection.identity} ({routerHost}) kosong, jadi voucher yang dipush ke sini tidak akan bisa dipakai login —
                     mahasiswa ditolak dengan pesan <em>username doesn&apos;t exist</em>. Pilih router yang benar-benar melayani
-                    SSID hotspot, atau ubah <code>MIKROTIK_HOST</code> di <code>.env</code>.
+                    SSID hotspot, atau ubah <code>HOTSPOT_ROUTER_HOST</code> di <code>.env</code>.
                 </div>
             )}
 
@@ -691,7 +715,7 @@ export default function Vouchers({
                                         type="text"
                                         value={form.data.profile}
                                         onChange={(e) => form.setData('profile', e.target.value)}
-                                        placeholder={hotspotProfiles === undefined ? 'Memuat profile dari router…' : 'mis. mahasiswa'}
+                                        placeholder={hotspotProfiles === undefined ? 'Memuat profile dari router…' : profilePlaceholder}
                                         className={INPUT_CLASS}
                                     />
                                 )}
@@ -852,7 +876,7 @@ export default function Vouchers({
                                             value={importForm.data.profile}
                                             onChange={(e) => importForm.setData('profile', e.target.value)}
                                             className={INPUT_CLASS}
-                                            placeholder="mis. mahasiswa"
+                                            placeholder={profilePlaceholder}
                                         />
                                     )}
                                 </div>

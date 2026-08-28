@@ -46,8 +46,11 @@ return [
     ],
 
     // Identitas hotspot kampus untuk dicetak di kartu voucher mahasiswa.
+    // Semua nilai di blok ini hanya berasal dari .env — jangan tulis literal di
+    // sini, di controller, atau di komponen React, supaya cukup satu tempat yang
+    // diubah saat SSID / portal / router hotspot kampus berganti.
     'hotspot' => [
-        'ssid' => env('HOTSPOT_SSID', 'WiFi Kampus'),
+        'ssid' => env('HOTSPOT_SSID'),
         'login_url' => env('HOTSPOT_LOGIN_URL'),
 
         // Router yang benar-benar menjalankan /ip/hotspot. Sering berbeda dari

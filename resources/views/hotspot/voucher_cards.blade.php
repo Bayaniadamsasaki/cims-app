@@ -41,7 +41,7 @@
                     <td>
                         <div class="card">
                             <div class="card-head">Voucher Hotspot</div>
-                            <div class="card-ssid">SSID: {{ $ssid }}</div>
+                            <div class="card-ssid">SSID: {{ $ssid ?: '—' }}</div>
 
                             <div class="cred">
                                 <div class="cred-row">

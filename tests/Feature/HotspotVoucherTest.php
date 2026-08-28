@@ -16,8 +16,18 @@ class HotspotVoucherTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Router tujuan dipatok supaya test tidak bergantung pada .env lokal. */
-    private const HOST = '192.168.88.1';
+    /**
+     * Alamat uji memakai blok dokumentasi RFC 5737 (bukan IP router kampus),
+     * supaya test tidak perlu ikut diubah saat MIKROTIK_HOST / HOTSPOT_ROUTER_HOST
+     * di .env berganti. Nilai asli hanya hidup di .env.
+     */
+    private const HOST = '198.51.100.1';
+
+    /** Router hotspot uji — sengaja beda dari HOST agar prioritas config teruji. */
+    private const HOTSPOT_HOST = '198.51.100.2';
+
+    /** Router pihak ketiga, untuk memastikan data antar-router tidak bocor. */
+    private const OTHER_HOST = '198.51.100.9';
 
     protected function setUp(): void
     {
@@ -34,7 +44,11 @@ class HotspotVoucherTest extends TestCase
 
     public function test_new_vouchers_inherit_the_campus_default_profile(): void
     {
-        config(['services.hotspot.default_profile' => 'mahasiswa']);
+        // Nilai uji sengaja bukan nama profile kampus yang asli: yang diuji adalah
+        // "profile diambil dari config", bukan isi .env mesin pengembang.
+        $campusProfile = 'profile-kampus';
+
+        config(['services.hotspot.default_profile' => $campusProfile]);
 
         $user = User::factory()->create();
 
@@ -42,7 +56,7 @@ class HotspotVoucherTest extends TestCase
         $this->actingAs($user)
             ->post(route('hotspot.vouchers.store'), ['nim' => '2101001'])
             ->assertSessionHasNoErrors();
-        $this->assertSame('mahasiswa', HotspotVoucher::where('nim', '2101001')->firstOrFail()->profile);
+        $this->assertSame($campusProfile, HotspotVoucher::where('nim', '2101001')->firstOrFail()->profile);
 
         // Profile yang dipilih di form tidak boleh ditimpa.
         $this->actingAs($user)
@@ -54,15 +68,15 @@ class HotspotVoucherTest extends TestCase
         $this->actingAs($user)->post(route('hotspot.vouchers.import'), [
             'file' => UploadedFile::fake()->createWithContent('nim.csv', "2101003,Mahasiswa C\n"),
         ])->assertSessionHas('success');
-        $this->assertSame('mahasiswa', HotspotVoucher::where('nim', '2101003')->firstOrFail()->profile);
+        $this->assertSame($campusProfile, HotspotVoucher::where('nim', '2101003')->firstOrFail()->profile);
     }
 
     public function test_hotspot_router_host_overrides_the_monitoring_router(): void
     {
-        config([
-            'services.hotspot.router_host' => '192.168.137.136',
-            'services.mikrotik.host' => '192.168.91.1',
-        ]);
+        // Yang diuji urutan prioritas config, bukan alamat tertentu: router
+        // monitoring sudah dipatok self::HOST di setUp(), lalu router hotspot
+        // diisi alamat lain. Tidak ada IP kampus di sini — itu milik .env.
+        config(['services.hotspot.router_host' => self::HOTSPOT_HOST]);
 
         $this->mock(MikrotikService::class, fn (MockInterface $mock) => $mock->shouldIgnoreMissing());
 
@@ -70,7 +84,10 @@ class HotspotVoucherTest extends TestCase
             ->post(route('hotspot.vouchers.store'), ['nim' => '2101001'])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('192.168.137.136', HotspotVoucher::firstOrFail()->router_host);
+        $voucher = HotspotVoucher::firstOrFail();
+
+        $this->assertSame(self::HOTSPOT_HOST, $voucher->router_host);
+        $this->assertNotSame(self::HOST, $voucher->router_host, 'Voucher justru dipush ke router monitoring.');
     }
 
     public function test_manual_voucher_defaults_its_password_to_the_nim(): void
@@ -249,7 +266,7 @@ class HotspotVoucherTest extends TestCase
         ]);
         // Voucher milik router lain tidak boleh bocor ke halaman ini.
         HotspotVoucher::create([
-            'nim' => '2101003', 'password' => '2101003', 'router_host' => '10.9.9.9',
+            'nim' => '2101003', 'password' => '2101003', 'router_host' => self::OTHER_HOST,
             'status' => HotspotVoucher::STATUS_PENDING,
         ]);
 
@@ -268,6 +285,31 @@ class HotspotVoucherTest extends TestCase
                 ->where('stats.synced', 1)
                 ->where('routerHost', self::HOST)
                 ->has('batches', 1)
+                ->etc());
+    }
+
+    /**
+     * Identitas hotspot yang dipakai halaman voucher harus datang dari config
+     * (HOTSPOT_* di .env), bukan nilai yang ditulis ulang di komponen React.
+     */
+    public function test_page_exposes_the_hotspot_identity_from_configuration(): void
+    {
+        config([
+            'services.hotspot.ssid' => 'SSID Uji',
+            'services.hotspot.login_url' => 'http://portal.uji.test/login',
+            'services.hotspot.router_host' => self::HOST,
+            'services.hotspot.default_profile' => 'profile-kampus',
+        ]);
+
+        $this->mock(MikrotikService::class, fn (MockInterface $mock) => $mock->shouldIgnoreMissing());
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('hotspot.vouchers.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('hotspot.ssid', 'SSID Uji')
+                ->where('hotspot.login_url', 'http://portal.uji.test/login')
+                ->where('hotspot.router_host', self::HOST)
+                ->where('hotspot.default_profile', 'profile-kampus')
                 ->etc());
     }
 
