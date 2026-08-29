@@ -8,180 +8,354 @@ use App\Models\MonitoringLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Monitoring jaringan nyata, tanpa simulasi.
+ *
+ * Setiap angka yang tersimpan di sini berasal dari jaringan sungguhan: ICMP
+ * untuk jangkauan, RouterOS API atau SNMP untuk metrik perangkat. Kalau sebuah
+ * metrik tidak bisa diambil, statusnya ditandai apa adanya dan nilai valid
+ * terakhir dibiarkan utuh — tidak ada nilai acak, tidak ada interface karangan,
+ * dan alamat privat RFC1918 (10/8, 172.16/12, 192.168/16) diperlakukan sebagai
+ * alamat jaringan biasa yang tetap dicek sungguhan.
+ */
 class MonitoringService
 {
-    protected $alertService;
-    protected $mikrotikService;
+    /** Perangkat menjawab ICMP dan metriknya berhasil dibaca. */
+    public const STATUS_ONLINE = 'online';
 
-    public function __construct(AlertService $alertService, MikrotikService $mikrotikService)
-    {
-        $this->alertService = $alertService;
-        $this->mikrotikService = $mikrotikService;
+    /** Perangkat menjawab ICMP tetapi sumber metriknya (API/SNMP) gagal. */
+    public const STATUS_DEGRADED = 'degraded';
+
+    /** Tidak ada balasan ICMP dari alamat perangkat. */
+    public const STATUS_UNREACHABLE = 'unreachable';
+
+    /** Monitoring tidak bisa dijalankan: alamat tidak valid, ICMP mati, dsb. */
+    public const STATUS_ERROR = 'error';
+
+    /**
+     * Kolom metrik pada device_metrics dan kunci hasil pembacaan protokolnya.
+     */
+    protected const METRIC_COLUMNS = [
+        'last_cpu_usage_percent' => 'cpu',
+        'last_ram_usage_percent' => 'ram',
+        'last_storage_usage_percent' => 'storage',
+        'last_temperature_celsius' => 'temp',
+        'last_uptime_seconds' => 'uptime',
+        'last_bandwidth_rx_bps' => 'rx',
+        'last_bandwidth_tx_bps' => 'tx',
+        'last_interface_status' => 'interfaces',
+    ];
+
+    public function __construct(
+        protected AlertService $alertService,
+        protected MikrotikService $mikrotikService,
+        protected PingService $pingService,
+    ) {
     }
 
     /**
-     * Scan a single device and save/log its metrics.
+     * Cek satu perangkat lewat jaringan sungguhan, lalu simpan metrik dan
+     * riwayatnya. Urutannya: validasi target, tentukan protokol, cek nyata,
+     * ambil metrik nyata, simpan metrik, simpan riwayat, picu alert.
      */
     public function scanDevice(Device $device): DeviceMetric
     {
         $now = Carbon::now();
-        $ip = $device->ip_address;
-        
-        // 1. Determine if the device is online (ICMP Ping or Sim)
-        $isOnline = false;
-        $latency = null;
-        $packetLoss = 0;
-        
-        // We will support simulated live nodes for standard RFC1918 dev addresses (like 10.x.x.x)
-        // so the demo/development interface is dynamic and interactive.
-        $isSimulated = empty($ip) || str_starts_with($ip, '10.');
+        $address = trim((string) $device->ip_address);
+        $host = $this->monitoringHost($address);
 
-        if ($isSimulated) {
-            // Generate simulated metrics
-            $isOnline = $device->status !== 'offline'; // Keep offline if status set to offline manually
-            $latency = $isOnline ? rand(5, 45) : null;
-            $packetLoss = $isOnline ? (rand(1, 100) > 98 ? rand(5, 20) : 0) : 100;
-        } else {
-            // Real ICMP ping check
-            $pingResult = $this->pingHost($ip);
-            $isOnline = $pingResult['online'];
-            $latency = $pingResult['latency'];
-            $packetLoss = $pingResult['packet_loss'];
+        // 1. Validasi alamat monitoring.
+        if (! $this->isMonitorableAddress($address)) {
+            return $this->recordFailure(
+                $device,
+                $now,
+                self::STATUS_ERROR,
+                $address === ''
+                    ? 'Alamat monitoring belum diisi pada data perangkat.'
+                    : "Alamat monitoring tidak valid: \"{$address}\".",
+                'MONITORING_CONFIG_ERROR',
+                null
+            );
         }
 
-        // 2. Fetch or simulate SNMP Metrics (CPU, RAM, Temp, etc.)
-        $cpu = null;
-        $ram = null;
-        $storage = null;
-        $temp = null;
-        $uptime = null;
-        $rx = null;
-        $tx = null;
-        $interfaces = [];
+        // 2. Cek jangkauan nyata lewat ICMP.
+        $ping = $this->pingService->check($host);
 
-        if ($isOnline) {
-            if ($isSimulated) {
-                // Generate realistic hardware metrics
-                $cpu = rand(10, 85);
-                $ram = rand(25, 90);
-                $storage = rand(40, 75);
-                $temp = rand(38, 72);
-                $uptime = $device->metrics ? $device->metrics->last_uptime_seconds + 60 : rand(3600, 86400 * 5);
-                
-                // Bandwidth simulation (rx: 1Mbps-80Mbps, tx: 500Kbps-40Mbps)
-                $rx = rand(1000000, 80000000);
-                $tx = rand(500000, 40000000);
+        if ($ping['error'] !== null) {
+            return $this->recordFailure(
+                $device,
+                $now,
+                self::STATUS_ERROR,
+                $ping['error'],
+                'MONITORING_ERROR',
+                $ping['packet_loss']
+            );
+        }
 
-                $interfaces = [
-                    ['name' => 'ether1-wan', 'status' => 'up', 'speed' => '1Gbps'],
-                    ['name' => 'ether2-lan', 'status' => 'up', 'speed' => '1Gbps'],
-                    ['name' => 'wlan1-2.4g', 'status' => 'up', 'speed' => '300Mbps'],
-                    ['name' => 'wlan2-5g', 'status' => 'up', 'speed' => '867Mbps'],
-                ];
-            } else {
-                // Prefer MikroTik RouterOS API for MikroTik devices, fallback to SNMP
-                if ($this->isMikrotikDevice($device)) {
-                    $metrics = $this->mikrotikService->getSystemMetrics($ip);
-                } else {
-                    $metrics = $this->querySnmp($ip);
-                }
+        if (! $ping['online']) {
+            return $this->recordFailure(
+                $device,
+                $now,
+                self::STATUS_UNREACHABLE,
+                "Tidak ada balasan ICMP dari {$host} (timeout).",
+                'CRITICAL_OFFLINE',
+                $ping['packet_loss'] ?? 100
+            );
+        }
 
-                $cpu = $metrics['cpu'];
-                $ram = $metrics['ram'];
-                $storage = $metrics['storage'];
-                $temp = $metrics['temp'];
-                $uptime = $metrics['uptime'];
-                $rx = $metrics['rx'];
-                $tx = $metrics['tx'];
-                $interfaces = $metrics['interfaces'];
+        // 3. Ambil metrik nyata sesuai protokol yang tersedia pada perangkat.
+        $probe = $this->collectMetrics($device, $address);
+        $succeeded = $probe['error'] === null;
+        $status = $succeeded ? self::STATUS_ONLINE : self::STATUS_DEGRADED;
+
+        $payload = [
+            'last_ping_status' => $status,
+            'last_ping_latency_ms' => $ping['latency'],
+            'last_packet_loss_percent' => $ping['packet_loss'],
+            'last_checked_at' => $now,
+        ];
+
+        if ($succeeded) {
+            // Hanya pembacaan yang berhasil boleh menimpa kolom metrik. Saat
+            // pembacaan gagal, nilai valid terakhir dibiarkan apa adanya.
+            foreach (self::METRIC_COLUMNS as $column => $key) {
+                $payload[$column] = $probe['metrics'][$key];
             }
         } else {
-            $packetLoss = 100;
+            Log::warning(
+                "Monitoring metrik gagal untuk perangkat #{$device->id} ({$device->name}) di {$host}: {$probe['error']}"
+            );
         }
 
-        // 3. Update device status on device table if changed
-        $newStatus = $isOnline ? 'active' : 'offline';
-        if ($device->status === 'maintenance') {
-            // Keep status as maintenance if set manually, but metrics show it's online
-            $newStatus = 'maintenance';
-        }
+        $previousStatus = $this->currentStatus($device);
 
-        if ($device->status !== $newStatus) {
-            $device->update(['status' => $newStatus]);
-            if ($newStatus === 'offline') {
-                $this->alertService->dispatchAlert($device->name, 'CRITICAL_OFFLINE', "Device went OFFLINE / unreachable.");
-            }
-        }
+        // 4. Simpan metrik terkini.
+        $metric = DeviceMetric::updateOrCreate(['device_id' => $device->id], $payload);
 
-        // Trigger resource usage alerts if thresholds exceeded
-        if ($isOnline) {
-            if ($cpu !== null && $cpu > 80) {
-                $this->alertService->dispatchAlert($device->name, 'WARNING_HIGH_CPU', "High CPU utilization detected: {$cpu}%.");
-            }
-            if ($ram !== null && $ram > 85) {
-                $this->alertService->dispatchAlert($device->name, 'WARNING_HIGH_RAM', "High Memory utilization detected: {$ram}%.");
-            }
-        }
-
-        // 4. Save/Update Device Metrics (Current state)
-        $metrics = DeviceMetric::updateOrCreate(
-            ['device_id' => $device->id],
-            [
-                'last_ping_status' => $isOnline ? 'online' : 'offline',
-                'last_ping_latency_ms' => $latency,
-                'last_packet_loss_percent' => $packetLoss,
-                'last_cpu_usage_percent' => $cpu,
-                'last_ram_usage_percent' => $ram,
-                'last_storage_usage_percent' => $storage,
-                'last_temperature_celsius' => $temp,
-                'last_uptime_seconds' => $uptime,
-                'last_interface_status' => $interfaces,
-                'last_bandwidth_rx_bps' => $rx,
-                'last_bandwidth_tx_bps' => $tx,
-                'last_checked_at' => $now,
-            ]
+        // 5. Riwayat mencatat apa yang benar-benar terukur pada siklus ini.
+        $this->recordHistory(
+            $device,
+            $now,
+            $status,
+            $ping['latency'],
+            $ping['packet_loss'],
+            $succeeded ? $probe['metrics'] : null
         );
 
-        // 5. Append Historical Log (Monitoring History)
-        MonitoringLog::create([
-            'device_id' => $device->id,
-            'status' => $isOnline ? 'online' : 'offline',
-            'ping_latency_ms' => $latency,
-            'packet_loss_percent' => $packetLoss,
-            'cpu_usage_percent' => $cpu,
-            'ram_usage_percent' => $ram,
-            'storage_usage_percent' => $storage,
-            'temperature_celsius' => $temp,
-            'uptime_seconds' => $uptime,
-            'bandwidth_rx_bps' => $rx,
-            'bandwidth_tx_bps' => $tx,
-            'checked_at' => $now,
-        ]);
+        $this->syncDeviceStatus($device, $status);
 
-        return $metrics;
+        // 6. Alert lewat arsitektur alert yang sudah ada.
+        if (! $succeeded && $previousStatus !== self::STATUS_DEGRADED) {
+            $this->alertService->dispatchAlert(
+                $device->name,
+                'MONITORING_ERROR',
+                "Perangkat menjawab ICMP tetapi metrik gagal dibaca: {$probe['error']}"
+            );
+        }
+
+        if ($succeeded) {
+            $this->checkResourceThresholds($device, $probe['metrics']);
+        }
+
+        return $metric;
     }
 
     /**
-     * Run all devices scan.
+     * Jalankan pengecekan untuk seluruh perangkat terdaftar.
      */
     public function scanAll(): int
     {
-        $devices = Device::all();
         $count = 0;
-        foreach ($devices as $device) {
+
+        foreach (Device::with(['vendor', 'operatingSystem', 'metrics'])->get() as $device) {
             try {
                 $this->scanDevice($device);
                 $count++;
-            } catch (\Exception $e) {
-                Log::error("Failed scanning device ID {$device->id}: " . $e->getMessage());
+            } catch (\Throwable $e) {
+                Log::error("Gagal memindai perangkat #{$device->id}: " . $e->getMessage());
             }
         }
+
         return $count;
     }
 
     /**
-     * Determine if a device is a MikroTik (RouterOS) device based on
-     * its vendor or operating system master data.
+     * Catat kegagalan monitoring apa adanya: status nyata tersimpan, riwayat
+     * terisi, penyebabnya masuk log, dan metrik valid terakhir tidak disentuh
+     * sama sekali — tidak ada data pengganti yang dikarang.
+     */
+    protected function recordFailure(
+        Device $device,
+        Carbon $now,
+        string $status,
+        string $reason,
+        string $alertType,
+        ?int $packetLoss
+    ): DeviceMetric {
+        Log::warning("Monitoring gagal untuk perangkat #{$device->id} ({$device->name}): {$reason}");
+
+        $previousStatus = $this->currentStatus($device);
+
+        $metric = DeviceMetric::updateOrCreate(
+            ['device_id' => $device->id],
+            [
+                'last_ping_status' => $status,
+                'last_ping_latency_ms' => null,
+                'last_packet_loss_percent' => $packetLoss,
+                'last_checked_at' => $now,
+            ]
+        );
+
+        $this->recordHistory($device, $now, $status, null, $packetLoss, null);
+        $this->syncDeviceStatus($device, $status);
+
+        if ($previousStatus !== $status) {
+            $this->alertService->dispatchAlert($device->name, $alertType, $reason);
+        }
+
+        return $metric;
+    }
+
+    /**
+     * Simpan satu baris riwayat monitoring.
+     *
+     * @param  array<string,mixed>|null  $metrics  null bila metrik tidak terukur
+     */
+    protected function recordHistory(
+        Device $device,
+        Carbon $now,
+        string $status,
+        ?int $latency,
+        ?int $packetLoss,
+        ?array $metrics
+    ): void {
+        MonitoringLog::create([
+            'device_id' => $device->id,
+            'status' => $status,
+            'ping_latency_ms' => $latency,
+            'packet_loss_percent' => $packetLoss,
+            'cpu_usage_percent' => $metrics['cpu'] ?? null,
+            'ram_usage_percent' => $metrics['ram'] ?? null,
+            'storage_usage_percent' => $metrics['storage'] ?? null,
+            'temperature_celsius' => $metrics['temp'] ?? null,
+            'uptime_seconds' => $metrics['uptime'] ?? null,
+            'bandwidth_rx_bps' => $metrics['rx'] ?? null,
+            'bandwidth_tx_bps' => $metrics['tx'] ?? null,
+            'checked_at' => $now,
+        ]);
+    }
+
+    /**
+     * Status inventaris perangkat mengikuti hasil jangkauan nyata. Status
+     * 'maintenance' diset manual sehingga tidak pernah ditimpa, dan status
+     * error berarti jangkauannya tidak diketahui — jadi juga tidak menimpa
+     * apa pun.
+     */
+    protected function syncDeviceStatus(Device $device, string $status): void
+    {
+        if ($device->status === 'maintenance' || $status === self::STATUS_ERROR) {
+            return;
+        }
+
+        $target = $status === self::STATUS_UNREACHABLE ? 'offline' : 'active';
+
+        if ($device->status !== $target) {
+            $device->update(['status' => $target]);
+        }
+    }
+
+    /**
+     * Ambang batas hanya dievaluasi dari metrik yang baru saja terbaca, supaya
+     * nilai lama yang dipertahankan tidak memicu alert berulang.
+     *
+     * @param  array<string,mixed>  $metrics
+     */
+    protected function checkResourceThresholds(Device $device, array $metrics): void
+    {
+        if (($metrics['cpu'] ?? null) !== null && $metrics['cpu'] > 80) {
+            $this->alertService->dispatchAlert(
+                $device->name,
+                'WARNING_HIGH_CPU',
+                "High CPU utilization detected: {$metrics['cpu']}%."
+            );
+        }
+
+        if (($metrics['ram'] ?? null) !== null && $metrics['ram'] > 85) {
+            $this->alertService->dispatchAlert(
+                $device->name,
+                'WARNING_HIGH_RAM',
+                "High Memory utilization detected: {$metrics['ram']}%."
+            );
+        }
+    }
+
+    /**
+     * Status monitoring hasil siklus sebelumnya, dipakai supaya alert hanya
+     * dikirim saat statusnya benar-benar berubah.
+     */
+    protected function currentStatus(Device $device): ?string
+    {
+        return $device->metrics?->last_ping_status;
+    }
+
+    /**
+     * Alamat yang bisa dimonitor. FILTER_FLAG_NO_PRIV_RANGE sengaja TIDAK
+     * dipakai: 10/8, 172.16/12, dan 192.168/16 adalah alamat jaringan kampus
+     * yang sah dan wajib dicek sungguhan seperti alamat publik.
+     */
+    protected function isMonitorableAddress(string $address): bool
+    {
+        $host = $this->monitoringHost($address);
+
+        return $host !== '' && filter_var($host, FILTER_VALIDATE_IP) !== false;
+    }
+
+    /**
+     * Bagian host dari alamat inventaris, membuang ":port" bila ada (mis.
+     * "192.168.1.254:8729" untuk RouterOS API di port non-standar).
+     */
+    protected function monitoringHost(string $address): string
+    {
+        if (substr_count($address, ':') === 1) {
+            [$host] = explode(':', $address);
+
+            if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+                return $host;
+            }
+        }
+
+        return $address;
+    }
+
+    /**
+     * Tentukan protokol nyata perangkat lalu baca metriknya.
+     *
+     * @return array{metrics:array<string,mixed>,error:?string}
+     */
+    protected function collectMetrics(Device $device, string $address): array
+    {
+        $host = $this->monitoringHost($address);
+
+        if (! $this->isMikrotikDevice($device)) {
+            return $this->querySnmp($host);
+        }
+
+        $metrics = $this->normaliseMetrics($this->mikrotikService->getSystemMetrics($address));
+        $error = $this->mikrotikService->lastErrorFor($address);
+
+        if ($error === null && $this->hasNoMetricValues($metrics)) {
+            $error = "tidak mengembalikan data resource dari {$host}.";
+        }
+
+        return [
+            'metrics' => $metrics,
+            'error' => $error === null ? null : "RouterOS API {$error}",
+        ];
+    }
+
+    /**
+     * Apakah perangkat ini MikroTik (RouterOS), dilihat dari master data vendor
+     * atau sistem operasinya.
      */
     protected function isMikrotikDevice(Device $device): bool
     {
@@ -192,82 +366,85 @@ class MonitoringService
     }
 
     /**
-     * Check host status using ping (supports Windows & Linux).
+     * Baca metrik SNMP nyata. Kegagalan dikembalikan sebagai error yang bisa
+     * ditindaklanjuti, bukan sebagai deretan nilai kosong tanpa penjelasan.
+     *
+     * @return array{metrics:array<string,mixed>,error:?string}
      */
-    protected function pingHost(string $ip): array
+    protected function querySnmp(string $ip): array
     {
-        $latency = null;
-        $online = false;
-        
-        $str = PHP_OS_FAMILY === 'Windows' 
-            ? "ping -n 1 -w 1000 " . escapeshellarg($ip)
-            : "ping -c 1 -W 1 " . escapeshellarg($ip);
+        $data = $this->normaliseMetrics([]);
 
-        exec($str, $outcome, $status);
-
-        if ($status === 0) {
-            $online = true;
-            // Parse latency from stdout
-            foreach ($outcome as $line) {
-                if (preg_match('/(?:time|waktu)[=<]([\d\.]+)\s*ms/i', $line, $matches)) {
-                    $latency = (int) round($matches[1]);
-                    break;
-                }
-            }
-            if (is_null($latency)) {
-                $latency = 1; // Default fallback to 1ms
-            }
+        if (! extension_loaded('snmp')) {
+            return [
+                'metrics' => $data,
+                'error' => 'Ekstensi PHP snmp tidak terpasang, metrik SNMP tidak dapat dibaca.',
+            ];
         }
 
+        // OID standar:
+        // System Uptime: .1.3.6.1.2.1.1.3.0
+        // CPU Load MikroTik: .1.3.6.1.4.1.14988.1.1.3.15.0
+        try {
+            snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+
+            $uptime = @snmpget($ip, 'public', '.1.3.6.1.2.1.1.3.0', 1000000);
+
+            if ($uptime === false) {
+                return [
+                    'metrics' => $data,
+                    'error' => "SNMP tidak menjawab dari {$ip} (timeout, agen SNMP mati, atau community tidak cocok).",
+                ];
+            }
+
+            $data['uptime'] = (int) ($uptime / 100); // timeticks -> detik
+
+            $cpu = @snmpget($ip, 'public', '.1.3.6.1.4.1.14988.1.1.3.15.0', 500000);
+
+            if ($cpu !== false) {
+                $data['cpu'] = (int) $cpu;
+            }
+
+            return ['metrics' => $data, 'error' => null];
+        } catch (\Throwable $e) {
+            return ['metrics' => $data, 'error' => "SNMP error dari {$ip}: {$e->getMessage()}"];
+        }
+    }
+
+    /**
+     * Samakan bentuk hasil pembacaan metrik dari protokol mana pun.
+     *
+     * @param  array<string,mixed>  $metrics
+     * @return array<string,mixed>
+     */
+    protected function normaliseMetrics(array $metrics): array
+    {
         return [
-            'online' => $online,
-            'latency' => $latency,
-            'packet_loss' => $online ? 0 : 100
+            'cpu' => $metrics['cpu'] ?? null,
+            'ram' => $metrics['ram'] ?? null,
+            'storage' => $metrics['storage'] ?? null,
+            'temp' => $metrics['temp'] ?? null,
+            'uptime' => $metrics['uptime'] ?? null,
+            'rx' => $metrics['rx'] ?? null,
+            'tx' => $metrics['tx'] ?? null,
+            'interfaces' => $metrics['interfaces'] ?? [],
         ];
     }
 
     /**
-     * Query SNMP values from device if supported and configured.
+     * Pembacaan yang tidak menghasilkan satu pun nilai — perangkat menjawab
+     * ICMP tetapi sumber metriknya tidak memberi apa-apa.
+     *
+     * @param  array<string,mixed>  $metrics
      */
-    protected function querySnmp(string $ip): array
+    protected function hasNoMetricValues(array $metrics): bool
     {
-        // Default placeholders if SNMP fails or php-snmp is missing
-        $data = [
-            'cpu' => null,
-            'ram' => null,
-            'storage' => null,
-            'temp' => null,
-            'uptime' => null,
-            'rx' => null,
-            'tx' => null,
-            'interfaces' => []
-        ];
-
-        if (!extension_loaded('snmp')) {
-            return $data;
-        }
-
-        // Standard OIDs:
-        // System Uptime: .1.3.6.1.2.1.1.3.0
-        // CPU Load (Host Resources): .1.3.6.1.4.1.9.9.109.1.1.1.1.3 (Cisco) or .1.3.6.1.4.1.14988.1.1.3.15.0 (Mikrotik)
-        try {
-            snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
-            
-            // Try community public first
-            $uptime = @snmpget($ip, 'public', '.1.3.6.1.2.1.1.3.0', 1000000);
-            if ($uptime !== false) {
-                $data['uptime'] = (int) ($uptime / 100); // convert timeticks to seconds
-                
-                // Get CPU load (MikroTik OID example)
-                $cpu = @snmpget($ip, 'public', '.1.3.6.1.4.1.14988.1.1.3.15.0', 500000);
-                if ($cpu !== false) {
-                    $data['cpu'] = (int) $cpu;
-                }
+        foreach (['cpu', 'ram', 'storage', 'temp', 'uptime', 'rx', 'tx'] as $key) {
+            if ($metrics[$key] !== null) {
+                return false;
             }
-        } catch (\Exception $e) {
-            // Ignore SNMP read exceptions
         }
 
-        return $data;
+        return empty($metrics['interfaces']);
     }
 }

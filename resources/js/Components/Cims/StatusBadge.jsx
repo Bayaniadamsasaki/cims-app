@@ -4,7 +4,8 @@ import { statusOf } from "./theme";
  * Badge status: titik warna + teks (§6C).
  * Teks selalu dirender agar status tetap terbaca tanpa mengandalkan warna.
  *
- * @param {"online"|"offline"|"warning"|"maintenance"} status
+ * @param {"online"|"degraded"|"unreachable"|"error"|"offline"|"warning"|"maintenance"|"unknown"} status
+ *        Kosakata hasil pindai nyata; nilai asing dipetakan ke `unknown` oleh `statusOf`.
  * @param {"chip"|"plain"} variant chip = berlatar tint, plain = inline pada tabel
  */
 export default function StatusBadge({ status, label, variant = "chip" }) {

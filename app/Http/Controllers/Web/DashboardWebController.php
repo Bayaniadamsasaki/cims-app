@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Device;
+use App\Models\DeviceMetric;
 use App\Models\MaintenanceTicket;
 use App\Models\MonitoringLog;
+use App\Services\MonitoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -14,9 +16,9 @@ use Inertia\Inertia;
  * Dashboard utama CIMS (tema terang) — struktur widget mengikuti
  * Docs/design_cims_dashboard.md: 3 metric card, chart trafik, dan dua daftar.
  *
- * Semua angka diambil dari database. Bila inventaris masih kosong, tiap widget
- * menampilkan empty state; tambahkan `?demo=1` untuk melihat tampilan dengan
- * data contoh (dirender di sisi klien, tidak menyentuh database).
+ * Semua angka diambil dari database hasil monitoring nyata. Perangkat yang belum
+ * pernah dipindai tidak dihitung online maupun offline; bila inventaris atau
+ * riwayat monitoring masih kosong, tiap widget menampilkan empty state.
  */
 class DashboardWebController extends Controller
 {
@@ -36,22 +38,29 @@ class DashboardWebController extends Controller
             'traffic' => $this->traffic(),
             'devices' => $this->devices(),
             'alerts' => $alerts,
-            'demo' => $request->boolean('demo'),
         ]);
     }
 
-    /** Angka untuk tiga metric card di baris atas. */
+    /**
+     * Angka untuk tiga metric card di baris atas.
+     *
+     * Jumlah online/offline dibaca dari hasil monitoring terakhir
+     * (device_metrics.last_ping_status), bukan dari kolom status inventaris —
+     * perangkat berstatus 'active' di inventaris belum tentu benar-benar hidup.
+     */
     private function metrics(array $alerts): array
     {
-        $statusCounts = Device::query()
-            ->selectRaw('status, COUNT(*) AS total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
+        $totalDevices = Device::count();
+        $monitored = $this->monitoringStatusCounts();
 
         return [
-            'totalDevices' => (int) $statusCounts->sum(),
-            'onlineDevices' => (int) ($statusCounts['active'] ?? 0),
-            'offlineDevices' => (int) ($statusCounts['offline'] ?? 0),
+            'totalDevices' => $totalDevices,
+            'onlineDevices' => $monitored[MonitoringService::STATUS_ONLINE],
+            'degradedDevices' => $monitored[MonitoringService::STATUS_DEGRADED],
+            'unreachableDevices' => $monitored[MonitoringService::STATUS_UNREACHABLE],
+            'monitoringErrorDevices' => $monitored[MonitoringService::STATUS_ERROR],
+            // Belum pernah dipindai → tidak ada data, bukan "online".
+            'unknownDevices' => max(0, $totalDevices - array_sum($monitored)),
             'newDevices' => Device::where('created_at', '>=', now()->subDays(7))->count(),
             'activeAlerts' => count($alerts),
             'criticalAlerts' => count(array_filter($alerts, fn($a) => $a['severity'] === 'offline')),
@@ -59,6 +68,28 @@ class DashboardWebController extends Controller
             'maintenanceToday' => MaintenanceTicket::whereDate('scheduled_at', today())->count(),
         ];
     }
+
+    /**
+     * Rekap status monitoring terakhir per perangkat.
+     *
+     * @return array<string, int>
+     */
+    private function monitoringStatusCounts(): array
+    {
+        $counts = DeviceMetric::query()
+            ->whereHas('device')
+            ->selectRaw('last_ping_status, COUNT(*) AS total')
+            ->groupBy('last_ping_status')
+            ->pluck('total', 'last_ping_status');
+
+        return [
+            MonitoringService::STATUS_ONLINE => (int) ($counts[MonitoringService::STATUS_ONLINE] ?? 0),
+            MonitoringService::STATUS_DEGRADED => (int) ($counts[MonitoringService::STATUS_DEGRADED] ?? 0),
+            MonitoringService::STATUS_UNREACHABLE => (int) ($counts[MonitoringService::STATUS_UNREACHABLE] ?? 0),
+            MonitoringService::STATUS_ERROR => (int) ($counts[MonitoringService::STATUS_ERROR] ?? 0),
+        ];
+    }
+
 
     /**
      * Rata-rata throughput uplink 24 jam terakhir, dibagi ke bucket 2 jam.
@@ -116,11 +147,11 @@ class DashboardWebController extends Controller
         return round(array_sum($samples) / count($samples) / 1_000_000, 1);
     }
 
-    /** Enam perangkat terakhir beserta status dan uptime dari log monitoring terbaru. */
+    /** Enam perangkat terakhir beserta status monitoring nyata dan uptime terukur. */
     private function devices(): array
     {
         return Device::query()
-            ->with(['building:id,name', 'floor:id,name', 'room:id,name'])
+            ->with(['building:id,name', 'floor:id,name', 'room:id,name', 'metrics'])
             ->with(['monitoringLogs' => fn($q) => $q->latest('checked_at')->limit(1)])
             ->latest()
             ->take(6)
@@ -133,7 +164,7 @@ class DashboardWebController extends Controller
                     'name' => $device->name,
                     'ip' => $device->ip_address,
                     'location' => $this->locationOf($device),
-                    'status' => $this->statusKey($device->status),
+                    'status' => $this->statusKey($device),
                     'uptime' => $log?->uptime_seconds ? $this->humanUptime((int) $log->uptime_seconds) : null,
                 ];
             })
@@ -148,14 +179,26 @@ class DashboardWebController extends Controller
             ->implode(' · ');
     }
 
-    /** Status database ('active') dipetakan ke kunci badge di theme.jsx ('online'). */
-    private function statusKey(?string $status): string
+    /**
+     * Kunci badge status untuk theme.jsx.
+     *
+     * Perangkat dalam masa maintenance ditandai lebih dulu; sisanya memakai
+     * hasil monitoring terakhir. Perangkat yang belum pernah dipindai menjadi
+     * 'unknown' (No Data), tidak diklaim online.
+     */
+    private function statusKey(Device $device): string
     {
-        return match ($status) {
-            'active' => 'online',
+        if ($device->status === 'maintenance') {
+            return 'maintenance';
+        }
+
+        return match ($device->metrics?->last_ping_status) {
+            MonitoringService::STATUS_ONLINE => 'online',
+            MonitoringService::STATUS_DEGRADED => 'degraded',
+            MonitoringService::STATUS_UNREACHABLE => 'unreachable',
+            MonitoringService::STATUS_ERROR => 'error',
             'offline' => 'offline',
-            'maintenance' => 'maintenance',
-            default => 'warning',
+            default => 'unknown',
         };
     }
 
@@ -167,14 +210,15 @@ class DashboardWebController extends Controller
     }
 
     /**
-     * Alert diturunkan dari data yang sudah ada di database (perangkat offline,
-     * anomali log monitoring terakhir, dan tiket maintenance terjadwal) supaya
+     * Alert diturunkan dari data monitoring yang sudah tersimpan (hasil pindai
+     * terakhir, anomali log monitoring, dan tiket maintenance terjadwal) supaya
      * dashboard tidak perlu menjalankan pemindaian jaringan saat dibuka.
      */
     private function alerts(): array
     {
         $alerts = collect()
             ->merge($this->offlineAlerts())
+            ->merge($this->degradedAlerts())
             ->merge($this->anomalyAlerts())
             ->merge($this->maintenanceAlerts());
 
@@ -186,20 +230,55 @@ class DashboardWebController extends Controller
             ->all();
     }
 
+    /** Perangkat yang pemindaian terakhirnya unreachable atau gagal dijalankan. */
     private function offlineAlerts(): array
     {
-        return Device::where('status', 'offline')
-            ->with(['monitoringLogs' => fn($q) => $q->latest('checked_at')->limit(1)])
-            ->latest('updated_at')
+        return $this->devicesWithMonitoringStatus([
+            MonitoringService::STATUS_UNREACHABLE,
+            MonitoringService::STATUS_ERROR,
+        ])->map(function (Device $device) {
+            $message = $device->metrics?->last_ping_status === MonitoringService::STATUS_ERROR
+                ? 'Monitoring gagal dijalankan — perangkat tidak dapat dicek'
+                : 'Perangkat tidak merespons ICMP';
+
+            return $this->alertRow(
+                "offline-{$device->id}",
+                'offline',
+                'Critical',
+                $message,
+                $device->name,
+                $device->metrics?->last_checked_at ?? $device->updated_at,
+            );
+        })->all();
+    }
+
+    /** Perangkat yang menjawab ICMP tetapi metriknya gagal dibaca. */
+    private function degradedAlerts(): array
+    {
+        return $this->devicesWithMonitoringStatus([MonitoringService::STATUS_DEGRADED])
+            ->map(fn(Device $device) => $this->alertRow(
+                "degraded-{$device->id}",
+                'warning',
+                'Warning',
+                'Perangkat menjawab ICMP tetapi metrik gagal dibaca',
+                $device->name,
+                $device->metrics?->last_checked_at ?? $device->updated_at,
+            ))
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     * @return \Illuminate\Support\Collection<int, Device>
+     */
+    private function devicesWithMonitoringStatus(array $statuses): \Illuminate\Support\Collection
+    {
+        return Device::query()
+            ->with('metrics')
+            ->whereHas('metrics', fn($q) => $q->whereIn('last_ping_status', $statuses))
             ->take(5)
             ->get()
-            ->map(function (Device $device) {
-                $at = $device->monitoringLogs->first()?->checked_at ?? $device->updated_at;
-
-                return $this->alertRow("offline-{$device->id}", 'offline', 'Critical', 'Perangkat tidak merespons ICMP', $device->name, $at);
-            })
-            ->values()
-            ->all();
+            ->values();
     }
 
     /** Log monitoring 24 jam terakhir yang melewati ambang packet loss atau CPU. */

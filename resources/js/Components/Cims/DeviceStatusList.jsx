@@ -40,11 +40,13 @@ export default function DeviceStatusList({ devices = [], action }) {
                                 <td className="px-6 py-3.5">
                                     <div className="text-sm font-medium text-slate-900">{device.name}</div>
                                     <div className="mt-0.5 text-xs text-slate-500">
-                                        {device.location} · <span className="font-mono">{device.ip}</span>
+                                        {device.location || "Lokasi belum diisi"} ·{" "}
+                                        <span className="font-mono">{device.ip || "IP belum diisi"}</span>
                                     </div>
                                 </td>
+                                {/* Uptime hanya ada bila pernah terbaca dari perangkat. */}
                                 <td className="hidden px-6 py-3.5 text-sm tabular-nums text-slate-500 sm:table-cell">
-                                    {device.uptime}
+                                    {device.uptime ?? <span className="text-slate-400">—</span>}
                                 </td>
                                 <td className="px-6 py-3.5">
                                     <StatusBadge status={device.status} variant="plain" />

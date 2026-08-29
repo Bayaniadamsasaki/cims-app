@@ -6,25 +6,27 @@ import DeviceStatusList from "@/Components/Cims/DeviceStatusList";
 import RecentAlertsList from "@/Components/Cims/RecentAlertsList";
 import { IconAlerts, IconInventory, IconMaintenance } from "@/Components/Cims/icons";
 import { TRAFFIC_SERIES } from "@/Components/Cims/theme";
-import { DEMO_ALERTS, DEMO_DEVICES, DEMO_METRICS, DEMO_TRAFFIC } from "@/Components/Cims/demoData";
 
 const VIEW_ALL =
     "text-xs font-semibold text-blue-600 transition hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded";
 
 /**
  * Dashboard CIMS — struktur dan warna mengikuti Docs/design_cims_dashboard.md.
- * Data berasal dari DashboardWebController; `demo` (?demo=1) menukarnya dengan
- * data contoh agar tampilan bisa dinilai walau inventaris masih kosong.
+ *
+ * Seluruh angka berasal dari DashboardWebController, yaitu hasil monitoring yang
+ * benar-benar tersimpan. Tidak ada mode demo dan tidak ada data contoh: bila
+ * belum ada perangkat yang dipindai, widget menampilkan empty state.
  */
-export default function Dashboard({ metrics = {}, traffic = [], devices = [], alerts = [], demo = false }) {
+export default function Dashboard({ metrics = {}, traffic = [], devices = [], alerts = [] }) {
     const user = usePage().props.auth?.user;
-    const stats = demo ? DEMO_METRICS : metrics;
-    const trafficData = demo ? DEMO_TRAFFIC : traffic;
-    const deviceRows = demo ? DEMO_DEVICES : devices;
-    const alertRows = demo ? DEMO_ALERTS : alerts;
+    const stats = metrics;
 
     const newDevices = stats.newDevices ?? 0;
     const criticalAlerts = stats.criticalAlerts ?? 0;
+    const totalDevices = stats.totalDevices ?? 0;
+    const unknownDevices = stats.unknownDevices ?? 0;
+    const attention =
+        (stats.degradedDevices ?? 0) + (stats.unreachableDevices ?? 0) + (stats.monitoringErrorDevices ?? 0);
 
     return (
         <CimsLayout unreadAlerts={stats.activeAlerts ?? 0}>
@@ -37,22 +39,23 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                         Welcome back, {user?.name ?? "Network Admin"}
                     </h1>
                     <p className="mt-1.5 text-sm text-slate-500">
-                        {stats.onlineDevices ?? 0} dari {stats.totalDevices ?? 0} perangkat online ·{" "}
+                        {stats.onlineDevices ?? 0} dari {totalDevices} perangkat terkonfirmasi online ·{" "}
                         {stats.activeAlerts ?? 0} alert aktif menunggu tindakan hari ini.
                     </p>
+                    {unknownDevices > 0 && (
+                        <p className="mt-1 text-xs text-slate-500">
+                            {unknownDevices} perangkat belum pernah dipindai — statusnya belum diketahui.{" "}
+                            <span className="text-slate-400">Jalankan health scan pada halaman Monitoring.</span>
+                        </p>
+                    )}
                 </div>
-                {demo && (
-                    <p className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-                        Mode demo — angka di bawah adalah data contoh
-                    </p>
-                )}
             </div>
 
             {/* 3 Metric Cards (§6A) */}
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <MetricCard
                     title="Total Devices"
-                    value={stats.totalDevices ?? 0}
+                    value={totalDevices}
                     icon={IconInventory}
                     tint="blue"
                     trend={
@@ -72,7 +75,7 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                             ? { tone: "negative", label: `${criticalAlerts} critical` }
                             : { tone: "neutral", label: "Tidak ada critical" }
                     }
-                    caption="belum terselesaikan"
+                    caption={attention > 0 ? `${attention} perangkat perlu perhatian` : "belum terselesaikan"}
                 />
                 <MetricCard
                     title="Maintenance Scheduled"
@@ -93,13 +96,13 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                         title="Network Traffic Overview"
                         subtitle="Rata-rata throughput uplink kampus, interval 2 jam"
                         unit="Mbps"
-                        data={trafficData}
+                        data={traffic}
                         series={TRAFFIC_SERIES}
                     />
                 </div>
 
                 <RecentAlertsList
-                    alerts={alertRows}
+                    alerts={alerts}
                     action={
                         <Link href={route("alerts.index")} className={VIEW_ALL}>
                             Lihat semua →
@@ -111,7 +114,7 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
             {/* Device Status (§6C) */}
             <div className="mt-6">
                 <DeviceStatusList
-                    devices={deviceRows}
+                    devices={devices}
                     action={
                         <Link href={route("devices.index")} className={VIEW_ALL}>
                             Lihat inventaris →

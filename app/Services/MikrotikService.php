@@ -22,6 +22,15 @@ class MikrotikService
     protected array $credentialSources = [];
 
     /**
+     * Penyebab kegagalan pembacaan metrik per host. Monitoring perlu tahu
+     * alasannya (timeout, login gagal, API mati) supaya kegagalan nyata tidak
+     * tampil sebagai metrik kosong tanpa keterangan.
+     *
+     * @var array<string,string|null>
+     */
+    protected array $lastErrors = [];
+
+    /**
      * Get (or lazily create) the RouterOS API client connection for any router.
      */
     public function client(?string $host = null, ?string $user = null, ?string $pass = null, ?int $port = null): Client
@@ -124,6 +133,15 @@ class MikrotikService
     }
 
     /**
+     * Penyebab kegagalan pembacaan metrik terakhir untuk host ini, atau null
+     * kalau pembacaan terakhirnya berhasil.
+     */
+    public function lastErrorFor(?string $host = null): ?string
+    {
+        return $this->lastErrors[$this->hostKey($host)] ?? null;
+    }
+
+    /**
      * Pesan RouterOS ini soal login, bukan soal host yang tidak terjangkau.
      */
     protected function looksLikeAuthFailure(string $message): bool
@@ -166,7 +184,8 @@ class MikrotikService
 
     /**
      * Fetch system resource metrics (CPU, RAM, storage, uptime, temperature).
-     * Returns shape compatible with MonitoringService::querySnmp().
+     * Nilai yang tidak tersedia dikembalikan null; penyebab kegagalan bisa
+     * dibaca lewat lastErrorFor($host).
      */
     public function getSystemMetrics(?string $host = null): array
     {
@@ -180,6 +199,8 @@ class MikrotikService
             'tx' => null,
             'interfaces' => [],
         ];
+
+        $this->lastErrors[$this->hostKey($host)] = null;
 
         try {
             $client = $this->client($host);
@@ -255,7 +276,16 @@ class MikrotikService
             $data['rx'] = $totalRx;
             $data['tx'] = $totalTx;
         } catch (\Throwable $e) {
-            Log::warning('MikroTik metrics fetch failed for ' . ($host ?? config('services.mikrotik.host')) . ": {$e->getMessage()}");
+            $message = $e->getMessage();
+            $source = $this->credentialSourceFor($host);
+
+            // Kegagalan login tidak menyebutkan user mana yang dipakai, jadi
+            // sumber kredensialnya ikut ditempel — tanpa nilai passwordnya.
+            $this->lastErrors[$this->hostKey($host)] = $source && $this->looksLikeAuthFailure($message)
+                ? "gagal: {$message} ({$source})"
+                : "gagal: {$message}";
+
+            Log::warning('MikroTik metrics fetch failed for ' . ($host ?? config('services.mikrotik.host')) . ": {$message}");
         }
 
         return $data;

@@ -31,42 +31,89 @@ class MonitoringWebController extends Controller
         // Load devices with their current metric snapshots
         $devices = Device::with(['metrics', 'building', 'category'])->get();
 
-        // Calculate average metrics
-        $onlineCount = $devices->where('status', 'active')->count();
         $totalCount = $devices->count();
-        
-        // Load recent historical alerts
+
+        // Ringkasan dihitung dari status monitoring nyata, bukan dari status
+        // inventaris. Perangkat yang belum pernah dicek masuk "no data".
+        $counts = [
+            MonitoringService::STATUS_ONLINE => 0,
+            MonitoringService::STATUS_DEGRADED => 0,
+            MonitoringService::STATUS_UNREACHABLE => 0,
+            MonitoringService::STATUS_ERROR => 0,
+            'unknown' => 0,
+        ];
+
         $alerts = [];
+
         foreach ($devices as $dev) {
             $m = $dev->metrics;
-            if ($m) {
-                if ($m->last_ping_status === 'offline') {
-                    $alerts[] = [
-                        'device_id' => $dev->id,
-                        'device_name' => $dev->name,
-                        'type' => 'critical',
-                        'message' => "Device is currently OFFLINE / unreachable",
-                        'timestamp' => $m->last_checked_at?->diffForHumans() ?? 'Just now'
-                    ];
-                }
-                if ($m->last_cpu_usage_percent > 80) {
-                    $alerts[] = [
-                        'device_id' => $dev->id,
-                        'device_name' => $dev->name,
-                        'type' => 'warning',
-                        'message' => "High CPU utilization detected: {$m->last_cpu_usage_percent}%",
-                        'timestamp' => $m->last_checked_at?->diffForHumans() ?? 'Just now'
-                    ];
-                }
-                if ($m->last_ram_usage_percent > 85) {
-                    $alerts[] = [
-                        'device_id' => $dev->id,
-                        'device_name' => $dev->name,
-                        'type' => 'warning',
-                        'message' => "High Memory utilization detected: {$m->last_ram_usage_percent}%",
-                        'timestamp' => $m->last_checked_at?->diffForHumans() ?? 'Just now'
-                    ];
-                }
+            $status = $m?->last_ping_status ?? 'unknown';
+            $counts[array_key_exists($status, $counts) ? $status : 'unknown']++;
+
+            if (! $m) {
+                continue;
+            }
+
+            $checkedAt = $m->last_checked_at?->diffForHumans() ?? 'Belum pernah dicek';
+
+            if ($status === MonitoringService::STATUS_UNREACHABLE) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'critical',
+                    'message' => 'Perangkat tidak menjawab ICMP (unreachable)',
+                    'timestamp' => $checkedAt,
+                ];
+            }
+
+            if ($status === MonitoringService::STATUS_ERROR) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'critical',
+                    'message' => 'Monitoring error: alamat monitoring tidak valid atau pengecekan tidak dapat dijalankan',
+                    'timestamp' => $checkedAt,
+                ];
+            }
+
+            if ($status === MonitoringService::STATUS_DEGRADED) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'warning',
+                    'message' => 'Perangkat menjawab ICMP tetapi metrik (RouterOS API/SNMP) gagal dibaca',
+                    'timestamp' => $checkedAt,
+                ];
+            }
+
+            if ($m->last_packet_loss_percent !== null && $m->last_packet_loss_percent > 0 && $status !== MonitoringService::STATUS_UNREACHABLE) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'warning',
+                    'message' => "Packet loss terdeteksi: {$m->last_packet_loss_percent}%",
+                    'timestamp' => $checkedAt,
+                ];
+            }
+
+            if ($m->last_cpu_usage_percent > 80) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'warning',
+                    'message' => "High CPU utilization detected: {$m->last_cpu_usage_percent}%",
+                    'timestamp' => $checkedAt,
+                ];
+            }
+
+            if ($m->last_ram_usage_percent > 85) {
+                $alerts[] = [
+                    'device_id' => $dev->id,
+                    'device_name' => $dev->name,
+                    'type' => 'warning',
+                    'message' => "High Memory utilization detected: {$m->last_ram_usage_percent}%",
+                    'timestamp' => $checkedAt,
+                ];
             }
         }
 
@@ -77,9 +124,14 @@ class MonitoringWebController extends Controller
             'devices' => $devices,
             'summary' => [
                 'total' => $totalCount,
-                'online' => $onlineCount,
-                'offline' => $totalCount - $onlineCount,
-                'onlinePercent' => $totalCount > 0 ? round(($onlineCount / $totalCount) * 100) : 0,
+                'online' => $counts[MonitoringService::STATUS_ONLINE],
+                'degraded' => $counts[MonitoringService::STATUS_DEGRADED],
+                'unreachable' => $counts[MonitoringService::STATUS_UNREACHABLE],
+                'error' => $counts[MonitoringService::STATUS_ERROR],
+                'unknown' => $counts['unknown'],
+                'onlinePercent' => $totalCount > 0
+                    ? round(($counts[MonitoringService::STATUS_ONLINE] / $totalCount) * 100)
+                    : 0,
             ],
             'alerts' => $alerts,
             'latestSpeedtest' => $latestSpeedtest,
@@ -92,6 +144,7 @@ class MonitoringWebController extends Controller
     public function scanAll(Request $request)
     {
         $count = $this->monitoringService->scanAll();
+
         return redirect()->back()->with('success', "Health scan completed for {$count} device nodes successfully.");
     }
 
@@ -100,7 +153,14 @@ class MonitoringWebController extends Controller
      */
     public function runSpeedtest(Request $request)
     {
-        $result = $this->speedtestService->runTest();
+        try {
+            $result = $this->speedtestService->runTest();
+        } catch (\Throwable $e) {
+            // Pengukuran gagal berarti tidak ada hasil — tidak ada angka
+            // pengganti yang disimpan.
+            return redirect()->back()->with('error', "Speedtest gagal: {$e->getMessage()}");
+        }
+
         return redirect()->back()->with('success', "Speedtest completed: DL {$result->download_speed_mbps} Mbps / UL {$result->upload_speed_mbps} Mbps");
     }
 
@@ -109,17 +169,24 @@ class MonitoringWebController extends Controller
      */
     public function show($id): Response
     {
-        $device = Device::with(['metrics', 'building', 'category'])->findOrFail($id);
-        
-        // Fetch 24 hours of history logs
+        $device = Device::with(['metrics', 'building', 'floor', 'room', 'rack', 'category', 'vendor'])
+            ->findOrFail($id);
+
+        // 24 siklus pindai TERBARU, lalu dibalik menjadi urutan waktu naik untuk
+        // grafik. Mengambil `orderBy('checked_at', 'asc')->limit(24)` justru
+        // memberi 24 log tertua, sehingga halaman ini akan menampilkan
+        // pengukuran lama seolah-olah kondisi terkini.
         $logs = MonitoringLog::where('device_id', $id)
-            ->orderBy('checked_at', 'asc')
+            ->orderByDesc('checked_at')
+            ->orderByDesc('id')
             ->limit(24)
-            ->get();
+            ->get()
+            ->reverse()
+            ->values();
 
         return Inertia::render('Monitoring/Show', [
             'device' => $device,
-            'historyLogs' => $logs
+            'historyLogs' => $logs,
         ]);
     }
 }

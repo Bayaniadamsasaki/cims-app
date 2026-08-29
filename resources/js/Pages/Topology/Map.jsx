@@ -3,12 +3,42 @@ import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
 
-export default function TopologyMap({ auth, topologyData: initialData }) {
+/**
+ * Warna titik status simpul mengikuti hasil monitoring nyata (MonitoringService)
+ * dan hasil discovery MikroTik. `unknown` sengaja netral: perangkat yang belum
+ * pernah dicek tidak boleh tampak hijau maupun merah.
+ */
+const NODE_STATUS = {
+    online: { label: "Online", fill: "#10b981" },
+    degraded: { label: "Degraded", fill: "#f59e0b" },
+    unreachable: { label: "Unreachable", fill: "#ef4444" },
+    error: { label: "Monitoring Error", fill: "#e11d48" },
+    offline: { label: "Offline", fill: "#ef4444" },
+    unknown: { label: "Belum ada data", fill: "#94a3b8" },
+};
+
+const nodeStatusOf = (status) => NODE_STATUS[status] ?? NODE_STATUS.unknown;
+
+/** Field yang tidak dilaporkan sumbernya ditulis "—", bukan diisi tebakan. */
+const show = (value) => (value === null || value === undefined || value === "" ? "—" : value);
+
+const formatCheckedAt = (value) => {
+    if (!value) return "Belum pernah dipindai";
+
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime())
+        ? "Belum pernah dipindai"
+        : `Dipindai ${parsed.toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}`;
+};
+
+export default function TopologyMap({ topologyData: initialData }) {
     const [data, setData] = useState(initialData || { nodes: [], links: [], stats: {} });
     const [selectedNode, setSelectedNode] = useState(null);
     const [filterType, setFilterType] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshError, setRefreshError] = useState(null);
 
     // `topologyData` adalah deferred prop: discovery MikroTik berjalan setelah
     // halaman tampil, jadi render pertama memakai graf kosong dan diisi di sini
@@ -57,11 +87,14 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
 
     const refreshData = async () => {
         setIsRefreshing(true);
+        setRefreshError(null);
+
         try {
             const res = await axios.get(route("topology.data"));
             setData(res.data);
         } catch (e) {
-            console.error("Failed loading topology data", e);
+            // Kegagalan discovery ditampilkan ke pengguna, bukan disembunyikan di console.
+            setRefreshError(e?.response?.data?.message || e?.message || "Pemindaian topologi gagal dijalankan.");
         } finally {
             setIsRefreshing(false);
         }
@@ -80,6 +113,21 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
             return matchesSearch && node.type === filterType;
         });
     }, [data.nodes, searchQuery, filterType]);
+
+    // Rekap status dihitung dari status simpul yang benar-benar ada di payload.
+    // Simpul tanpa laporan monitoring masuk ke `unknown`, bukan dianggap mati.
+    const statusTally = useMemo(() => {
+        const tally = { online: 0, degraded: 0, unreachable: 0, error: 0, offline: 0, unknown: 0 };
+
+        (data.nodes || []).forEach((node) => {
+            const key = Object.prototype.hasOwnProperty.call(tally, node.status) ? node.status : "unknown";
+            tally[key] += 1;
+        });
+
+        return tally;
+    }, [data.nodes]);
+
+    const needsAttention = statusTally.degraded + statusTally.unreachable + statusTally.error + statusTally.offline;
 
     // Calculate node positions in a Tiered Hierarchical Layout with Auto-Staggering
     const positionedNodes = useMemo(() => {
@@ -227,36 +275,82 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                     </button>
                 </div>
 
+                {/* Kegagalan pemindaian ditampilkan, tidak hanya masuk console. */}
+                {refreshError && (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                        <span className="font-bold">Pemindaian topologi gagal: </span>
+                        {refreshError}
+                    </div>
+                )}
+
+                {/* Status discovery MikroTik menentukan seberapa jauh graf ini bisa dipercaya. */}
+                {data.connection && !data.connection.success && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                        <div className="font-bold">
+                            Discovery MikroTik tidak berhasil
+                            {data.connection.host ? ` (${data.connection.host})` : ""}
+                        </div>
+                        <p className="mt-1 text-amber-800/90">
+                            {data.connection.error || "Router tidak menjawab permintaan RouterOS API."} Selama gagal,
+                            tidak ada relasi yang bisa diverifikasi — garis pada peta hanya turunan data inventaris dan
+                            status simpul memakai hasil monitoring ICMP terakhir.
+                        </p>
+                    </div>
+                )}
+
                 {/* Summary Stat Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
                         <div>
-                            <div className="text-xs text-slate-500 uppercase font-semibold">Total Perangkat</div>
-                            <div className="text-2xl font-bold text-slate-900 mt-1">{data.stats?.total_nodes || 0}</div>
+                            <div className="text-xs text-slate-500 uppercase font-semibold">Total Simpul</div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1">{data.stats?.total_nodes ?? 0}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">inventaris + hasil discovery</div>
                         </div>
                         <div className="p-3 bg-purple-50 rounded-xl text-purple-700 font-bold">🗺️</div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
                         <div>
-                            <div className="text-xs text-slate-500 uppercase font-semibold">Perangkat Online</div>
-                            <div className="text-2xl font-bold text-emerald-700 mt-1">{data.stats?.online_nodes || 0}</div>
+                            <div className="text-xs text-slate-500 uppercase font-semibold">Terkonfirmasi Online</div>
+                            <div className="text-2xl font-bold text-emerald-700 mt-1">{statusTally.online}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                {statusTally.unknown} simpul belum ada data
+                            </div>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-xl text-emerald-700 font-bold">🟢</div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
                         <div>
-                            <div className="text-xs text-slate-500 uppercase font-semibold">Terdeteksi (MNDP)</div>
-                            <div className="text-2xl font-bold text-blue-700 mt-1">{data.stats?.discovered_neighbors || 0}</div>
+                            <div className="text-xs text-slate-500 uppercase font-semibold">Perlu Perhatian</div>
+                            <div className="text-2xl font-bold text-red-700 mt-1">{needsAttention}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                {statusTally.unreachable} unreachable · {statusTally.error} error ·{" "}
+                                {statusTally.degraded} degraded
+                            </div>
                         </div>
-                        <div className="p-3 bg-blue-50 rounded-xl text-blue-700 font-bold">📡</div>
+                        <div className="p-3 bg-red-50 rounded-xl text-red-700 font-bold">🔴</div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
                         <div>
-                            <div className="text-xs text-slate-500 uppercase font-semibold">Koneksi Aktif</div>
-                            <div className="text-2xl font-bold text-amber-700 mt-1">{data.stats?.total_links || 0}</div>
+                            <div className="text-xs text-slate-500 uppercase font-semibold">Terdeteksi (MNDP)</div>
+                            <div className="text-2xl font-bold text-blue-700 mt-1">
+                                {data.stats?.discovered_neighbors ?? 0}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">tetangga langsung core router</div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-xl text-blue-700 font-bold">📡</div>
+                    </div>
+
+                    {/* Relasi yang belum diverifikasi discovery disebutkan terang-terangan. */}
+                    <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <div className="text-xs text-slate-500 uppercase font-semibold">Relasi Terpetakan</div>
+                            <div className="text-2xl font-bold text-amber-700 mt-1">{data.stats?.total_links ?? 0}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                {data.stats?.unverified_links ?? 0} belum terverifikasi
+                            </div>
                         </div>
                         <div className="p-3 bg-amber-50 rounded-xl text-amber-700 font-bold">🔗</div>
                     </div>
@@ -414,15 +508,31 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                     const badgeX = sourcePos.x * 0.65 + targetPos.x * 0.35;
                                     const badgeY = sourcePos.y * 0.65 + targetPos.y * 0.35;
 
+                                    // Relasi hasil discovery (MNDP/CDP) digambar tegas, sedangkan relasi
+                                    // yang hanya diturunkan dari inventaris ditandai putus-putus abu —
+                                    // supaya tidak terbaca sebagai jalur yang sudah terverifikasi.
+                                    const isInferred = Boolean(link.inferred);
+
                                     return (
                                         <g key={link.id}>
+                                            <title>
+                                                {link.protocol || "Relasi jaringan"} —{" "}
+                                                {isInferred ? "belum diverifikasi discovery" : "terverifikasi discovery"}
+                                            </title>
+
                                             {/* Outer Connection Path */}
                                             <path
                                                 d={pathD}
                                                 fill="none"
-                                                stroke={isSelected ? "#10b981" : link.source === "isp-internet-cloud" ? "#06b6d4" : "rgba(139, 92, 246, 0.35)"}
-                                                strokeWidth={isSelected ? 4 : link.source === "isp-internet-cloud" ? 3 : 2}
-                                                strokeDasharray={isSelected ? "8 4" : link.source === "isp-internet-cloud" ? "none" : "6 4"}
+                                                stroke={
+                                                    isSelected
+                                                        ? "#10b981"
+                                                        : isInferred
+                                                          ? "rgba(148, 163, 184, 0.55)"
+                                                          : "rgba(139, 92, 246, 0.65)"
+                                                }
+                                                strokeWidth={isSelected ? 4 : isInferred ? 1.75 : 2.5}
+                                                strokeDasharray={isInferred ? "6 5" : isSelected ? "8 4" : "none"}
                                                 className={isSelected ? "animate-pulse" : ""}
                                             />
 
@@ -478,7 +588,10 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                             }}
                                             className="cursor-pointer group"
                                         >
-                                            <title>{rawName} [{node.ip || 'N/A'}]</title>
+                                            <title>
+                                                {rawName} [{node.ip || "IP tidak diketahui"}] —{" "}
+                                                {nodeStatusOf(node.status).label}
+                                            </title>
 
                                             {/* Core / Internet Node Pulse Ring */}
                                             {isLarge && (
@@ -511,12 +624,15 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                                 {getNodeIcon(node.type, isCore, isInternet)}
                                             </text>
 
-                                            {/* Status Dot */}
+                                            {/* Status Dot — mengikuti status monitoring nyata, termasuk
+                                                `unknown` yang netral (bukan merah, bukan hijau). */}
                                             <circle
                                                 cx={isLarge ? 24 : 18}
                                                 cy={isLarge ? -24 : -18}
                                                 r="5"
-                                                fill={node.status === "online" ? "#10b981" : "#ef4444"}
+                                                fill={nodeStatusOf(node.status).fill}
+                                                stroke="rgba(15, 23, 42, 0.55)"
+                                                strokeWidth="1"
                                             />
 
                                             {/* Role Pill Badge */}
@@ -564,7 +680,7 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                                 fontWeight="500"
                                                 fontFamily="monospace"
                                             >
-                                                {node.ip}
+                                                {node.ip || "—"}
                                             </text>
                                         </g>
                                     );
@@ -604,6 +720,47 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                     <span className="text-blue-700">🔍 Terdeteksi MNDP</span>
                                 </div>
                             </div>
+
+                            {/* Titik status memakai kosakata monitoring nyata. */}
+                            <div className="border-t border-slate-200 pt-1.5 mt-1.5">
+                                <div className="font-bold text-slate-900 text-[11px] mb-1">Titik Status Monitoring</div>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                    {["online", "degraded", "unreachable", "error", "unknown"].map((key) => (
+                                        <div key={key} className="flex items-center space-x-2">
+                                            <span
+                                                className="h-2.5 w-2.5 rounded-full"
+                                                style={{ backgroundColor: NODE_STATUS[key].fill }}
+                                            ></span>
+                                            <span>{NODE_STATUS[key].label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Garis relasi: hasil discovery vs turunan inventaris. */}
+                            <div className="border-t border-slate-200 pt-1.5 mt-1.5 space-y-1">
+                                <div className="font-bold text-slate-900 text-[11px]">Jenis Relasi</div>
+                                <div className="flex items-center space-x-2">
+                                    <svg width="26" height="6" aria-hidden="true">
+                                        <line x1="0" y1="3" x2="26" y2="3" stroke="rgba(139, 92, 246, 0.85)" strokeWidth="2.5" />
+                                    </svg>
+                                    <span>Terverifikasi discovery (MNDP/CDP)</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <svg width="26" height="6" aria-hidden="true">
+                                        <line
+                                            x1="0"
+                                            y1="3"
+                                            x2="26"
+                                            y2="3"
+                                            stroke="rgba(100, 116, 139, 0.8)"
+                                            strokeWidth="1.75"
+                                            strokeDasharray="6 5"
+                                        />
+                                    </svg>
+                                    <span>Belum diverifikasi (turunan inventaris)</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -628,9 +785,38 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                 </div>
 
                                 <div className="space-y-3 text-xs">
+                                    {/* Status monitoring nyata + kapan terakhir benar-benar dipindai. */}
+                                    <div>
+                                        <div className="text-slate-500 uppercase font-semibold">Status Monitoring</div>
+                                        <div className="mt-1 flex items-center space-x-2">
+                                            <span
+                                                className="h-2.5 w-2.5 rounded-full"
+                                                style={{ backgroundColor: nodeStatusOf(selectedNode.status).fill }}
+                                            ></span>
+                                            <span className="font-semibold text-slate-900">
+                                                {nodeStatusOf(selectedNode.status).label}
+                                            </span>
+                                        </div>
+                                        <div className="text-slate-500 mt-1">
+                                            {formatCheckedAt(selectedNode.last_checked_at)}
+                                        </div>
+                                    </div>
+
+                                    {/* Penyebab kegagalan discovery ditampilkan apa adanya, tidak ditutup status hijau. */}
+                                    {selectedNode.error && (
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5">
+                                            <div className="text-rose-700 uppercase font-semibold">
+                                                Kegagalan Discovery
+                                            </div>
+                                            <div className="text-rose-700 mt-0.5 break-words">{selectedNode.error}</div>
+                                        </div>
+                                    )}
+
                                     <div>
                                         <div className="text-slate-500 uppercase font-semibold">IP Address</div>
-                                        <div className="font-mono font-bold text-emerald-700 text-sm mt-0.5">{selectedNode.ip}</div>
+                                        <div className="font-mono font-bold text-emerald-700 text-sm mt-0.5">
+                                            {show(selectedNode.ip)}
+                                        </div>
                                     </div>
 
                                     {selectedNode.mac && (
@@ -645,10 +831,29 @@ export default function TopologyMap({ auth, topologyData: initialData }) {
                                         <div className="text-slate-900 font-medium mt-0.5">{selectedNode.building || "-"}</div>
                                     </div>
 
+                                    {/* Vendor/model tidak lagi diisi default "MikroTik" — hanya yang dilaporkan. */}
                                     <div>
                                         <div className="text-slate-500 uppercase font-semibold">Vendor / Model</div>
-                                        <div className="text-slate-900 mt-0.5">{selectedNode.vendor || "MikroTik"} ({selectedNode.model || "-"})</div>
+                                        <div className="text-slate-900 mt-0.5">
+                                            {show(selectedNode.vendor)} · {show(selectedNode.model)}
+                                        </div>
                                     </div>
+
+                                    {/* Hasil discovery RouterOS hanya tampil bila router benar-benar menjawab. */}
+                                    {(selectedNode.version || selectedNode.interfaces !== undefined) && (
+                                        <div>
+                                            <div className="text-slate-500 uppercase font-semibold">
+                                                RouterOS / Alamat IP Terbaca
+                                            </div>
+                                            <div className="text-slate-900 mt-0.5">
+                                                {show(selectedNode.version)} ·{" "}
+                                                {selectedNode.interfaces === null ||
+                                                selectedNode.interfaces === undefined
+                                                    ? "—"
+                                                    : `${selectedNode.interfaces} alamat`}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div>
                                         <div className="text-slate-500 uppercase font-semibold">Peran Perangkat</div>

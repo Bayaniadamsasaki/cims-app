@@ -5,74 +5,105 @@ namespace App\Services;
 use App\Models\SpeedtestResult;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
+/**
+ * Uji kecepatan gateway internet dengan pengukuran nyata ke Cloudflare.
+ *
+ * Kalau pengukuran gagal (internet mati, proxy memblokir, timeout), tidak ada
+ * baris hasil yang disimpan dan penyebabnya dilempar sebagai exception —
+ * angka pengganti tidak pernah dikarang.
+ */
 class SpeedtestService
 {
     /**
-     * Run the complete network speed test.
+     * Jalankan rangkaian uji kecepatan lengkap.
+     *
+     * @throws RuntimeException bila pengukuran nyata tidak bisa diselesaikan
      */
     public function runTest(): SpeedtestResult
     {
-        $ping = $this->measurePing();
-        $download = $this->measureDownload();
-        $upload = $this->measureUpload();
-        
-        $isps = ['Telkom Indonesia', 'Biznet Networks', 'Indosat Ooredoo Hutchison', 'LinkNet / FirstMedia'];
-        $isp = $isps[array_rand($isps)];
+        $gateway = $this->probeGateway();
 
         return SpeedtestResult::create([
-            'download_speed_mbps' => $download,
-            'upload_speed_mbps' => $upload,
-            'ping_ms' => $ping,
-            'isp' => $isp,
+            'download_speed_mbps' => $this->measureDownload(),
+            'upload_speed_mbps' => $this->measureUpload(),
+            'ping_ms' => $gateway['latency'],
+            // Nama ISP diambil dari organisasi AS yang dilaporkan Cloudflare.
+            // Kalau tidak tersedia, dibiarkan null — bukan diisi nama acak.
+            'isp' => $gateway['isp'],
         ]);
     }
 
     /**
-     * Measure ping latency to public target.
+     * Ukur latensi ke gateway internet dan baca identitas ISP yang sebenarnya.
+     *
+     * @return array{latency:int,isp:?string}
+     *
+     * @throws RuntimeException
      */
-    protected function measurePing(): int
+    protected function probeGateway(): array
     {
         $startTime = microtime(true);
+
         try {
-            $response = Http::timeout(2)->get('https://speed.cloudflare.com/cdn-cgi/trace');
+            $response = Http::timeout(5)->get('https://speed.cloudflare.com/meta');
+
             if ($response->successful()) {
-                return (int) round((microtime(true) - $startTime) * 1000);
+                return [
+                    'latency' => (int) round((microtime(true) - $startTime) * 1000),
+                    'isp' => $response->json('asOrganization') ?: null,
+                ];
             }
-        } catch (\Exception $e) {
-            // Fallback for offline dev environment
+
+            $reason = "HTTP {$response->status()}";
+        } catch (\Throwable $e) {
+            $reason = $e->getMessage();
         }
-        return rand(12, 28);
+
+        Log::warning("Speedtest: probe latensi ke gateway internet gagal: {$reason}");
+
+        throw new RuntimeException("Gagal menghubungi gateway internet untuk uji kecepatan: {$reason}");
     }
 
     /**
-     * Measure download throughput (Mbps).
+     * Ukur throughput download nyata (Mbps).
+     *
+     * @throws RuntimeException
      */
     protected function measureDownload(): float
     {
         $url = 'https://speed.cloudflare.com/__down?bytes=5000000'; // 5MB payload
         $startTime = microtime(true);
-        
+
         try {
-            $response = Http::timeout(10)->get($url);
+            $response = Http::timeout(15)->get($url);
+
             if ($response->successful()) {
                 $duration = microtime(true) - $startTime;
                 $bytes = strlen($response->body());
-                if ($duration > 0) {
-                    $megabits = ($bytes * 8) / 1000000;
-                    return round($megabits / $duration, 2);
+
+                if ($duration > 0 && $bytes > 0) {
+                    return round((($bytes * 8) / 1000000) / $duration, 2);
                 }
+
+                $reason = 'respons kosong atau durasi tidak terukur';
+            } else {
+                $reason = "HTTP {$response->status()}";
             }
-        } catch (\Exception $e) {
-            Log::warning("Real speedtest download failed. Falling back to simulation: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            $reason = $e->getMessage();
         }
 
-        // Return realistic simulated campus fiber speed (e.g. 80-150 Mbps)
-        return round(rand(8500, 14800) / 100, 2);
+        Log::warning("Speedtest: pengukuran download gagal: {$reason}");
+
+        throw new RuntimeException("Pengukuran download gagal: {$reason}");
     }
 
     /**
-     * Measure upload throughput (Mbps).
+     * Ukur throughput upload nyata (Mbps).
+     *
+     * @throws RuntimeException
      */
     protected function measureUpload(): float
     {
@@ -81,22 +112,27 @@ class SpeedtestService
         $startTime = microtime(true);
 
         try {
-            $response = Http::timeout(10)
+            $response = Http::timeout(15)
                 ->withBody($payload, 'application/octet-stream')
                 ->post($url);
-            
+
             if ($response->successful()) {
                 $duration = microtime(true) - $startTime;
+
                 if ($duration > 0) {
-                    $megabits = (strlen($payload) * 8) / 1000000;
-                    return round($megabits / $duration, 2);
+                    return round(((strlen($payload) * 8) / 1000000) / $duration, 2);
                 }
+
+                $reason = 'durasi tidak terukur';
+            } else {
+                $reason = "HTTP {$response->status()}";
             }
-        } catch (\Exception $e) {
-            Log::warning("Real speedtest upload failed. Falling back to simulation: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            $reason = $e->getMessage();
         }
 
-        // Return realistic simulated upload speed (e.g. 40-90 Mbps)
-        return round(rand(4200, 8900) / 100, 2);
+        Log::warning("Speedtest: pengukuran upload gagal: {$reason}");
+
+        throw new RuntimeException("Pengukuran upload gagal: {$reason}");
     }
 }

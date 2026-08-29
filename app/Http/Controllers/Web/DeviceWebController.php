@@ -257,45 +257,27 @@ class DeviceWebController extends Controller
         return back()->with('excel_path', $path)->with('excel_url', $url)->with('success', 'File Excel berhasil diupload. Anda dapat melihat dan mengeditnya di bawah.');
     }
 
+    /**
+     * Ambil daftar interface langsung dari perangkat. Kalau discovery gagal,
+     * inventaris interface yang sudah ada dibiarkan utuh dan kegagalannya
+     * dilaporkan apa adanya — tidak ada port karangan yang dibuatkan.
+     */
     public function syncInterfaces(Request $request, int $id, MikrotikService $mikrotikService)
     {
         $device = Device::findOrFail($id);
 
-        if ($device->ip_address) {
-            try {
-                $count = $mikrotikService->syncDeviceInterfaces($device);
-                return back()->with('success', "Berhasil sinkronisasi {$count} interface dari router {$device->ip_address}!");
-            } catch (\Throwable $e) {
-                $count = $this->generateDefaultInterfaces($device);
-                return back()->with('warning', "Live API ke {$device->ip_address} belum merespon. Dibuatkan {$count} port interface default.");
-            }
+        if (! $device->ip_address) {
+            return back()->with('error', 'Sinkronisasi interface gagal: IP Address perangkat belum diisi.');
         }
 
-        $count = $this->generateDefaultInterfaces($device);
-        return back()->with('success', "Berhasil membuat {$count} port interface default.");
-    }
+        try {
+            $count = $mikrotikService->syncDeviceInterfaces($device);
 
-    private function generateDefaultInterfaces($device): int
-    {
-        $ports = ['ether1', 'ether2', 'ether3', 'ether4', 'ether5'];
-        $created = 0;
-        foreach ($ports as $idx => $portName) {
-            DeviceInterface::firstOrCreate(
-                [
-                    'device_id' => $device->id,
-                    'interface_name' => $portName,
-                ],
-                [
-                    'mac_address' => $device->mac_address ? substr($device->mac_address, 0, 14) . sprintf('%02X', $idx + 1) : null,
-                    'ip_address' => ($idx === 0) ? $device->ip_address : null,
-                    'subnet' => ($idx === 0 && $device->ip_address) ? '/24' : null,
-                    'interface_type' => 'Ethernet',
-                    'interface_status' => ($idx === 0) ? 'up' : 'down',
-                    'description' => ($idx === 0) ? 'WAN / Port Utama' : 'LAN Port ' . ($idx + 1),
-                ]
-            );
-            $created++;
+            return back()->with('success', "Berhasil sinkronisasi {$count} interface dari router {$device->ip_address}!");
+        } catch (\Throwable $e) {
+            Log::warning("Sinkronisasi interface gagal untuk perangkat #{$device->id} ({$device->ip_address}): " . $e->getMessage());
+
+            return back()->with('error', "Sinkronisasi interface dari {$device->ip_address} gagal: {$e->getMessage()} Data interface yang tersimpan tidak diubah.");
         }
-        return $created;
     }
 }

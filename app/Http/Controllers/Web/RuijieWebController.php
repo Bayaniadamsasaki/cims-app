@@ -26,10 +26,23 @@ class RuijieWebController extends Controller
         $wirelessClients = $this->ruijie->getWirelessClients();
         $alarms = $this->ruijie->getAlarms();
 
-        // Calculate summary metrics
+        // Ringkasan dihitung dari data yang benar-benar dikembalikan sumbernya.
+        // Ruijie Cloud melaporkan 'online'/'offline', sedangkan perangkat yang
+        // hanya ada di inventaris memakai hasil MonitoringService
+        // ('degraded'/'unreachable'/'error'). Hanya perangkat berstatus
+        // 'unknown' (belum pernah dicek) yang dihitung sebagai belum dilaporkan,
+        // dan jumlah klien hanya menjumlahkan perangkat yang memang
+        // melaporkannya.
         $totalDevices = count($devices);
-        $onlineDevices = count(array_filter($devices, fn($d) => $d['status'] === 'online'));
-        $totalClients = array_sum(array_column($devices, 'client_count'));
+        $countStatus = fn (array $statuses) => count(
+            array_filter($devices, fn ($d) => in_array($d['status'] ?? null, $statuses, true))
+        );
+
+        $onlineDevices = $countStatus(['online']);
+        $offlineDevices = $countStatus(['offline', 'unreachable']);
+        $degradedDevices = $countStatus(['degraded']);
+        $errorDevices = $countStatus(['error']);
+        $reportedClients = array_filter(array_column($devices, 'client_count'), fn ($c) => $c !== null);
 
         return Inertia::render('Ruijie/Explorer', [
             'ruijieConfig' => [
@@ -40,8 +53,11 @@ class RuijieWebController extends Controller
             'summary' => [
                 'totalDevices' => $totalDevices,
                 'onlineDevices' => $onlineDevices,
-                'offlineDevices' => $totalDevices - $onlineDevices,
-                'totalClients' => $totalClients,
+                'offlineDevices' => $offlineDevices,
+                'degradedDevices' => $degradedDevices,
+                'errorDevices' => $errorDevices,
+                'unknownDevices' => max(0, $totalDevices - $onlineDevices - $offlineDevices - $degradedDevices - $errorDevices),
+                'totalClients' => count($reportedClients) > 0 ? array_sum($reportedClients) : null,
             ],
             'devices' => $devices,
             'wirelessClients' => $wirelessClients,

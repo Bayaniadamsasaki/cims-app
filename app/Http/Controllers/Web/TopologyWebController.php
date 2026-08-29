@@ -63,51 +63,61 @@ class TopologyWebController extends Controller
         $links = [];
         $existingNodeKeys = [];
 
-        // 0. Add ISP / Internet Gateway Node at the top
+        // 0. Simpul internet/WAN sebagai jangkar topologi. Uplink ISP tidak
+        // dimonitor oleh CIMS, jadi statusnya 'unknown' — bukan diklaim online,
+        // dan alamat WAN-nya tidak dikarang.
         $ispNodeId = 'isp-internet-cloud';
         $nodes[] = [
             'id'          => $ispNodeId,
-            'name'        => 'ISP Source (Astinet / WAN)',
-            'hostname'    => 'Astinet Internet Gateway',
-            'ip'          => '116.58.127.23 (WAN)',
+            'name'        => 'Internet / Uplink ISP',
+            'hostname'    => null,
+            'ip'          => null,
             'type'        => 'internet',
             'category'    => 'Internet Gateway',
-            'vendor'      => 'ASTINET / Telkom',
-            'status'      => 'online',
+            'vendor'      => null,
+            'status'      => 'unknown',
             'is_internet' => true,
             'is_core'     => false,
-            'building'    => 'ISP Uplink Fiber',
-            'model'       => 'Internet Fiber Gateway',
+            'is_inferred' => true,
+            'building'    => 'Di luar cakupan monitoring CIMS',
+            'model'       => null,
         ];
 
-        // 1. Add Core Router (The MikroTik RB450Gx4 itself as Core Router)
+        // 1. Core router: seluruh identitasnya berasal dari discovery nyata.
+        // Kalau discovery gagal, field-nya dibiarkan kosong dan penyebabnya
+        // dibawa ke UI — tidak diisi model/versi karangan.
+        $coreDevice = $dbDevices->first(fn ($device) => $device->ip_address === $targetHost);
         $coreRouterId = 'core-router-mikrotik';
         $nodes[] = [
             'id'          => $coreRouterId,
-            'name'        => $connection['identity'] ?? 'MikroTik Core Router',
-            'hostname'    => $connection['identity'] ?? 'RB450Gx4',
+            'name'        => $connection['identity'] ?? $coreDevice?->name ?? 'Core Router',
+            'hostname'    => $connection['identity'] ?? $coreDevice?->hostname,
             'ip'          => $targetHost,
             'type'        => 'router',
             'category'    => 'Core Router',
-            'vendor'      => 'MikroTik',
-            'status'      => $connection['success'] ? 'online' : 'offline',
+            'vendor'      => $coreDevice?->vendor?->name ?? 'MikroTik',
+            'status'      => $connection['success']
+                ? 'online'
+                : ($coreDevice?->metrics?->last_ping_status ?? 'error'),
+            'error'       => $connection['success'] ? null : ($connection['error'] ?? null),
             'is_core'     => true,
-            'building'    => 'Gedung Rektorat / Data Center',
-            'model'       => $connection['board'] ?? 'RB450Gx4',
-            'version'     => $connection['version'] ?? '7.23.2',
+            'building'    => $coreDevice?->building?->name,
+            'model'       => $connection['board'] ?? $coreDevice?->model,
+            'version'     => $connection['version'] ?? null,
             'interfaces'  => count($ipAddresses),
         ];
         $existingNodeKeys[$targetHost] = $coreRouterId;
 
-        // Link ISP Cloud to Core Router
+        // Uplink ke ISP tidak ikut didiscovery, jadi ditandai belum terverifikasi.
         $links[] = [
             'id'               => 'link-isp-core',
             'source'           => $ispNodeId,
             'target'           => $coreRouterId,
-            'source_interface' => 'WAN (ISP)',
-            'target_interface' => 'ether1_WAN',
-            'status'           => 'active',
-            'protocol'         => 'BGP / Static WAN Route',
+            'source_interface' => null,
+            'target_interface' => null,
+            'status'           => 'unknown',
+            'protocol'         => 'Uplink WAN (belum diverifikasi)',
+            'inferred'         => true,
         ];
 
         // 2. Map Database Devices into Nodes
@@ -138,7 +148,11 @@ class TopologyWebController extends Controller
                 'type'          => $type,
                 'category'      => $dev->category?->name ?? 'Uncategorized',
                 'vendor'        => $dev->vendor?->name ?? 'Unknown',
-                'status'        => strtolower($dev->status ?? 'online'),
+                // Status simpul mengikuti hasil monitoring nyata. Perangkat yang
+                // belum pernah dicek ditandai 'unknown', bukan diasumsikan hidup.
+                'status'        => $dev->metrics?->last_ping_status ?? 'unknown',
+                'last_checked_at' => $dev->metrics?->last_checked_at,
+                'inventory_status' => $dev->status,
                 'is_core'       => false,
                 'building'      => $dev->building?->name ?? 'Unassigned',
                 'room'          => $dev->room?->name ?? '-',
@@ -156,7 +170,7 @@ class TopologyWebController extends Controller
             $nbIp = $nb['address'] ?? null;
             $nbIdentity = $nb['identity'] ?? ('Neighbor-' . ($idx + 1));
             $nbBoard = $nb['board'] ?? $nb['platform'] ?? 'MikroTik Device';
-            $viaInterface = $nb['interface'] ?? 'ether1';
+            $viaInterface = $nb['interface'] ?? null;
 
             $targetNodeId = null;
 
@@ -186,7 +200,7 @@ class TopologyWebController extends Controller
                     'status'        => 'online',
                     'is_core'       => false,
                     'is_discovered' => true,
-                    'building'      => 'Discovered via ' . $viaInterface,
+                    'building'      => $viaInterface ? 'Terdeteksi via ' . $viaInterface : 'Terdeteksi via MNDP',
                     'model'         => $nbBoard,
                 ];
 
@@ -207,7 +221,9 @@ class TopologyWebController extends Controller
             ];
         }
 
-        // 4. Fallback links for DB devices not linked by MNDP (connect them to Core Router or closest subnet)
+        // 4. Perangkat inventaris yang tidak muncul di discovery MNDP tetap
+        // ditampilkan, tetapi relasinya ditandai belum terverifikasi — link ini
+        // berasal dari data inventaris, bukan dari hasil discovery jaringan.
         foreach ($nodes as $node) {
             if ($node['id'] === $coreRouterId || $node['id'] === $ispNodeId) continue;
 
@@ -227,8 +243,9 @@ class TopologyWebController extends Controller
                     'target'           => $node['id'],
                     'source_interface' => null,
                     'target_interface' => null,
-                    'status'           => $node['status'] === 'online' ? 'active' : 'offline',
-                    'protocol'         => 'IP Network Link',
+                    'status'           => 'unknown',
+                    'protocol'         => 'Relasi inventaris (belum diverifikasi)',
+                    'inferred'         => true,
                 ];
             }
         }
@@ -236,12 +253,18 @@ class TopologyWebController extends Controller
         return [
             'nodes' => $nodes,
             'links' => $links,
+            'connection' => [
+                'host' => $targetHost,
+                'success' => (bool) ($connection['success'] ?? false),
+                'error' => $connection['success'] ? null : ($connection['error'] ?? null),
+            ],
             'stats' => [
                 'total_nodes'          => count($nodes),
                 'core_routers'         => 1,
                 'discovered_neighbors' => count(array_filter($nodes, fn($n) => $n['is_discovered'] ?? false)),
                 'online_nodes'         => count(array_filter($nodes, fn($n) => $n['status'] === 'online')),
                 'total_links'          => count($links),
+                'unverified_links'     => count(array_filter($links, fn($l) => $l['inferred'] ?? false)),
             ]
         ];
     }

@@ -8,7 +8,14 @@
  * sedangkan titik/ikon tetap shade 500/600 (elemen grafis cukup 3:1).
  */
 
-/** Status perangkat & alert. `label` wajib ikut dirender — warna saja tidak cukup. */
+/**
+ * Status perangkat & alert. `label` wajib ikut dirender — warna saja tidak cukup.
+ *
+ * Kosakata status mengikuti hasil monitoring nyata: `online` (ICMP + metrik
+ * terbaca), `degraded` (ICMP jawab, metrik gagal), `unreachable` (tidak ada
+ * balasan ICMP), `error` (pemindaian tidak bisa dijalankan), dan `unknown`
+ * (belum pernah dipindai). Tidak ada status hasil simulasi.
+ */
 export const STATUS = {
     online: {
         label: "Online",
@@ -16,6 +23,27 @@ export const STATUS = {
         text: "text-emerald-700",
         chip: "bg-emerald-50 text-emerald-700",
         soft: "bg-emerald-50 text-emerald-600",
+    },
+    degraded: {
+        label: "Degraded",
+        dot: "bg-amber-500",
+        text: "text-amber-700",
+        chip: "bg-amber-50 text-amber-700",
+        soft: "bg-amber-50 text-amber-600",
+    },
+    unreachable: {
+        label: "Unreachable",
+        dot: "bg-red-500",
+        text: "text-red-700",
+        chip: "bg-red-50 text-red-700",
+        soft: "bg-red-50 text-red-600",
+    },
+    error: {
+        label: "Monitoring Error",
+        dot: "bg-rose-600",
+        text: "text-rose-700",
+        chip: "bg-rose-50 text-rose-700",
+        soft: "bg-rose-50 text-rose-600",
     },
     offline: {
         label: "Offline",
@@ -38,9 +66,20 @@ export const STATUS = {
         chip: "bg-amber-50 text-amber-700",
         soft: "bg-amber-50 text-amber-600",
     },
+    unknown: {
+        label: "No Data",
+        dot: "bg-slate-400",
+        text: "text-slate-600",
+        chip: "bg-slate-100 text-slate-600",
+        soft: "bg-slate-100 text-slate-600",
+    },
 };
 
-export const statusOf = (key) => STATUS[key] ?? STATUS.warning;
+/**
+ * Status yang tidak dikenal dipetakan ke `unknown`, bukan ke `warning` — tanpa
+ * data monitoring nyata kita tidak boleh mengarang peringatan maupun status hijau.
+ */
+export const statusOf = (key) => STATUS[key] ?? STATUS.unknown;
 
 /** Tint lingkaran ikon pada Metric Card (§6A). */
 export const ICON_TINT = {
@@ -71,7 +110,7 @@ export const CHART = {
 /** Shell kartu standar (§6A): putih, sudut 2xl, border tipis, shadow lembut. */
 export const CARD = "bg-white rounded-2xl border border-slate-100 shadow-sm";
 
-/** Seri chart trafik — dipakai baik oleh data asli maupun data demo. */
+/** Seri chart trafik — datanya berasal dari log monitoring nyata. */
 export const TRAFFIC_SERIES = [
     { key: "inbound", label: "Inbound", color: CHART.series.inbound },
     { key: "outbound", label: "Outbound", color: CHART.series.outbound },

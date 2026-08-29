@@ -479,59 +479,13 @@ class DatabaseSeeder extends Seeder
             'description' => '2.4GHz Radio - WiFi 6',
         ]);
 
-        // 7. Seed Historical Monitoring Logs (Past 24 Hours)
-        $devices = Device::all();
+        // 7. Riwayat dan metrik monitoring TIDAK diseed.
+        // Status serta metrik perangkat hanya boleh berasal dari pengecekan
+        // jaringan yang sebenarnya (MonitoringService). Perangkat yang belum
+        // pernah dicek tidak punya baris DeviceMetric, sehingga UI menampilkan
+        // "Unknown / No Data" — bukan angka karangan. Untuk mengisinya, jalankan
+        // `php artisan monitor:scan` setelah seeding.
         $now = \Carbon\Carbon::now();
-        foreach ($devices as $dev) {
-            for ($i = 24; $i >= 0; $i--) {
-                $checkTime = $now->copy()->subHours($i);
-
-                // Add fluctuation to metrics
-                $latency = rand(5, 30);
-                $cpu = rand(15, 65);
-                $ram = rand(30, 80);
-                $storage = rand(45, 60);
-                $temp = rand(40, 68);
-                $uptime = 3600 * (25 - $i);
-                $rx = rand(1000000, 50000000);
-                $tx = rand(500000, 25000000);
-
-                \App\Models\MonitoringLog::create([
-                    'device_id' => $dev->id,
-                    'status' => 'online',
-                    'ping_latency_ms' => $latency,
-                    'packet_loss_percent' => 0,
-                    'cpu_usage_percent' => $cpu,
-                    'ram_usage_percent' => $ram,
-                    'storage_usage_percent' => $storage,
-                    'temperature_celsius' => $temp,
-                    'uptime_seconds' => $uptime,
-                    'bandwidth_rx_bps' => $rx,
-                    'bandwidth_tx_bps' => $tx,
-                    'checked_at' => $checkTime,
-                ]);
-            }
-
-            // Also seed current DeviceMetric
-            \App\Models\DeviceMetric::create([
-                'device_id' => $dev->id,
-                'last_ping_status' => 'online',
-                'last_ping_latency_ms' => rand(5, 20),
-                'last_packet_loss_percent' => 0,
-                'last_cpu_usage_percent' => rand(20, 50),
-                'last_ram_usage_percent' => rand(40, 70),
-                'last_storage_usage_percent' => 55,
-                'last_temperature_celsius' => 45,
-                'last_uptime_seconds' => 3600 * 25,
-                'last_interface_status' => [
-                    ['name' => 'ether1-wan', 'status' => 'up', 'speed' => '1Gbps'],
-                    ['name' => 'ether2-lan', 'status' => 'up', 'speed' => '1Gbps']
-                ],
-                'last_bandwidth_rx_bps' => rand(1000000, 50000000),
-                'last_bandwidth_tx_bps' => rand(500000, 25000000),
-                'last_checked_at' => $now,
-            ]);
-        }
 
         // 8. Seed Maintenance Tickets
         $tech = \App\Models\User::where('email', 'tech@cims.com')->first();
