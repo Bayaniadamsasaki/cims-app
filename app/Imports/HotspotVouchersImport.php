@@ -2,7 +2,7 @@
 
 namespace App\Imports;
 
-use App\Models\HotspotVoucher;
+use App\Support\HotspotVoucherWriter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -47,6 +47,9 @@ class HotspotVouchersImport implements ToCollection
         'valid_until'  => ['valid until', 'berlaku sampai', 'masa berlaku', 'expired', 'kadaluarsa'],
     ];
 
+    /** Penulis baris voucher, dipakai bersama perintah sinkronisasi SISKA. */
+    protected HotspotVoucherWriter $writer;
+
     public function __construct(
         protected string $routerHost,
         protected ?string $defaultProfile = null,
@@ -55,6 +58,14 @@ class HotspotVouchersImport implements ToCollection
         protected ?int $userId = null,
         protected ?string $validUntil = null,
     ) {
+        $this->writer = new HotspotVoucherWriter(
+            routerHost: $routerHost,
+            defaultProfile: $defaultProfile,
+            defaultServer: $defaultServer,
+            batchLabel: $batchLabel,
+            userId: $userId,
+            validUntil: $validUntil,
+        );
     }
 
     public function collection(Collection $rows): void
@@ -70,7 +81,7 @@ class HotspotVouchersImport implements ToCollection
             $values = collect($row)->values()->all();
             $nim = $this->cell($values, $map['nim'] ?? 0);
 
-            if ($nim === null || !preg_match('/^[A-Za-z0-9._-]{3,64}$/', $nim)) {
+            if ($nim === null || !preg_match(HotspotVoucherWriter::NIM_PATTERN, $nim)) {
                 $this->skipped++;
                 continue;
             }
@@ -96,37 +107,18 @@ class HotspotVouchersImport implements ToCollection
             $password = $this->cell($values, $map['password'] ?? null);
             $validUntil = $this->parseDate($this->cell($values, $map['valid_until'] ?? null)) ?? $this->validUntil;
 
-            $voucher = HotspotVoucher::firstOrNew([
-                'nim' => $nim,
-                'router_host' => $this->routerHost,
-            ]);
-
-            $wasExisting = $voucher->exists;
-
-            // Password = NIM bila file tidak menyediakan kolom password.
-            $voucher->fill([
+            $voucher = $this->writer->upsert($nim, [
                 'student_name' => $this->cell($values, $map['student_name'] ?? ($headerIndex === null ? 1 : null)),
-                'program'      => $this->cell($values, $map['program'] ?? null),
-                'faculty'      => $this->cell($values, $map['faculty'] ?? null),
-                'password'     => $password ?? $nim,
-                'profile'      => $this->cell($values, $map['profile'] ?? null) ?? $this->defaultProfile,
-                'server'       => $this->defaultServer,
-                'comment'      => $this->cell($values, $map['comment'] ?? null),
-                'valid_until'  => $validUntil,
-                'batch_label'  => $this->batchLabel,
-                'created_by'   => $voucher->created_by ?? $this->userId,
+                'program' => $this->cell($values, $map['program'] ?? null),
+                'faculty' => $this->cell($values, $map['faculty'] ?? null),
+                // Password = NIM bila file tidak menyediakan kolom password.
+                'password' => $password ?? $nim,
+                'profile' => $this->cell($values, $map['profile'] ?? null),
+                'comment' => $this->cell($values, $map['comment'] ?? null),
+                'valid_until' => $validUntil,
             ]);
 
-            // Perubahan data wajib dikirim ulang ke router.
-            if ($wasExisting && $voucher->isDirty(['password', 'profile', 'server'])) {
-                $voucher->status = HotspotVoucher::STATUS_PENDING;
-            } elseif (!$wasExisting) {
-                $voucher->status = HotspotVoucher::STATUS_PENDING;
-            }
-
-            $voucher->save();
-
-            $wasExisting ? $this->updated++ : $this->created++;
+            $voucher->wasRecentlyCreated ? $this->created++ : $this->updated++;
         }
     }
 

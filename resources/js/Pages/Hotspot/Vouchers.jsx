@@ -66,6 +66,7 @@ export default function Vouchers({
 
     const form = useForm({ ...EMPTY_FORM, profile: profileDefault });
     const importForm = useForm({ file: null, profile: profileDefault, server: '', batch_label: '', valid_until: '' });
+    const syncForm = useForm({ profile: profileDefault, batch_label: '' });
 
     const rows = vouchers.data ?? [];
     const pendingTotal = (stats.pending ?? 0) + (stats.failed ?? 0);
@@ -155,6 +156,24 @@ export default function Vouchers({
         });
     };
 
+    /**
+     * Tarik daftar mahasiswa dari SISKA. Passwordnya tanggal lahir; yang tanggal
+     * lahirnya belum terisi di SISKA dapat password NIM, dan jumlahnya disebut
+     * di pesan hasil. Baris yang sudah ada ikut diperbarui, bukan diduplikat.
+     */
+    const syncFromSiska = () => {
+        confirmAction({
+            title: 'Tarik Mahasiswa dari SISKA',
+            message: `Ambil daftar mahasiswa dari SISKA dan buat vouchernya untuk router ${routerHost}? Password memakai tanggal lahir; mahasiswa yang tanggal lahirnya belum ada di SISKA passwordnya NIM. Voucher yang sudah ada akan diperbarui, dan semuanya berstatus pending sampai dipush.`,
+            confirmLabel: 'Tarik Sekarang',
+            cancelLabel: 'Batal',
+            onConfirm: () => {
+                syncForm.transform((data) => ({ ...data, router_host: routerHost }));
+                syncForm.post(route('hotspot.vouchers.sync-pmb'), { preserveScroll: true });
+            },
+        });
+    };
+
     const pushBatch = () => {
         const count = selected.length > 0 ? selected.length : pendingTotal;
 
@@ -233,6 +252,15 @@ export default function Vouchers({
                         >
                             Import Excel
                         </button>
+                        {hotspot.pmb_configured && (
+                            <button
+                                onClick={syncFromSiska}
+                                disabled={syncForm.processing}
+                                className="inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {syncForm.processing ? 'Menarik dari SISKA...' : 'Tarik dari SISKA'}
+                            </button>
+                        )}
                         <button
                             onClick={openCreate}
                             className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"

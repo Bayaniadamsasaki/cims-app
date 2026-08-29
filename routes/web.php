@@ -118,6 +118,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/active', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'activeUsers'])->name('active');
         Route::post('/', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'store'])->name('store');
         Route::post('/import', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'import'])->name('import');
+        Route::post('/sync-pmb', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'syncPmb'])->name('sync-pmb');
         Route::post('/push', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'push'])->name('push');
         Route::post('/{id}/push', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'pushOne'])->name('push-one');
         Route::post('/{id}/toggle', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'toggle'])->name('toggle');

@@ -60,6 +60,26 @@ return [
         // User profile RouterOS untuk voucher baru bila tidak dipilih di form.
         // Kosongkan bila ingin memakai profile "default" milik router.
         'default_profile' => env('HOTSPOT_DEFAULT_PROFILE'),
+
+        // Password voucher dibentuk dari tanggal lahir mahasiswa dengan urutan
+        // tanggal-bulan-tahun. Nilainya huruf format tanggal PHP, jadi kampus
+        // bisa pindah ke 6 digit tanpa menyentuh kode:
+        //   dmY → 30051988 (bawaan)      dmy → 300588
+        'password_format' => env('HOTSPOT_PASSWORD_FORMAT', 'dmY'),
+    ],
+
+    // API SISKA/PMB, sumber daftar mahasiswa untuk voucher hotspot.
+    // BEARER_TOKEN masih dibaca agar .env lama tetap jalan, tapi nama yang
+    // dianjurkan PMB_API_TOKEN karena token lain bisa menyusul.
+    'pmb' => [
+        'url' => env('API_PMB'),
+        'token' => env('PMB_API_TOKEN', env('BEARER_TOKEN')),
+
+        // Jumlah baris per permintaan. API menghormati sampai 200, dan makin
+        // besar makin sedikit permintaan untuk satu tarikan penuh.
+        'per_page' => (int) env('PMB_PER_PAGE', 200),
+        'timeout' => (int) env('PMB_TIMEOUT', 30),
+        'retries' => (int) env('PMB_RETRIES', 3),
     ],
 
     'ruijie' => [

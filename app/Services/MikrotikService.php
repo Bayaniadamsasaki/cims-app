@@ -11,6 +11,16 @@ class MikrotikService
     protected ?Client $client = null;
 
     /**
+     * Sumber kredensial per host pada koneksi terakhir, untuk pesan error yang
+     * bisa ditindaklanjuti. Login gagal biasanya bukan karena passwordnya salah,
+     * tapi karena inventaris tidak punya baris ber-IP tujuan (mis. alamat router
+     * bergeser), sehingga koneksi diam-diam memakai user global .env.
+     *
+     * @var array<string,string>
+     */
+    protected array $credentialSources = [];
+
+    /**
      * Get (or lazily create) the RouterOS API client connection for any router.
      */
     public function client(?string $host = null, ?string $user = null, ?string $pass = null, ?int $port = null): Client
@@ -32,6 +42,10 @@ class MikrotikService
             }
 
             // 2. Dynamic Database Lookup: Fetch credentials for target router from Device Inventory
+            $source = ($targetUser !== null || $targetPass !== null)
+                ? 'kredensial dari pemanggil'
+                : null;
+
             if ($targetHost && ($targetUser === null || $targetPass === null)) {
                 $device = \App\Models\Device::where('ip_address', $targetHost)->first();
                 if ($device) {
@@ -45,13 +59,25 @@ class MikrotikService
                             $targetPass = $device->password_encrypted;
                         }
                     }
+                    $source = "kredensial inventaris #{$device->id} ({$device->name})";
                 }
             }
 
             // 3. Fallback to default .env config
+            $usedEnvFallback = $targetUser === null || $targetPass === null;
             $targetUser = $targetUser ?? $config['user'];
             $targetPass = $targetPass ?? $config['password'];
             $targetPort = $targetPort ?? $config['port'];
+
+            if ($usedEnvFallback) {
+                $source = $source
+                    ? $source . ' + fallback .env MIKROTIK_USER'
+                    : "kredensial dari .env MIKROTIK_USER — tidak ada perangkat inventaris dengan IP {$targetHost}";
+            }
+
+            if ($targetHost) {
+                $this->credentialSources[$targetHost] = $source ?? 'kredensial dari pemanggil';
+            }
 
             $client = new Client([
                 'host' => $targetHost,
@@ -82,6 +108,33 @@ class MikrotikService
     }
 
     /**
+     * Host tanpa bagian ":port", memakai default config kalau tidak disebut —
+     * supaya penulisan dan pembacaan credentialSources memakai kunci yang sama.
+     */
+    protected function hostKey(?string $host): string
+    {
+        $raw = $host ?? (string) config('services.mikrotik.host');
+
+        return str_contains($raw, ':') ? explode(':', $raw)[0] : $raw;
+    }
+
+    /**
+     * Kredensial mana yang dipakai untuk host ini pada koneksi terakhir.
+     */
+    public function credentialSourceFor(?string $host = null): ?string
+    {
+        return $this->credentialSources[$this->hostKey($host)] ?? null;
+    }
+
+    /**
+     * Pesan RouterOS ini soal login, bukan soal host yang tidak terjangkau.
+     */
+    protected function looksLikeAuthFailure(string $message): bool
+    {
+        return (bool) preg_match('/user name or password|cannot log in|invalid user|not logged in/i', $message);
+    }
+
+    /**
      * Test connectivity to the router. Returns identity info or error.
      */
     public function testConnection(?string $host = null): array
@@ -97,11 +150,19 @@ class MikrotikService
                 'version' => $resource[0]['version'] ?? null,
             ];
         } catch (\Throwable $e) {
-            Log::warning("MikroTik connection failed: {$e->getMessage()}");
+            $message = $e->getMessage();
+            Log::warning("MikroTik connection failed: {$message}");
+
+            // Kegagalan login sendiri tidak menyebutkan user mana yang dipakai,
+            // jadi sumber kredensial ikut ditempel supaya penyebabnya kelihatan.
+            $source = $this->credentialSourceFor($host);
 
             return [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $source && $this->looksLikeAuthFailure($message)
+                    ? "{$message} ({$source})"
+                    : $message,
+                'credential_source' => $source,
             ];
         }
     }

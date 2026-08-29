@@ -7,6 +7,8 @@ use App\Imports\HotspotVouchersImport;
 use App\Models\Device;
 use App\Models\HotspotVoucher;
 use App\Services\MikrotikService;
+use App\Services\PmbStudentService;
+use App\Services\PmbVoucherSync;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -181,7 +183,7 @@ class HotspotVoucherWebController extends Controller
      * yang dipakai aplikasi tidak pernah ditulis ulang di komponen React —
      * cukup ubah HOTSPOT_* di .env, semua tampilan & PDF ikut berubah.
      *
-     * @return array<string,string|null>
+     * @return array<string,string|bool|null>
      */
     protected function hotspotIdentity(): array
     {
@@ -190,6 +192,10 @@ class HotspotVoucherWebController extends Controller
             'login_url' => config('services.hotspot.login_url') ?: null,
             'router_host' => config('services.hotspot.router_host') ?: null,
             'default_profile' => $this->defaultProfile(),
+
+            // Tombol "Tarik dari SISKA" hanya berguna bila API_PMB & tokennya
+            // sudah diisi; tanpa ini tombolnya cuma memunculkan pesan gagal.
+            'pmb_configured' => app(PmbStudentService::class)->configured(),
         ];
     }
 
@@ -483,6 +489,65 @@ class HotspotVoucherWebController extends Controller
             if ($import->duplicates !== []) {
                 $message .= ' (NIM ganda: ' . implode(', ', array_slice($import->duplicates, 0, 5)) . ')';
             }
+        }
+
+        return back()->with('success', $message . '. Semua berstatus pending — klik "Push ke Router" untuk mengaktifkan.');
+    }
+
+    /**
+     * Tarik daftar mahasiswa dari API SISKA/PMB menjadi voucher pending.
+     *
+     * Tidak ada file yang diunggah: daftarnya diambil langsung dari SISKA, dan
+     * password mahasiswa dibentuk dari tanggal lahirnya. Mahasiswa yang tanggal
+     * lahirnya belum terisi di SISKA tetap dapat voucher dengan password NIM,
+     * dan jumlahnya disebut di pesan hasil supaya bisa ditindaklanjuti.
+     */
+    public function syncPmb(Request $request, PmbVoucherSync $sync)
+    {
+        $request->validate([
+            'prodi' => ['nullable', 'string', 'max:32'],
+            'search' => ['nullable', 'string', 'max:64'],
+            'profile' => ['nullable', 'string', 'max:64'],
+            'server' => ['nullable', 'string', 'max:64'],
+            'batch_label' => ['nullable', 'string', 'max:64'],
+            'valid_until' => ['nullable', 'date'],
+        ]);
+
+        $host = $this->resolveHost($request);
+
+        if (blank($host)) {
+            return back()->with('error', 'Router tujuan belum ditentukan. Pilih router MikroTik terlebih dahulu.');
+        }
+
+        try {
+            $report = $sync->run($host, [
+                'prodi' => $request->input('prodi'),
+                'search' => $request->input('search'),
+                'profile' => $request->input('profile') ?: $this->defaultProfile(),
+                'server' => $request->input('server'),
+                'batch_label' => $request->input('batch_label'),
+                'valid_until' => $request->input('valid_until'),
+                'user_id' => $request->user()?->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Sinkronisasi voucher dari SISKA gagal: ' . $e->getMessage());
+
+            return back()->with('error', 'Gagal menarik data dari SISKA: ' . Str::limit($e->getMessage(), 200));
+        }
+
+        if ($report['total'] === 0) {
+            return back()->with('error', 'SISKA tidak mengembalikan satu pun mahasiswa untuk filter ini.');
+        }
+
+        $message = "Sinkronisasi SISKA selesai: {$report['created']} voucher baru, {$report['updated']} diperbarui";
+
+        if ($report['by_nim'] > 0) {
+            $message .= ". {$report['by_nim']} mahasiswa belum punya tanggal lahir di SISKA, jadi passwordnya "
+                . 'memakai NIM (contoh: ' . implode(', ', array_slice($report['nim_samples'], 0, 3)) . ')';
+        }
+
+        if ($report['skipped'] > 0) {
+            $message .= ", {$report['skipped']} NIM dilewati karena tidak bisa jadi username hotspot";
         }
 
         return back()->with('success', $message . '. Semua berstatus pending — klik "Push ke Router" untuk mengaktifkan.');
