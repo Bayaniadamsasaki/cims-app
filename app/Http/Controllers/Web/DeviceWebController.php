@@ -24,6 +24,7 @@ use App\Imports\SingleDeviceAuditImport;
 use App\Models\Device;
 use App\Models\DeviceInterface;
 use App\Services\MikrotikService;
+use App\Support\DeviceCredential;
 
 class DeviceWebController extends Controller
 {
@@ -71,6 +72,51 @@ class DeviceWebController extends Controller
             'racks' => $racks,
             'filters' => $filters,
         ]);
+    }
+
+    /**
+     * Kredensial satu perangkat, untuk tombol "mata" buka/tutup di modal detail
+     * perangkat — bukan di baris tabel inventaris.
+     *
+     * Sengaja endpoint tersendiri dan BUKAN kolom tambahan di props halaman:
+     * props inventaris membawa sampai 100 perangkat sekaligus, jadi menyisipkan
+     * password di sana berarti seluruh password router kampus ikut tercetak di
+     * HTML setiap halaman inventaris dibuka — terbaca lewat devtools tanpa satu
+     * pun klik, ikut terbawa screenshot dan screen-share, dan ikut tersimpan di
+     * cache browser. Endpoint ini hanya mengeluarkan satu perangkat, hanya saat
+     * benar-benar diminta, dan setiap pembukaannya meninggalkan jejak audit.
+     *
+     * Dekripsinya tetap lewat {@see DeviceCredential} supaya titik keluar
+     * kredensial di aplikasi ini tetap satu dan bisa diaudit — tidak ada
+     * accessor plaintext baru di model {@see Device}.
+     */
+    public function credential(int $id)
+    {
+        $device = Device::findOrFail($id);
+        $password = DeviceCredential::password($device);
+
+        // Yang dicatat adalah peristiwa pembukaannya, bukan nilai passwordnya.
+        activity('device-credential')
+            ->performedOn($device)
+            ->causedBy(request()->user())
+            ->withProperties([
+                'device_name' => $device->name,
+                'ip_address' => $device->ip_address,
+                'revealed' => $password !== null,
+            ])
+            ->log('Kredensial perangkat dibuka dari detail perangkat');
+
+        return response()
+            ->json([
+                'device_id' => $device->id,
+                'username' => $device->username,
+                'password' => $password,
+                'has_credentials' => $password !== null,
+            ])
+            // Jangan biarkan browser atau proxy menyimpan response berisi
+            // kredensial; tanpa ini nilainya bisa bertahan di disk cache.
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+            ->header('Pragma', 'no-cache');
     }
 
     public function store(StoreDeviceRequest $request)

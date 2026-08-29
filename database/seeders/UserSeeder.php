@@ -33,6 +33,7 @@ class UserSeeder extends Seeder
             'manage maintenance',
             'view dashboard',
             'view reports',
+            'view device credentials',
         ];
 
         foreach ($permissions as $permissionName) {

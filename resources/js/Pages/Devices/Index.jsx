@@ -1,7 +1,8 @@
 import CimsLayout from '@/Layouts/CimsLayout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
+import CredentialReveal from '@/Components/Cims/CredentialReveal';
 
 export default function Index({ devices = [], vendors = [], categories = [], buildings = [], floors = [], rooms = [], racks = [], filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -15,6 +16,14 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     const [viewingDevice, setViewingDevice] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const { confirmAction } = useConfirmation();
+
+    // Izin dibaca dari props yang sudah dibagikan HandleInertiaRequests. Ini
+    // hanya menentukan apakah tombol mata di modal detail digambar; penegakan
+    // sebenarnya ada di endpoint `devices.credential` (middleware
+    // can:view device credentials), jadi menyunting nilai ini dari devtools
+    // tidak membuka password apa pun.
+    const { auth } = usePage().props;
+    const canViewCredentials = (auth?.user?.permissions ?? []).includes('view device credentials');
 
     const handleSyncInterfaces = (deviceId) => {
         setIsSyncing(true);
@@ -306,7 +315,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 <div className="font-mono text-xs text-slate-900">{device.serial_number || '-'}</div>
                                                 <div className="text-xs text-slate-500 mt-0.5 font-mono">
                                                     User: {device.username || '-'} | Pass:{' '}
-                                                    <span title="Password perangkat disimpan terenkripsi dan tidak pernah ditampilkan.">
+                                                    <span title="Password perangkat disimpan terenkripsi. Buka lewat tombol detail perangkat.">
                                                         {device.has_credentials ? 'tersimpan' : 'belum diisi'}
                                                     </span>
                                                 </div>
@@ -855,13 +864,15 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 </div>
                                 <div>
                                     <span className="block text-[11px] font-bold uppercase text-slate-500">Kredensial Akses</span>
-                                    <div className="font-mono text-slate-900 text-xs mt-0.5 space-y-0.5">
+                                    <div className="font-mono text-slate-900 text-xs mt-0.5 space-y-1">
                                         <div>User: <strong className="text-slate-900">{viewingDevice.username || '-'}</strong></div>
-                                        <div>
-                                            Pass:{' '}
-                                            <strong className="text-slate-700 font-semibold">
-                                                {viewingDevice.has_credentials ? 'Tersimpan (tidak ditampilkan)' : 'Belum diisi'}
-                                            </strong>
+                                        <div className="flex items-start gap-1">
+                                            <span className="shrink-0">Pass:</span>
+                                            <CredentialReveal
+                                                deviceId={viewingDevice.id}
+                                                hasCredentials={viewingDevice.has_credentials}
+                                                canView={canViewCredentials}
+                                            />
                                         </div>
                                     </div>
                                 </div>

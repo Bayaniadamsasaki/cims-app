@@ -36,6 +36,11 @@ class DatabaseSeeder extends Seeder
             'manage maintenance',
             'view dashboard',
             'view reports',
+            // Izin tersendiri, bukan bagian dari 'manage devices': mengelola
+            // inventaris (nama, lokasi, SN) dan membaca password login router
+            // adalah dua kewenangan berbeda. Teknisi bisa perlu yang pertama
+            // tanpa perlu yang kedua.
+            'view device credentials',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -62,6 +67,7 @@ class DatabaseSeeder extends Seeder
             'manage devices',
             'view dashboard',
             'view reports',
+            'view device credentials',
         ]);
 
         $technicianRole = Role::firstOrCreate([

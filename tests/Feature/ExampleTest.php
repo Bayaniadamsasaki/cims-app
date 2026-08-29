@@ -2,18 +2,17 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * CIMS tidak punya landing page publik: akar aplikasi selalu melempar ke
+     * halaman login (routes/web.php). Tes bawaan Laravel yang mengharapkan 200
+     * di sini disesuaikan dengan perilaku sebenarnya, bukan sebaliknya.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_root_url_sends_visitors_to_the_login_page(): void
     {
-        $response = $this->get('/');
-
-        $response->assertStatus(200);
+        $this->get('/')->assertRedirect(route('login'));
     }
 }

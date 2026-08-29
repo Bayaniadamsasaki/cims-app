@@ -619,11 +619,11 @@ export default function MikrotikExplorer({
                                     <code className="bg-slate-50 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md font-mono text-xs">
                                         IP → Services → api
                                     </code>{" "}
-                                    (port 8728) atau{" "}
+                                    (port 7111) atau{" "}
                                     <code className="bg-slate-50 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md font-mono text-xs">
                                         api-ssl
                                     </code>{" "}
-                                    (port 8729) sudah <strong>enabled</strong>.
+                                    (port 7112) sudah <strong>enabled</strong>.
                                 </li>
                                 <li>
                                     <strong className="text-slate-900">
@@ -649,7 +649,7 @@ export default function MikrotikExplorer({
                                         Firewall memblokir port API
                                     </strong>{" "}
                                     — Pastikan tidak ada filter rule yang
-                                    memblokir port 8728/8729 dari IP{" "}
+                                    memblokir port 7111/7112 dari IP{" "}
                                     <code className="bg-slate-50 border border-slate-200 text-blue-600 px-1.5 py-0.5 rounded-md font-mono text-xs">
                                         192.168.91.41
                                     </code>

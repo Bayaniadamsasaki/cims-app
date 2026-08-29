@@ -20,6 +20,13 @@ Route::middleware('auth')->group(function () {
 
     // Device Inventory CRUD & Import
     Route::get('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'index'])->name('devices.index');
+    // Password perangkat dibuka satu per satu lewat endpoint ini, bukan lewat
+    // props halaman inventaris. Dipagari izin tersendiri ('view device
+    // credentials') dan dibatasi lajunya supaya satu akun yang bocor tidak bisa
+    // menyapu seluruh kredensial router kampus dalam satu putaran.
+    Route::get('/devices/{id}/credential', [\App\Http\Controllers\Web\DeviceWebController::class, 'credential'])
+        ->middleware(['can:view device credentials', 'throttle:20,1'])
+        ->name('devices.credential');
     Route::post('/devices', [\App\Http\Controllers\Web\DeviceWebController::class, 'store'])->name('devices.store');
     Route::post('/devices/import', [\App\Http\Controllers\Web\DeviceWebController::class, 'import'])->name('devices.import');
     Route::post('/devices/excel/upload', [\App\Http\Controllers\Web\DeviceWebController::class, 'uploadExcelView'])->name('devices.excel.upload');
