@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DeviceCredential;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -47,28 +48,36 @@ class Device extends Model
         'password_encrypted',
     ];
 
+    /**
+     * Model ini di-serialize langsung sebagai props Inertia (halaman inventaris,
+     * monitoring, topologi), jadi apa pun yang di-append pasti sampai ke browser.
+     * Karena itu yang di-append hanya penanda boolean: halaman tetap bisa
+     * menampilkan perangkat mana yang sudah punya kredensial, tanpa password
+     * atau ciphertext-nya ikut terkirim.
+     *
+     * Nilai passwordnya hanya boleh diambil lewat {@see \App\Support\DeviceCredential},
+     * yaitu di sisi backend saat benar-benar dipakai untuk login ke perangkat.
+     */
     protected $appends = [
-        'password_plain',
+        'has_credentials',
     ];
 
-    public function getPasswordPlainAttribute(): ?string
+    /** Perangkat ini punya kredensial tersimpan atau tidak. */
+    public function getHasCredentialsAttribute(): bool
     {
-        if (empty($this->password_encrypted)) {
-            return null;
-        }
-
-        try {
-            return decrypt($this->password_encrypted);
-        } catch (\Throwable $e) {
-            return $this->password_encrypted;
-        }
+        return DeviceCredential::exists($this);
     }
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logFillable()
-            ->logOnlyDirty();
+            ->logOnlyDirty()
+            // `password_encrypted` ikut $fillable, jadi tanpa pengecualian ini
+            // ciphertext-nya tersalin ke activity_log.properties (old & new)
+            // setiap kredensial diubah — menggandakan tempat kredensial
+            // tersimpan ke tabel yang tujuannya justru untuk dibaca operator.
+            ->logExcept(['password_encrypted']);
     }
 
     public function vendor(): BelongsTo

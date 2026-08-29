@@ -34,7 +34,9 @@ class DeviceResource extends JsonResource
             'purchase_date' => $this->purchase_date,
             'warranty' => $this->warranty,
             'username' => $this->username,
-            'password' => $this->password_plain,
+            // Password perangkat tidak pernah dikirim ke klien; yang dibutuhkan
+            // UI hanya tahu kredensialnya sudah terisi atau belum.
+            'has_credentials' => $this->has_credentials,
             
             'building_id' => $this->building_id,
             'building' => new BuildingResource($this->whenLoaded('building')),

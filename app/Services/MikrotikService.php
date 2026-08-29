@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\DeviceCredential;
 use Illuminate\Support\Facades\Log;
 use RouterOS\Client;
 use RouterOS\Query;
@@ -52,12 +53,8 @@ class MikrotikService
                     if ($targetUser === null && !empty($device->username)) {
                         $targetUser = $device->username;
                     }
-                    if ($targetPass === null && !empty($device->password_encrypted)) {
-                        try {
-                            $targetPass = decrypt($device->password_encrypted);
-                        } catch (\Throwable $e) {
-                            $targetPass = $device->password_encrypted;
-                        }
+                    if ($targetPass === null) {
+                        $targetPass = DeviceCredential::password($device);
                     }
                     $source = "kredensial inventaris #{$device->id} ({$device->name})";
                 }
@@ -965,7 +962,7 @@ class MikrotikService
         $client = $this->client(
             $device->ip_address,
             $device->username,
-            $device->password_plain
+            DeviceCredential::password($device)
         );
 
         $interfaces = $client->query('/interface/print')->read();

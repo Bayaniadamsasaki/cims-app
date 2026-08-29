@@ -118,7 +118,10 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
             serial_number: device.serial_number || '',
             firmware: device.firmware || '',
             username: device.username || '',
-            password: device.password_plain || '',
+            // Password perangkat tidak lagi dikirim ke browser, jadi tidak ada
+            // yang bisa di-prefill. Dibiarkan kosong = password lama dipakai;
+            // backend hanya menimpa kolomnya kalau field ini benar-benar diisi.
+            password: '',
             purchase_date: device.purchase_date || '',
             warranty: device.warranty || '',
             building_id: device.building_id || '',
@@ -301,7 +304,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                 <div className="font-mono text-xs text-slate-900">{device.serial_number || '-'}</div>
-                                                <div className="text-xs text-slate-500 mt-0.5 font-mono">User: {device.username || '-'} | Pass: {device.password_plain || device.password || '-'}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5 font-mono">
+                                                    User: {device.username || '-'} | Pass:{' '}
+                                                    <span title="Password perangkat disimpan terenkripsi dan tidak pernah ditampilkan.">
+                                                        {device.has_credentials ? 'tersimpan' : 'belum diisi'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                 {device.source === 'live_api' ? (
@@ -500,14 +508,19 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                              />
                                          </div>
                                          <div>
-                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Password Akses (Transparan)</label>
+                                             <label className="block text-xs font-semibold text-slate-600 mb-1">Password Akses</label>
                                              <input
                                                  type="text"
-                                                 placeholder="Contoh: admin123"
+                                                 placeholder={editingDevice ? 'Kosongkan bila tidak diubah' : 'Contoh: admin123'}
                                                  value={data.password}
                                                  onChange={(e) => setData('password', e.target.value)}
                                                  className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono font-medium"
                                              />
+                                             <p className="mt-1 text-[11px] text-slate-500">
+                                                 {editingDevice
+                                                     ? 'Password tersimpan tidak ditampilkan. Isi hanya bila ingin menggantinya.'
+                                                     : 'Disimpan terenkripsi dan tidak ditampilkan kembali.'}
+                                             </p>
                                          </div>
                                      </div>
                                  </div>
@@ -844,7 +857,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                     <span className="block text-[11px] font-bold uppercase text-slate-500">Kredensial Akses</span>
                                     <div className="font-mono text-slate-900 text-xs mt-0.5 space-y-0.5">
                                         <div>User: <strong className="text-slate-900">{viewingDevice.username || '-'}</strong></div>
-                                        <div>Pass: <strong className="text-blue-700 font-bold">{viewingDevice.password_plain || viewingDevice.password || '-'}</strong></div>
+                                        <div>
+                                            Pass:{' '}
+                                            <strong className="text-slate-700 font-semibold">
+                                                {viewingDevice.has_credentials ? 'Tersimpan (tidak ditampilkan)' : 'Belum diisi'}
+                                            </strong>
+                                        </div>
                                     </div>
                                 </div>
                                 <div>
