@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ScanDeviceJob;
 use App\Models\Device;
 use App\Models\DeviceMetric;
 use App\Models\MonitoringLog;
@@ -161,20 +162,55 @@ class MonitoringService
     }
 
     /**
-     * Jalankan pengecekan untuk seluruh perangkat terdaftar.
+     * Jadwalkan pemindaian seluruh perangkat lewat antrean: satu job per
+     * perangkat.
+     *
+     * Tidak ada satu pun koneksi jaringan yang dibuka di sini, sehingga
+     * pemanggilnya — HTTP maupun scheduler — selesai seketika dan tidak
+     * menunggu perangkat mana pun menjawab. `chunkById` menjaga penggunaan
+     * memori tetap datar walau inventaris berisi ratusan perangkat.
+     *
+     * Perangkat yang pemindaiannya masih berjalan tidak dijadwalkan ulang:
+     * ScanDeviceJob memegang kunci unik per perangkat.
+     *
+     * @return int jumlah perangkat yang job pemindaiannya dikirim
+     */
+    public function dispatchScans(): int
+    {
+        $dispatched = 0;
+
+        Device::select('id')->chunkById(200, function ($devices) use (&$dispatched) {
+            foreach ($devices as $device) {
+                ScanDeviceJob::dispatch($device->id);
+                $dispatched++;
+            }
+        });
+
+        return $dispatched;
+    }
+
+    /**
+     * Pemindaian seluruh perangkat secara berurutan di dalam proses ini.
+     *
+     * Jalur ini hanya untuk pemakaian terminal (`monitor:scan --sync`) dan
+     * pengujian: prosesnya menunggu setiap perangkat menjawab, jadi tidak boleh
+     * dipakai dari request HTTP. Kegagalan satu perangkat tidak menghentikan
+     * perangkat berikutnya.
      */
     public function scanAll(): int
     {
         $count = 0;
 
-        foreach (Device::with(['vendor', 'operatingSystem', 'metrics'])->get() as $device) {
-            try {
-                $this->scanDevice($device);
-                $count++;
-            } catch (\Throwable $e) {
-                Log::error("Gagal memindai perangkat #{$device->id}: " . $e->getMessage());
+        Device::with(['vendor', 'operatingSystem', 'metrics'])->chunkById(100, function ($devices) use (&$count) {
+            foreach ($devices as $device) {
+                try {
+                    $this->scanDevice($device);
+                    $count++;
+                } catch (\Throwable $e) {
+                    Log::error("Gagal memindai perangkat #{$device->id}: ".$e->getMessage());
+                }
             }
-        }
+        });
 
         return $count;
     }

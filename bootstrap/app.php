@@ -21,5 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
-        $schedule->command('monitor:scan')->everyMinute();
+        // Hanya menjadwalkan job pemindaian (satu per perangkat), tidak memindai
+        // di dalam proses scheduler. `withoutOverlapping` menjaga agar loop
+        // dispatch tidak menumpuk kalau inventarisnya besar.
+        $schedule->command('monitor:scan')->everyMinute()->withoutOverlapping();
     })->create();

@@ -139,13 +139,25 @@ class MonitoringWebController extends Controller
     }
 
     /**
-     * Trigger a manual network-wide status and metric scan.
+     * Jadwalkan pemindaian seluruh perangkat.
+     *
+     * Request ini tidak menyentuh jaringan sama sekali: ia hanya mengirim satu
+     * job per perangkat ke antrean lalu langsung kembali, sehingga pengguna
+     * tidak pernah menunggu ratusan perangkat menjawab di dalam satu request.
      */
     public function scanAll(Request $request)
     {
-        $count = $this->monitoringService->scanAll();
+        $dispatched = $this->monitoringService->dispatchScans();
 
-        return redirect()->back()->with('success', "Health scan completed for {$count} device nodes successfully.");
+        if ($dispatched === 0) {
+            return redirect()->back()->with('error', 'Tidak ada perangkat di inventaris yang bisa dipindai.');
+        }
+
+        return redirect()->back()->with(
+            'success',
+            "Pemindaian dijadwalkan untuk {$dispatched} perangkat. Hasilnya masuk bertahap begitu setiap "
+            .'perangkat selesai diperiksa; perangkat yang pemindaiannya masih berjalan tidak dijadwalkan ulang.'
+        );
     }
 
     /**

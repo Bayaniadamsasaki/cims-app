@@ -1,6 +1,6 @@
 import CimsLayout from "@/Layouts/CimsLayout";
 import { Head, router } from "@inertiajs/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Kosakata status monitoring nyata (tidak ada status hasil simulasi):
@@ -19,6 +19,17 @@ const MONITORING_STATUS = {
     maintenance: { label: "Maintenance", dot: "bg-amber-500", chip: "bg-amber-50 text-amber-700 border-amber-200" },
     unknown: { label: "No Data", dot: "bg-slate-400", chip: "bg-slate-100 text-slate-600 border-slate-200" },
 };
+
+/** Prop yang cukup dimuat ulang saat menunggu hasil pindai masuk dari antrean. */
+const MONITORING_PROPS = ["devices", "summary", "alerts"];
+
+/**
+ * Pemindaian berjalan di antrean: satu job per perangkat, hasilnya masuk
+ * bertahap. Jeda pemuatan ulang berikut mengikuti kenyataan itu — cepat untuk
+ * perangkat yang langsung menjawab, lalu makin longgar untuk perangkat yang
+ * baru selesai setelah batas waktu ICMP-nya habis.
+ */
+const REFRESH_DELAYS_MS = [4000, 12000, 30000];
 
 /** Perangkat maintenance ditandai lebih dulu; sisanya mengikuti hasil pindai nyata. */
 const statusKeyOf = (device) => {
@@ -69,7 +80,9 @@ function SummaryCard({ label, value, unit, caption, tone = "neutral" }) {
 
 export default function Index({ devices = [], summary = {}, alerts = [], latestSpeedtest = null }) {
     const [scanning, setScanning] = useState(false);
+    const [collecting, setCollecting] = useState(false);
     const [testingSpeed, setTestingSpeed] = useState(false);
+    const refreshTimers = useRef([]);
 
     const total = summary.total ?? 0;
     const online = summary.online ?? 0;
@@ -81,9 +94,60 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
     const needsAttention = degraded + unreachable + monitoringError;
     const checked = total - unknown;
 
+    const clearRefreshTimers = () => {
+        refreshTimers.current.forEach((timer) => window.clearTimeout(timer));
+        refreshTimers.current = [];
+    };
+
+    // Timer yang masih menggantung setelah halaman ditinggalkan akan menembak
+    // request untuk komponen yang sudah tidak ada, jadi selalu dibersihkan.
+    useEffect(() => clearRefreshTimers, []);
+
+    /**
+     * Hasil pindai tidak lagi tiba bersamaan dengan respons tombol: worker
+     * antrean mengisinya perangkat demi perangkat. Pemuatan ulang bertahap
+     * membuat hasil nyata muncul sendiri tanpa pengguna menebak kapan harus
+     * menekan refresh, dan hanya prop monitoring yang diminta ulang.
+     */
+    const stageResultRefreshes = () => {
+        clearRefreshTimers();
+        setCollecting(true);
+
+        refreshTimers.current = REFRESH_DELAYS_MS.map((delay, index) => {
+            const isLast = index === REFRESH_DELAYS_MS.length - 1;
+
+            return window.setTimeout(() => {
+                router.reload({
+                    only: MONITORING_PROPS,
+                    onFinish: () => {
+                        if (isLast) setCollecting(false);
+                    },
+                });
+            }, delay);
+        });
+    };
+
+    const refreshResultsNow = () => router.reload({ only: MONITORING_PROPS });
+
+    /**
+     * Tombol ini hanya MENJADWALKAN pemindaian lalu langsung kembali — tidak
+     * pernah menunggu ratusan perangkat menjawab di dalam satu request. Bila
+     * tidak ada satu pun job yang dikirim (inventaris kosong), server mengirim
+     * flash error dan tidak ada hasil yang perlu ditunggu.
+     */
     const handleScanNow = () => {
         setScanning(true);
-        router.post(route("monitoring.scan"), {}, { onFinish: () => setScanning(false) });
+        router.post(
+            route("monitoring.scan"),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: (page) => {
+                    if (!page.props.flash?.error) stageResultRefreshes();
+                },
+                onFinish: () => setScanning(false),
+            },
+        );
     };
 
     const handleRunSpeedtest = () => {
@@ -107,12 +171,13 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                     <button
                         onClick={handleScanNow}
                         disabled={scanning}
+                        aria-busy={scanning || collecting}
                         className={`inline-flex items-center rounded-xl px-4 py-3 text-sm font-semibold text-white transition duration-150 ${
                             scanning ? "cursor-not-allowed bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
                         }`}
                     >
                         <svg
-                            className={`mr-2 h-5 w-5 shrink-0 ${scanning ? "animate-spin" : ""}`}
+                            className={`mr-2 h-5 w-5 shrink-0 ${scanning || collecting ? "animate-spin" : ""}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -125,8 +190,38 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"
                             />
                         </svg>
-                        <span className="leading-5">{scanning ? "Memindai Perangkat..." : "Pindai Sekarang"}</span>
+                        <span className="leading-5">
+                            {scanning ? "Menjadwalkan Pindai..." : "Pindai Sekarang"}
+                        </span>
                     </button>
+
+                    {/* Pemindaian berjalan di latar belakang: keadaannya harus terlihat, bukan ditebak. */}
+                    {collecting && (
+                        <div
+                            className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-600" />
+                                    <p className="max-w-2xl text-xs text-blue-900">
+                                        <strong className="font-semibold">
+                                            Pemindaian sedang berjalan di antrean.
+                                        </strong>{" "}
+                                        Setiap perangkat diperiksa satu per satu, jadi status dan metrik di bawah
+                                        terisi bertahap — halaman ini memuat hasil terbaru dengan sendirinya.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={refreshResultsNow}
+                                    className="shrink-0 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                >
+                                    Muat hasil sekarang
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             }
         >
