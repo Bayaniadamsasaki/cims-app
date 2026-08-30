@@ -1,6 +1,6 @@
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
 import CredentialReveal from '@/Components/Cims/CredentialReveal';
 
@@ -16,6 +16,57 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     const [viewingDevice, setViewingDevice] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const { confirmAction } = useConfirmation();
+
+    // Seleksi baris tabel inventaris. Disimpan sebagai Set berisi id perangkat
+    // supaya pertanyaan "baris ini terpilih?" tetap O(1) walau satu halaman
+    // membawa 100 perangkat.
+    const [selectedIds, setSelectedIds] = useState(() => new Set());
+    const lastCheckedIndex = useRef(null);
+
+    // Props `devices` bisa berganti (filter, import, hapus), jadi id yang
+    // barisnya sudah tidak ada di daftar tidak boleh ikut dihitung — kalau
+    // tidak, jumlah "dipilih" bisa lebih besar dari jumlah baris di layar.
+    const visibleIds = devices.map(d => d.id);
+    const selectedVisibleIds = visibleIds.filter(id => selectedIds.has(id));
+    const allVisibleSelected = visibleIds.length > 0 && selectedVisibleIds.length === visibleIds.length;
+    const someVisibleSelected = selectedVisibleIds.length > 0 && !allVisibleSelected;
+
+    const toggleRow = (device, index, isShiftClick) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            const willSelect = !next.has(device.id);
+
+            // Shift+klik menerapkan hasil klik ini ke seluruh rentang sejak baris
+            // terakhir yang diklik — cara cepat memilih satu blok baris berurutan.
+            const anchor = isShiftClick && lastCheckedIndex.current !== null
+                ? lastCheckedIndex.current
+                : index;
+            const [start, end] = anchor <= index ? [anchor, index] : [index, anchor];
+
+            for (let i = start; i <= end; i++) {
+                const id = devices[i]?.id;
+                if (id === undefined) continue;
+                if (willSelect) next.add(id);
+                else next.delete(id);
+            }
+            return next;
+        });
+        lastCheckedIndex.current = index;
+    };
+
+    const toggleAllVisible = () => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            visibleIds.forEach(id => allVisibleSelected ? next.delete(id) : next.add(id));
+            return next;
+        });
+        lastCheckedIndex.current = null;
+    };
+
+    const clearSelection = () => {
+        setSelectedIds(new Set());
+        lastCheckedIndex.current = null;
+    };
 
     // Izin dibaca dari props yang sudah dibagikan HandleInertiaRequests. Ini
     // hanya menentukan apakah tombol mata di modal detail digambar; penegakan
@@ -261,11 +312,53 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
                 {/* Inventory Table */}
                 <div className="overflow-hidden rounded-2xl bg-white border border-slate-200">
+                    {/* Strip ringkasan pilihan: hanya muncul saat ada baris tercentang,
+                        jadi tinggi tabel tidak berubah selama belum ada yang dipilih. */}
+                    {selectedVisibleIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-blue-50/70 px-6 py-3">
+                            <span className="text-sm font-semibold text-blue-800">
+                                {selectedVisibleIds.length} perangkat dipilih
+                                <span className="ml-1 font-normal text-blue-600">dari {visibleIds.length} baris</span>
+                            </span>
+                            <div className="flex items-center gap-2">
+                                {!allVisibleSelected && (
+                                    <button
+                                        type="button"
+                                        onClick={toggleAllVisible}
+                                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                                    >
+                                        Pilih semua {visibleIds.length} baris
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={clearSelection}
+                                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                                >
+                                    Bersihkan pilihan
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200 text-left">
                             <thead className="bg-slate-50">
                                 <tr>
-                                    <th className="py-4 pl-6 pr-3 text-xs font-bold text-slate-500">Perangkat & Model</th>
+                                    <th scope="col" className="w-10 py-4 pl-6 pr-0">
+                                        {/* `indeterminate` tidak bisa diset lewat atribut JSX, jadi
+                                            dipasang langsung ke node DOM-nya lewat ref. */}
+                                        <input
+                                            type="checkbox"
+                                            aria-label="Pilih semua perangkat di halaman ini"
+                                            title="Pilih semua perangkat di halaman ini"
+                                            disabled={visibleIds.length === 0}
+                                            checked={allVisibleSelected}
+                                            ref={el => { if (el) el.indeterminate = someVisibleSelected; }}
+                                            onChange={toggleAllVisible}
+                                            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                        />
+                                    </th>
+                                    <th className="py-4 pl-3 pr-3 text-xs font-bold text-slate-500">Perangkat & Model</th>
                                     <th className="px-3 py-4 text-xs font-bold text-slate-500">Hostname / IP Utama</th>
                                     <th className="px-3 py-4 text-xs font-bold text-slate-500">Posisi & Lokasi</th>
                                     <th className="px-3 py-4 text-xs font-bold text-slate-500">Serial Number & User</th>
@@ -276,11 +369,32 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {devices.length > 0 ? (
-                                    devices.map((device, idx) => (
-                                        <tr key={device.id} className="hover:bg-slate-50/80 transition">
-                                            <td className="whitespace-nowrap py-4 pl-6 pr-3 text-sm">
+                                    devices.map((device, idx) => {
+                                        const isSelected = selectedIds.has(device.id);
+                                        return (
+                                        <tr
+                                            key={device.id}
+                                            className={`transition ${isSelected ? 'bg-blue-50/70' : 'hover:bg-slate-50/80'}`}
+                                        >
+                                            <td className="w-10 py-4 pl-6 pr-0 align-middle">
+                                                {/* Rentang shift+klik dibaca dari event klik, bukan dari
+                                                    onChange — onChange tidak membawa flag shiftKey. */}
+                                                <input
+                                                    type="checkbox"
+                                                    aria-label={`Pilih perangkat ${device.name}`}
+                                                    checked={isSelected}
+                                                    onChange={() => {}}
+                                                    onClick={(e) => toggleRow(device, idx, e.shiftKey)}
+                                                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            </td>
+                                            <td className="whitespace-nowrap py-4 pl-3 pr-3 text-sm">
                                                 <div className="flex items-center space-x-3">
-                                                    <div className="h-9 w-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700 border border-blue-100 font-mono font-bold text-xs shrink-0">
+                                                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center font-mono font-bold text-xs shrink-0 border ${
+                                                        isSelected
+                                                            ? 'bg-blue-600 text-white border-blue-600'
+                                                            : 'bg-blue-50 text-blue-700 border-blue-100'
+                                                    }`}>
                                                         #{idx + 1}
                                                     </div>
                                                     <div>
@@ -369,10 +483,11 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
+                                        );
+                                    })
                                 ) : (
                                     <tr>
-                                        <td colSpan="7" className="text-center py-8 text-slate-500 text-sm">
+                                        <td colSpan="8" className="text-center py-8 text-slate-500 text-sm">
                                             Belum ada perangkat inventaris yang sesuai dengan filter pencarian.
                                         </td>
                                     </tr>
