@@ -29,21 +29,10 @@ class DatabaseSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // 1. Create Permissions
-        $permissions = [
-            'manage users',
-            'manage master data',
-            'manage devices',
-            'manage maintenance',
-            'view dashboard',
-            'view reports',
-            // Izin tersendiri, bukan bagian dari 'manage devices': mengelola
-            // inventaris (nama, lokasi, SN) dan membaca password login router
-            // adalah dua kewenangan berbeda. Teknisi bisa perlu yang pertama
-            // tanpa perlu yang kedua.
-            'view device credentials',
-        ];
-
-        foreach ($permissions as $permissionName) {
+        // Daftarnya tinggal satu, di UserSeeder::PERMISSIONS. Sebelumnya array
+        // ini diulang di dua seeder dan sempat tidak sinkron — akibatnya akun
+        // yang di-seed tidak memegang izin yang ada di sini.
+        foreach (UserSeeder::PERMISSIONS as $permissionName) {
             Permission::firstOrCreate([
                 'name' => $permissionName,
                 'guard_name' => 'web',

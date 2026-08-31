@@ -12,6 +12,29 @@ use Spatie\Permission\PermissionRegistrar;
 class UserSeeder extends Seeder
 {
     /**
+     * Daftar kanonik izin aplikasi. Ditaruh di sini, bukan diulang di setiap
+     * seeder, karena duplikasi daftarnya sudah pernah memakan korban: izin
+     * 'view device credentials' ada di DatabaseSeeder tapi tidak ikut di daftar
+     * seeder ini, jadi akun yang di-seed di server tidak pernah memegangnya dan
+     * tombol buka-password di inventaris tidak pernah muncul di sana.
+     *
+     * {@see DatabaseSeeder} mengambil daftar yang sama dari konstanta ini.
+     */
+    public const PERMISSIONS = [
+        'manage users',
+        'manage master data',
+        'manage devices',
+        'manage maintenance',
+        'view dashboard',
+        'view reports',
+        // Izin tersendiri, bukan bagian dari 'manage devices': mengelola
+        // inventaris (nama, lokasi, SN) dan membaca password login router adalah
+        // dua kewenangan berbeda. Teknisi bisa perlu yang pertama tanpa perlu
+        // yang kedua.
+        'view device credentials',
+    ];
+
+    /**
      * Run the database seeds.
      */
     public function run(): void
@@ -25,24 +48,19 @@ class UserSeeder extends Seeder
             'guard_name' => 'web',
         ]);
 
-        // Ensure permissions exist and assign to Super Admin role
-        $permissions = [
-            'manage users',
-            'manage master data',
-            'manage devices',
-            'manage maintenance',
-            'view dashboard',
-            'view reports',
-            'view device credentials',
-        ];
-
-        foreach ($permissions as $permissionName) {
-            $perm = Permission::firstOrCreate([
+        foreach (self::PERMISSIONS as $permissionName) {
+            Permission::firstOrCreate([
                 'name' => $permissionName,
                 'guard_name' => 'web',
             ]);
-            $superAdminRole->givePermissionTo($perm);
         }
+
+        // Sengaja Permission::all(), bukan mengulang daftar di atas: Super Admin
+        // harus memegang SEMUA izin yang ada di database, termasuk izin yang
+        // dibuat seeder lain atau ditambahkan belakangan. Dengan begini, satu
+        // izin baru tidak lagi bisa lolos dari akun ini hanya karena daftarnya
+        // lupa diperbarui.
+        $superAdminRole->givePermissionTo(Permission::all());
 
         // Create or update the single PUSTIK UBG user
         $user = User::updateOrCreate(
@@ -56,5 +74,10 @@ class UserSeeder extends Seeder
 
         // Assign Super Admin role
         $user->assignRole($superAdminRole);
+
+        // Peta izin Spatie di-cache 24 jam (config/permission.php). Tanpa reset
+        // di akhir, izin yang baru diberikan di sini belum tentu terbaca oleh
+        // request berikutnya di server.
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
     }
 }
