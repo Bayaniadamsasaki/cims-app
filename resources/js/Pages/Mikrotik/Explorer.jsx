@@ -3,6 +3,43 @@ import { Head } from "@inertiajs/react";
 import axios from "axios";
 import { useEffect, useState } from "react";
 
+/**
+ * Tahapan satu putaran speedtest, urut sesuai urutan kerja speedtest-cli.
+ *
+ * Dipakai untuk mengubah masa tunggu 30–90 detik dari "menatap log" menjadi
+ * keterangan yang bisa dibaca: tahap mana yang sedang dikerjakan, dan angka mana
+ * yang sudah selesai diukur. Download memang sudah final puluhan detik sebelum
+ * putaran berakhir, jadi tidak ada alasan menyembunyikannya sampai akhir.
+ */
+const SPEEDTEST_STAGES = [
+    { id: "config", label: "Konfigurasi" },
+    { id: "latency", label: "Pilih server" },
+    { id: "download", label: "Download" },
+    { id: "upload", label: "Upload" },
+];
+
+const SPEEDTEST_STAGE_ORDER = [
+    "starting",
+    "config",
+    "latency",
+    "download",
+    "upload",
+    "done",
+];
+
+const speedtestStageIndex = (stage) => {
+    const index = SPEEDTEST_STAGE_ORDER.indexOf(stage);
+
+    return index < 0 ? 0 : index;
+};
+
+/**
+ * Angka sudah terukur atau belum. Dipisah karena 0 adalah nilai yang sah di sini
+ * (0 ms latensi ke gateway lokal bukan mustahil), jadi cek kebenaran biasa akan
+ * salah menyembunyikannya.
+ */
+const speedtestHasNumber = (value) => value !== null && value !== undefined;
+
 export default function MikrotikExplorer({
     auth,
     routerConfig,
@@ -46,6 +83,28 @@ export default function MikrotikExplorer({
     const [hotspotActive, setHotspotActive] = useState([]);
     const [neighbors, setNeighbors] = useState([]);
     const [logs, setLogs] = useState([]);
+    // null = tab OSPF belum pernah dibuka. Dibedakan dari objek kosong karena
+    // router yang memang belum menjalankan OSPF juga menjawab dengan daftar
+    // interface kosong, dan keduanya harus tampil berbeda.
+    const [ospf, setOspf] = useState(null);
+    // null = tab Speedtest belum pernah dibuka. Isinya keadaan container di
+    // router (ada/tidak, logging aktif/tidak) plus putaran terakhir — bukan
+    // sekadar daftar hasil, karena yang paling sering perlu ditampilkan justru
+    // alasan kenapa fitur ini belum bisa dipakai di router tersebut.
+    const [speedtest, setSpeedtest] = useState(null);
+    const [speedtestStarting, setSpeedtestStarting] = useState(false);
+    // Tindakan tulis yang sedang berjalan: "stop" atau "restart". Satu state,
+    // bukan dua boolean, karena keduanya tidak boleh berjalan bersamaan.
+    const [speedtestAction, setSpeedtestAction] = useState(null);
+    // Kegagalan Stop/Restart disimpan terpisah dari speedtest.error: yang kedua
+    // berarti daftar container tidak bisa dibaca sama sekali, dan menumpangkan
+    // kegagalan tindakan di atasnya akan menyembunyikan kartu container beserta
+    // tombol-tombolnya justru ketika operator paling butuh menekannya lagi.
+    const [speedtestActionError, setSpeedtestActionError] = useState(null);
+    // Log container yang dibuka atas permintaan (padanan tab Log di Winbox),
+    // terpisah dari baris log satu putaran. null = belum pernah diminta.
+    const [speedtestLog, setSpeedtestLog] = useState(null);
+    const [speedtestLogLoading, setSpeedtestLogLoading] = useState(false);
     const [loadingTab, setLoadingTab] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isRouterDropdownOpen, setIsRouterDropdownOpen] = useState(false);
@@ -54,6 +113,14 @@ export default function MikrotikExplorer({
     const [expandedRouterHosts, setExpandedRouterHosts] = useState({});
 
     const currentHost = selectedHost || routerConfig.host;
+
+    // Memulai speedtest = menulis ke perangkat jaringan bersama sekaligus
+    // menjenuhkan uplink kampus. Route-nya sudah dipagari 'manage devices' di
+    // server; ini hanya supaya tombolnya tidak ditawarkan ke orang yang pasti
+    // akan ditolak.
+    const canManageDevices = (auth?.user?.permissions ?? []).includes(
+        "manage devices",
+    );
     const activeRouterObj = selectedRouter ||
         (availableRouters || []).find((r) => r.ip === currentHost) ||
         availableRouters[0] || { name: "Core Router", ip: currentHost };
@@ -324,6 +391,29 @@ export default function MikrotikExplorer({
                 setNeighbors(res.data);
                 setLoadingTab(false);
             });
+        } else if (activeTab === "ospf" && ospf === null) {
+            setLoadingTab(true);
+            axios
+                .get(apiRoute("mikrotik.api.ospf"))
+                .then((res) => setOspf(res.data))
+                .catch(() =>
+                    setOspf({
+                        reachable: false,
+                        error: "Gagal mengambil data OSPF dari router.",
+                    }),
+                )
+                .finally(() => setLoadingTab(false));
+        } else if (activeTab === "speedtest" && speedtest === null) {
+            setLoadingTab(true);
+            axios
+                .get(apiRoute("mikrotik.api.speedtest"))
+                .then((res) => setSpeedtest(res.data))
+                .catch(() =>
+                    setSpeedtest({
+                        error: "Gagal membaca keadaan container speedtest dari router.",
+                    }),
+                )
+                .finally(() => setLoadingTab(false));
         } else if (activeTab === "logs" && logs.length === 0) {
             setLoadingTab(true);
             axios.get(apiRoute("mikrotik.api.logs")).then((res) => {
@@ -332,6 +422,117 @@ export default function MikrotikExplorer({
             });
         }
     }, [activeTab, connection, currentHost]);
+
+    // Keadaan speedtest terikat pada satu router: container-nya, putaran yang
+    // sedang berjalan, dan hasil terakhirnya semuanya per-host. Kalau tidak
+    // dikosongkan saat pindah router, tab ini akan menampilkan hasil router lama
+    // dengan label router baru.
+    useEffect(() => {
+        setSpeedtest(null);
+        setSpeedtestLog(null);
+        setSpeedtestActionError(null);
+    }, [currentHost]);
+
+    // Satu putaran berjalan 30–90 detik di router dan hasilnya baru muncul di
+    // /log secara bertahap, jadi dijemput berkala. Interval dibersihkan begitu
+    // state bukan "running" lagi, supaya tab yang dibiarkan terbuka tidak terus
+    // menghubungi router tanpa alasan.
+    useEffect(() => {
+        if (speedtest?.run?.state !== "running") return;
+
+        const timer = setInterval(() => {
+            axios
+                .get(apiRoute("mikrotik.api.speedtest.poll"))
+                .then((res) =>
+                    setSpeedtest((prev) => ({ ...prev, run: res.data })),
+                )
+                .catch(() => {});
+        }, 4000);
+
+        return () => clearInterval(timer);
+    }, [speedtest?.run?.state, currentHost]);
+
+    const handleStartSpeedtest = async () => {
+        setSpeedtestStarting(true);
+        try {
+            const res = await axios.post(
+                apiRoute("mikrotik.api.speedtest.start"),
+            );
+            setSpeedtest((prev) => ({ ...prev, run: res.data }));
+        } catch (e) {
+            // 422 dari server membawa alasan yang bisa ditindaklanjuti operator
+            // (container belum ada, logging belum aktif, putaran lain jalan) —
+            // itu yang ditampilkan, bukan "terjadi kesalahan".
+            setSpeedtest((prev) => ({
+                ...prev,
+                run: {
+                    state: "failed",
+                    error:
+                        e?.response?.data?.error ||
+                        "Gagal memulai speedtest di router.",
+                    lines: [],
+                },
+            }));
+        } finally {
+            setSpeedtestStarting(false);
+        }
+    };
+
+    // Stop dan Restart menjawab dengan keadaan lengkap (status container + putaran),
+    // jadi hasilnya menggantikan seluruh state — bukan hanya bagian run-nya seperti
+    // pada poll. Status container memang berubah setelah keduanya.
+    const handleStopSpeedtest = async () => {
+        setSpeedtestAction("stop");
+        setSpeedtestActionError(null);
+        try {
+            const res = await axios.post(apiRoute("mikrotik.api.speedtest.stop"));
+            setSpeedtest(res.data);
+        } catch (e) {
+            setSpeedtestActionError(
+                e?.response?.data?.error ||
+                    "Gagal menghentikan container speedtest di router.",
+            );
+        } finally {
+            setSpeedtestAction(null);
+        }
+    };
+
+    const handleRestartSpeedtest = async () => {
+        setSpeedtestAction("restart");
+        setSpeedtestActionError(null);
+        try {
+            const res = await axios.post(
+                apiRoute("mikrotik.api.speedtest.restart"),
+            );
+            setSpeedtest(res.data);
+        } catch (e) {
+            setSpeedtestActionError(
+                e?.response?.data?.error ||
+                    "Gagal me-restart container speedtest di router.",
+            );
+        } finally {
+            setSpeedtestAction(null);
+        }
+    };
+
+    const handleFetchSpeedtestLog = async () => {
+        setSpeedtestLogLoading(true);
+        try {
+            const res = await axios.get(apiRoute("mikrotik.api.speedtest.log"));
+            setSpeedtestLog(res.data.lines || []);
+        } catch (e) {
+            // Dibedakan dari "tidak ada baris container": daftar kosong berarti
+            // router menjawab tapi log-nya memang bersih, sedangkan ini berarti
+            // log-nya tidak terbaca sama sekali. Dua keadaan itu menuntun ke
+            // pemeriksaan yang berbeda.
+            setSpeedtestActionError(
+                e?.response?.data?.error ||
+                    "Gagal membaca /log dari router untuk topik container.",
+            );
+        } finally {
+            setSpeedtestLogLoading(false);
+        }
+    };
 
     const fetchMetricsSilently = async () => {
         try {
@@ -370,6 +571,12 @@ export default function MikrotikExplorer({
             } else if (activeTab === "neighbors") {
                 const res = await axios.get(apiRoute("mikrotik.api.neighbors"));
                 setNeighbors(res.data);
+            } else if (activeTab === "ospf") {
+                const res = await axios.get(apiRoute("mikrotik.api.ospf"));
+                setOspf(res.data);
+            } else if (activeTab === "speedtest") {
+                const res = await axios.get(apiRoute("mikrotik.api.speedtest"));
+                setSpeedtest(res.data);
             } else if (activeTab === "logs") {
                 const res = await axios.get(apiRoute("mikrotik.api.logs"));
                 setLogs(res.data);
@@ -380,6 +587,45 @@ export default function MikrotikExplorer({
             setIsRefreshing(false);
         }
     };
+
+    // Peta status OSPF → tampilan. Warna yang sama dipakai di kartu ringkasan dan
+    // di baris tabel, supaya angka di atas dan baris di bawah terbaca sebagai hal
+    // yang sama tanpa perlu membaca legenda.
+    const OSPF_STATUS = {
+        full: {
+            label: "OSPF Aktif",
+            badge: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
+            dot: "bg-emerald-500",
+        },
+        passive: {
+            label: "Passive",
+            badge: "bg-blue-500/10 text-blue-700 border-blue-500/30",
+            dot: "bg-blue-500",
+        },
+        warning: {
+            label: "Perlu Diperiksa",
+            badge: "bg-amber-500/10 text-amber-700 border-amber-500/30",
+            dot: "bg-amber-500",
+        },
+        not_in_ospf: {
+            label: "Belum OSPF",
+            badge: "bg-rose-500/10 text-rose-700 border-rose-500/30",
+            dot: "bg-rose-500",
+        },
+        no_ip: {
+            label: "Tanpa IP",
+            badge: "bg-slate-500/10 text-slate-600 border-slate-400/30",
+            dot: "bg-slate-400",
+        },
+    };
+
+    const ospfSummaryCards = [
+        { key: "full", hint: "adjacency terbentuk" },
+        { key: "warning", hint: "masuk OSPF, adjacency belum Full" },
+        { key: "not_in_ospf", hint: "punya IP, belum masuk OSPF" },
+        { key: "passive", hint: "diiklankan tanpa adjacency" },
+        { key: "no_ip", hint: "di luar cakupan OSPF" },
+    ];
 
     const formatBps = (bps) => {
         if (!bps || bps === 0) return "0 Bps";
@@ -705,6 +951,12 @@ export default function MikrotikExplorer({
                             icon: "📊",
                         },
                         { id: "network", label: "IP & Routing", icon: "🌐" },
+                        { id: "ospf", label: "OSPF", icon: "🛰️" },
+                        {
+                            id: "speedtest",
+                            label: "Speedtest Router",
+                            icon: "🚀",
+                        },
                         { id: "firewall", label: "Firewall & NAT", icon: "🛡️" },
                         { id: "hotspot", label: "Hotspot Aktif", icon: "📡" },
                         { id: "neighbors", label: "Neighbors", icon: "🔗" },
@@ -1068,7 +1320,1128 @@ export default function MikrotikExplorer({
                     </div>
                 )}
 
-                {/* Tab 3: Firewall & NAT */}
+                {/* Tab 3: OSPF Coverage */}
+                {activeTab === "ospf" && (
+                    <div className="space-y-6">
+                        {loadingTab && !ospf ? (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-12 text-center text-brand-textSecondary">
+                                Membaca instance, area, interface, dan neighbor
+                                OSPF dari router...
+                            </div>
+                        ) : !ospf ? null : (
+                            <>
+                                {!ospf.reachable && (
+                                    <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-5">
+                                        <div className="font-bold text-rose-700 text-sm">
+                                            Data OSPF tidak dapat dibaca
+                                        </div>
+                                        <div className="text-xs text-rose-700/80 mt-1 font-mono break-all">
+                                            {ospf.error ||
+                                                "Router tidak menjawab."}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {ospf.reachable && ospf.supported === false && (
+                                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5">
+                                        <div className="font-bold text-amber-700 text-sm">
+                                            Router tidak mengenali perintah
+                                            /routing/ospf
+                                        </div>
+                                        <div className="text-xs text-amber-700/80 mt-1">
+                                            {ospf.error}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {ospf.reachable &&
+                                    ospf.supported !== false &&
+                                    !ospf.configured && (
+                                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-5">
+                                            <div className="font-bold text-blue-700 text-sm">
+                                                OSPF belum dijalankan di router
+                                                ini
+                                            </div>
+                                            <div className="text-xs text-blue-700/80 mt-1">
+                                                Tidak ada instance OSPF, jadi
+                                                seluruh interface di bawah
+                                                berstatus belum routing OSPF.
+                                            </div>
+                                        </div>
+                                    )}
+
+                                {(ospf.instances || []).length > 0 && (
+                                    <div className="bg-brand-card border border-brand-border rounded-2xl p-5 flex flex-wrap gap-x-10 gap-y-4">
+                                        {(ospf.instances || []).map(
+                                            (inst, idx) => (
+                                                <div key={idx}>
+                                                    <div className="text-xs text-brand-textSecondary uppercase tracking-wider font-semibold">
+                                                        Instance{" "}
+                                                        {inst.name || "-"}
+                                                    </div>
+                                                    <div className="text-lg font-bold text-slate-900 mt-1 font-mono">
+                                                        {inst.router_id ||
+                                                            "router-id belum diset"}
+                                                    </div>
+                                                    <div className="text-xs text-brand-textSecondary mt-0.5">
+                                                        {inst.disabled
+                                                            ? "Disabled"
+                                                            : "Aktif"}
+                                                        {inst.version
+                                                            ? ` · OSPFv${inst.version}`
+                                                            : ""}
+                                                    </div>
+                                                </div>
+                                            ),
+                                        )}
+                                        <div>
+                                            <div className="text-xs text-brand-textSecondary uppercase tracking-wider font-semibold">
+                                                Area
+                                            </div>
+                                            <div className="text-lg font-bold text-slate-900 mt-1 font-mono">
+                                                {(ospf.areas || []).length
+                                                    ? (ospf.areas || [])
+                                                          .map(
+                                                              (a) =>
+                                                                  `${a.name}${a.area_id ? ` (${a.area_id})` : ""}`,
+                                                          )
+                                                          .join(", ")
+                                                    : "-"}
+                                            </div>
+                                            <div className="text-xs text-brand-textSecondary mt-0.5">
+                                                Konfigurasi gaya RouterOS{" "}
+                                                {ospf.flavor === "v7"
+                                                    ? "v7 (interface-template)"
+                                                    : ospf.flavor === "v6"
+                                                      ? "v6 (network statement)"
+                                                      : "tidak terdeteksi"}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {ospf.summary && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                                        {ospfSummaryCards.map((card) => (
+                                            <div
+                                                key={card.key}
+                                                className={`p-5 rounded-2xl border ${OSPF_STATUS[card.key].badge}`}
+                                            >
+                                                <div className="flex items-center space-x-2">
+                                                    <span
+                                                        className={`h-2 w-2 rounded-full ${OSPF_STATUS[card.key].dot}`}
+                                                        aria-hidden="true"
+                                                    ></span>
+                                                    <span className="text-xs uppercase tracking-wider font-semibold">
+                                                        {
+                                                            OSPF_STATUS[
+                                                                card.key
+                                                            ].label
+                                                        }
+                                                    </span>
+                                                </div>
+                                                <div className="text-3xl font-bold mt-2 text-slate-900">
+                                                    {ospf.summary[card.key] ??
+                                                        0}
+                                                </div>
+                                                <div className="text-[11px] mt-1 opacity-80">
+                                                    {card.hint}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
+                                    <div className="p-5 border-b border-brand-border flex items-center justify-between gap-4">
+                                        <div>
+                                            <h3 className="font-bold text-slate-900 text-base">
+                                                Cakupan OSPF per Interface
+                                            </h3>
+                                            <p className="text-xs text-brand-textSecondary mt-0.5">
+                                                Dirakit dari /interface,
+                                                /ip/address,
+                                                /routing/ospf/interface, dan
+                                                /routing/ospf/neighbor. Yang
+                                                perlu ditindaklanjuti tampil di
+                                                atas.
+                                            </p>
+                                        </div>
+                                        <span className="text-xs text-brand-textSecondary font-mono whitespace-nowrap">
+                                            {ospf.summary?.in_ospf ?? 0} /{" "}
+                                            {ospf.summary?.total ?? 0} di OSPF
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm text-brand-textSecondary">
+                                            <thead className="bg-brand-bgSecondary text-xs uppercase tracking-wider text-brand-textSecondary">
+                                                <tr>
+                                                    <th className="px-6 py-3">
+                                                        Interface
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Alamat IP
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Status OSPF
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Area / Cost
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Neighbor
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Keterangan
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-brand-border">
+                                                {(ospf.interfaces || [])
+                                                    .length === 0 && (
+                                                    <tr>
+                                                        <td
+                                                            colSpan="6"
+                                                            className="px-6 py-12 text-center text-brand-textSecondary"
+                                                        >
+                                                            Tidak ada interface
+                                                            yang terbaca dari
+                                                            router.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {(ospf.interfaces || []).map(
+                                                    (row) => {
+                                                        const tone =
+                                                            OSPF_STATUS[
+                                                                row.status
+                                                            ] ||
+                                                            OSPF_STATUS.no_ip;
+
+                                                        return (
+                                                            <tr
+                                                                key={
+                                                                    row.interface
+                                                                }
+                                                                className="hover:bg-brand-cardElevated/50 transition"
+                                                            >
+                                                                <td className="px-6 py-4">
+                                                                    <div className="font-mono font-bold text-slate-900">
+                                                                        {
+                                                                            row.interface
+                                                                        }
+                                                                    </div>
+                                                                    <div className="text-[11px] mt-0.5">
+                                                                        {row.type ||
+                                                                            "-"}
+                                                                        {row.disabled
+                                                                            ? " · disabled"
+                                                                            : row.running
+                                                                              ? " · running"
+                                                                              : " · not running"}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 font-mono text-xs">
+                                                                    {(
+                                                                        row.addresses ||
+                                                                        []
+                                                                    ).length ===
+                                                                    0
+                                                                        ? "-"
+                                                                        : (
+                                                                              row.addresses ||
+                                                                              []
+                                                                          ).map(
+                                                                              (
+                                                                                  addr,
+                                                                              ) => (
+                                                                                  <div
+                                                                                      key={
+                                                                                          addr
+                                                                                      }
+                                                                                      className="text-emerald-700"
+                                                                                  >
+                                                                                      {
+                                                                                          addr
+                                                                                      }
+                                                                                  </div>
+                                                                              ),
+                                                                          )}
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${tone.badge}`}
+                                                                    >
+                                                                        <span
+                                                                            className={`h-1.5 w-1.5 rounded-full ${tone.dot}`}
+                                                                            aria-hidden="true"
+                                                                        ></span>
+                                                                        {
+                                                                            tone.label
+                                                                        }
+                                                                    </span>
+                                                                    {row.dynamic && (
+                                                                        <div className="text-[11px] mt-1">
+                                                                            entri
+                                                                            dinamis
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4 font-mono text-xs">
+                                                                    {row.area ||
+                                                                        "-"}
+                                                                    {row.cost
+                                                                        ? ` / ${row.cost}`
+                                                                        : ""}
+                                                                    {row.network_type && (
+                                                                        <div className="text-[11px] text-brand-textSecondary">
+                                                                            {
+                                                                                row.network_type
+                                                                            }
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    {row.neighbor_count ===
+                                                                    0 ? (
+                                                                        <span className="text-xs">
+                                                                            -
+                                                                        </span>
+                                                                    ) : (
+                                                                        <div className="space-y-1">
+                                                                            {(
+                                                                                row.neighbors ||
+                                                                                []
+                                                                            ).map(
+                                                                                (
+                                                                                    nb,
+                                                                                    i,
+                                                                                ) => (
+                                                                                    <div
+                                                                                        key={
+                                                                                            i
+                                                                                        }
+                                                                                        className="text-xs font-mono"
+                                                                                    >
+                                                                                        <span
+                                                                                            className={
+                                                                                                nb.full
+                                                                                                    ? "text-emerald-700 font-bold"
+                                                                                                    : "text-amber-700 font-bold"
+                                                                                            }
+                                                                                        >
+                                                                                            {nb.state ||
+                                                                                                "?"}
+                                                                                        </span>{" "}
+                                                                                        {nb.router_id ||
+                                                                                            nb.address ||
+                                                                                            ""}
+                                                                                    </div>
+                                                                                ),
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-xs max-w-md">
+                                                                    {row.detail}
+                                                                    {row.matched_by && (
+                                                                        <div className="text-[11px] text-brand-textSecondary mt-0.5 font-mono">
+                                                                            via{" "}
+                                                                            {
+                                                                                row.matched_by
+                                                                            }
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    },
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
+                                    <div className="p-5 border-b border-brand-border flex items-center justify-between">
+                                        <h3 className="font-bold text-slate-900 text-base">
+                                            Neighbor OSPF
+                                            (/routing/ospf/neighbor)
+                                        </h3>
+                                        <span className="text-xs text-brand-textSecondary font-mono">
+                                            {ospf.summary?.full_neighbors ?? 0}{" "}
+                                            Full dari{" "}
+                                            {ospf.summary?.neighbors ?? 0}
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm text-brand-textSecondary">
+                                            <thead className="bg-brand-bgSecondary text-xs uppercase tracking-wider text-brand-textSecondary">
+                                                <tr>
+                                                    <th className="px-6 py-3">
+                                                        Router ID
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Address
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Interface
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        State
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        Adjacency
+                                                    </th>
+                                                    <th className="px-6 py-3">
+                                                        State Changes
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-brand-border">
+                                                {(ospf.neighbors || [])
+                                                    .length === 0 && (
+                                                    <tr>
+                                                        <td
+                                                            colSpan="6"
+                                                            className="px-6 py-12 text-center text-brand-textSecondary"
+                                                        >
+                                                            Belum ada neighbor
+                                                            OSPF yang terbentuk.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {(ospf.neighbors || []).map(
+                                                    (nb, idx) => (
+                                                        <tr
+                                                            key={idx}
+                                                            className="hover:bg-brand-cardElevated/50 transition"
+                                                        >
+                                                            <td className="px-6 py-4 font-mono font-bold text-slate-900">
+                                                                {nb.router_id ||
+                                                                    "-"}
+                                                            </td>
+                                                            <td className="px-6 py-4 font-mono text-emerald-700">
+                                                                {nb.address ||
+                                                                    "-"}
+                                                            </td>
+                                                            <td className="px-6 py-4 font-mono text-xs text-purple-700">
+                                                                {nb.interface ||
+                                                                    "-"}
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <span
+                                                                    className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                                                        nb.full
+                                                                            ? "bg-emerald-500/10 text-emerald-700"
+                                                                            : "bg-amber-500/10 text-amber-700"
+                                                                    }`}
+                                                                >
+                                                                    {nb.state ||
+                                                                        "?"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 font-mono text-xs">
+                                                                {nb.adjacency ||
+                                                                    "-"}
+                                                            </td>
+                                                            <td className="px-6 py-4 font-mono text-xs">
+                                                                {nb.state_changes ??
+                                                                    "-"}
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Tab 3b: Speedtest dari container di router */}
+                {activeTab === "speedtest" && (
+                    <div className="space-y-6">
+                        <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                            <h3 className="text-lg font-bold text-slate-900">
+                                Speedtest dari Router
+                            </h3>
+                            <p className="text-sm text-brand-textSecondary mt-1 leading-relaxed">
+                                Pengukuran ini dijalankan oleh container{" "}
+                                <span className="font-mono">speedtest-cli</span>{" "}
+                                di dalam RouterOS, jadi yang terukur adalah
+                                kapasitas uplink router itu sendiri — berbeda
+                                dari speedtest di halaman Monitoring yang
+                                mengukur dari server aplikasi. Keluaran container
+                                dibaca dari{" "}
+                                <span className="font-mono">/log</span>, karena
+                                RouterOS tidak menyediakan cara lain mengambil
+                                stdout container lewat API.
+                            </p>
+                        </div>
+
+                        {loadingTab && speedtest === null && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-8 text-center text-sm text-brand-textSecondary">
+                                Membaca daftar container di router…
+                            </div>
+                        )}
+
+                        {speedtest?.error && (
+                            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-5">
+                                <div className="text-sm font-semibold text-rose-700">
+                                    Container tidak bisa dibaca
+                                </div>
+                                <div className="text-sm text-rose-700/90 mt-1 font-mono break-words">
+                                    {speedtest.error}
+                                </div>
+                            </div>
+                        )}
+
+                        {speedtest && !speedtest.error && !speedtest.container && (
+                            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5">
+                                <div className="text-sm font-semibold text-amber-800">
+                                    Container speedtest tidak ditemukan
+                                </div>
+                                <div className="text-sm text-amber-800/90 mt-1 leading-relaxed">
+                                    Tidak ada container di router ini yang{" "}
+                                    <span className="font-mono">name</span>,{" "}
+                                    <span className="font-mono">tag</span>, atau{" "}
+                                    <span className="font-mono">root-dir</span>
+                                    -nya memuat{" "}
+                                    <span className="font-mono font-semibold">
+                                        {speedtest.pattern}
+                                    </span>
+                                    . Sesuaikan{" "}
+                                    <span className="font-mono">
+                                        MIKROTIK_SPEEDTEST_CONTAINER
+                                    </span>{" "}
+                                    di <span className="font-mono">.env</span>{" "}
+                                    dengan container yang sebenarnya ada.
+                                </div>
+                            </div>
+                        )}
+
+                        {speedtest?.container && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl overflow-hidden">
+                                <div className="px-5 py-4 border-b border-brand-border flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-bold text-slate-900">
+                                            {speedtest.container.name ||
+                                                speedtest.container.tag ||
+                                                "Container"}
+                                        </div>
+                                        <div className="text-xs text-brand-textSecondary font-mono mt-0.5 break-all">
+                                            {speedtest.container.tag}
+                                        </div>
+                                    </div>
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                                            speedtest.container.running
+                                                ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+                                                : "bg-slate-500/10 text-slate-600 border-slate-400/30"
+                                        }`}
+                                    >
+                                        {speedtest.container.status || "unknown"}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-5 py-4">
+                                    {[
+                                        {
+                                            label: "Interface",
+                                            value:
+                                                speedtest.container.interface ||
+                                                "-",
+                                        },
+                                        {
+                                            label: "Envlist",
+                                            value:
+                                                speedtest.container.envlist ||
+                                                "-",
+                                        },
+                                        {
+                                            label: "Root Dir",
+                                            value:
+                                                speedtest.container.root_dir ||
+                                                "-",
+                                        },
+                                        {
+                                            label: "Logging",
+                                            value: speedtest.container.logging
+                                                ? "aktif"
+                                                : "belum aktif",
+                                        },
+                                    ].map((item) => (
+                                        <div key={item.label}>
+                                            <div className="text-[11px] uppercase tracking-wider text-brand-textSecondary font-semibold">
+                                                {item.label}
+                                            </div>
+                                            <div className="text-sm text-slate-900 font-mono mt-1 break-all">
+                                                {item.value}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Tanpa logging=yes, tombol Start akan "berhasil"
+                                    tapi hasilnya tidak pernah sampai ke aplikasi.
+                                    Perintah perbaikannya ditampilkan langsung
+                                    supaya tidak perlu ditebak. */}
+                                {!speedtest.container.logging && (
+                                    <div className="px-5 py-4 bg-amber-500/10 border-t border-amber-500/30 text-sm text-amber-800 leading-relaxed">
+                                        Container ini belum{" "}
+                                        <span className="font-mono">
+                                            logging=yes
+                                        </span>
+                                        , sehingga hasil speedtest tidak masuk ke{" "}
+                                        <span className="font-mono">/log</span>{" "}
+                                        dan tidak bisa dibaca aplikasi. Jalankan
+                                        di router:
+                                        <div className="mt-2 font-mono text-xs bg-brand-bgSecondary border border-brand-border rounded-lg px-3 py-2 text-slate-900 break-all">
+                                            /container/set{" "}
+                                            {speedtest.container.id} logging=yes
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {speedtest?.container && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                                <div className="flex-1">
+                                    <div className="text-sm font-bold text-slate-900">
+                                        Jalankan pengukuran
+                                    </div>
+                                    {/* Peringatan ini bukan formalitas: speedtest
+                                        menarik trafik sebesar-besarnya lewat
+                                        gateway yang sama dipakai seluruh kampus,
+                                        jadi menjalankannya di jam kuliah terasa
+                                        oleh semua pengguna. */}
+                                    <div className="text-xs text-brand-textSecondary mt-1 leading-relaxed">
+                                        Satu putaran memakai uplink kampus secara
+                                        penuh selama 30–90 detik dan akan terasa
+                                        oleh pengguna lain. Sebaiknya dijalankan
+                                        di luar jam sibuk. Batas tunggu:{" "}
+                                        {speedtest.timeout} detik.
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            if (
+                                                window.confirm(
+                                                    "Jalankan speedtest di router? Uplink kampus akan terpakai penuh selama 30–90 detik.",
+                                                )
+                                            ) {
+                                                handleStartSpeedtest();
+                                            }
+                                        }}
+                                        disabled={
+                                            !canManageDevices ||
+                                            speedtestStarting ||
+                                            speedtestAction !== null ||
+                                            speedtest?.run?.state ===
+                                                "running" ||
+                                            !speedtest.container.logging
+                                        }
+                                        className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-primary text-white hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                    >
+                                        {speedtest?.run?.state === "running"
+                                            ? "Sedang berjalan…"
+                                            : speedtestStarting
+                                              ? "Memulai…"
+                                              : "🚀 Mulai Speedtest"}
+                                    </button>
+
+                                    {/* Stop adalah satu-satunya jalan keluar dari
+                                        container yang macet tanpa membuka Winbox,
+                                        jadi ia tetap bisa ditekan selama container
+                                        masih berjalan — termasuk ketika aplikasi
+                                        tidak punya catatan putaran apa pun. */}
+                                    <button
+                                        onClick={handleStopSpeedtest}
+                                        disabled={
+                                            !canManageDevices ||
+                                            speedtestAction !== null ||
+                                            !speedtest.container.running
+                                        }
+                                        className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-rose-500/40 text-rose-700 bg-rose-500/10 hover:bg-rose-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                    >
+                                        {speedtestAction === "stop"
+                                            ? "Menghentikan…"
+                                            : "⏹ Stop"}
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            if (
+                                                window.confirm(
+                                                    "Restart container dan mulai putaran baru? Putaran yang sedang berjalan akan dibatalkan.",
+                                                )
+                                            ) {
+                                                handleRestartSpeedtest();
+                                            }
+                                        }}
+                                        disabled={
+                                            !canManageDevices ||
+                                            speedtestStarting ||
+                                            speedtestAction !== null ||
+                                            !speedtest.container.logging
+                                        }
+                                        className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-brand-border text-slate-700 bg-brand-bgSecondary hover:bg-brand-cardElevated transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                    >
+                                        {speedtestAction === "restart"
+                                            ? "Me-restart…"
+                                            : "↻ Restart"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {speedtestActionError && (
+                            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4">
+                                <div className="text-sm font-semibold text-rose-700">
+                                    Perintah ke container gagal
+                                </div>
+                                <div className="text-sm text-rose-700/90 mt-1 leading-relaxed">
+                                    {speedtestActionError}
+                                </div>
+                            </div>
+                        )}
+
+                        {!canManageDevices && speedtest?.container && (
+                            <div className="text-xs text-brand-textSecondary">
+                                Menjalankan speedtest butuh izin{" "}
+                                <span className="font-mono">manage devices</span>
+                                . Anda masih bisa melihat hasil pengukuran
+                                terakhir di bawah.
+                            </div>
+                        )}
+
+                        {speedtest?.run?.state === "running" && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <div className="text-sm font-semibold text-slate-900">
+                                        Pengukuran berjalan
+                                    </div>
+                                    <div className="text-xs text-brand-textSecondary font-mono ml-auto">
+                                        {speedtest.run.elapsed ?? 0}s
+                                    </div>
+                                </div>
+                                {/* Stepper: tahap mana yang sedang dikerjakan.
+                                    Sumbernya tetap baris /log yang sama, hanya
+                                    dibaca sampai tahapnya — bukan tebakan waktu. */}
+                                <div className="flex flex-wrap items-center gap-1.5 mt-4">
+                                    {SPEEDTEST_STAGES.map((stage, i) => {
+                                        const current = speedtestStageIndex(
+                                            speedtest.run.progress?.stage,
+                                        );
+                                        const done = i + 1 < current;
+                                        const active = i + 1 === current;
+
+                                        return (
+                                            <span
+                                                key={stage.id}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${
+                                                    done
+                                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
+                                                        : active
+                                                          ? "bg-brand-primary/10 border-brand-primary/40 text-brand-primary"
+                                                          : "bg-brand-bgSecondary border-brand-border text-brand-textSecondary"
+                                                }`}
+                                            >
+                                                {done ? "✓ " : ""}
+                                                {stage.label}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Angka yang SUDAH terbaca ditampilkan langsung.
+                                    Inilah inti perbedaannya dengan menunggu: hasil
+                                    download sudah bisa dibaca operator jauh sebelum
+                                    upload selesai. */}
+                                <div className="grid grid-cols-3 gap-2 mt-4">
+                                    {[
+                                        {
+                                            label: "Latensi",
+                                            value: speedtest.run.progress
+                                                ?.ping_ms,
+                                            unit: "ms",
+                                        },
+                                        {
+                                            label: "Download",
+                                            value: speedtest.run.progress
+                                                ?.download_mbps,
+                                            unit: "Mbps",
+                                        },
+                                        {
+                                            label: "Upload",
+                                            value: speedtest.run.progress
+                                                ?.upload_mbps,
+                                            unit: "Mbps",
+                                        },
+                                    ].map((metric) => (
+                                        <div
+                                            key={metric.label}
+                                            className="bg-brand-bgSecondary border border-brand-border rounded-xl p-3"
+                                        >
+                                            <div className="text-[10px] uppercase tracking-wide text-brand-textSecondary">
+                                                {metric.label}
+                                            </div>
+                                            <div className="text-base font-bold text-slate-900 mt-0.5">
+                                                {speedtestHasNumber(
+                                                    metric.value,
+                                                ) ? (
+                                                    <>
+                                                        {metric.value}
+                                                        <span className="text-[10px] font-medium text-brand-textSecondary ml-1">
+                                                            {metric.unit}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    // Titik-titik, bukan 0: angkanya
+                                                    // belum ada, dan 0 Mbps punya arti
+                                                    // sendiri yang salah di sini.
+                                                    <span className="text-brand-textSecondary">
+                                                        …
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Fase download dan upload CLI Ookla berjalan
+                                    dengan --progress=no: belasan detik tanpa satu
+                                    baris pun masuk ke /log. Tanpa keterangan ini,
+                                    jeda itu terlihat persis seperti putaran macet
+                                    dan operator akan menekan Stop pada pengukuran
+                                    yang sebenarnya sedang berjalan normal. */}
+                                {(speedtest.run.quiet_for ?? 0) >= 8 && (
+                                    <div className="text-[11px] text-brand-textSecondary mt-3 leading-relaxed">
+                                        Belum ada baris baru di{" "}
+                                        <span className="font-mono">/log</span>{" "}
+                                        selama {speedtest.run.quiet_for} detik.
+                                        Ini normal selama fase download dan
+                                        upload — keduanya memang tidak mencetak
+                                        apa pun sampai selesai.
+                                    </div>
+                                )}
+
+                                {/* Baris log mentah tetap disediakan, tapi kini
+                                    sebagai lampiran — bukan satu-satunya jendela
+                                    ke proses yang sedang berjalan. */}
+                                {(speedtest.run.lines ?? []).length > 0 && (
+                                    <details className="mt-3">
+                                        <summary className="text-xs text-brand-textSecondary cursor-pointer hover:text-slate-700">
+                                            Lihat baris /log mentah (
+                                            {(speedtest.run.lines ?? []).length})
+                                        </summary>
+                                        <pre className="mt-2 max-h-48 overflow-auto bg-brand-bgSecondary border border-brand-border rounded-xl p-3 text-[11px] font-mono text-slate-700 whitespace-pre-wrap">
+                                            {(speedtest.run.lines ?? []).join(
+                                                "\n",
+                                            )}
+                                        </pre>
+                                    </details>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Putaran yang dibatalkan operator: bukan kegagalan router,
+                            jadi warnanya netral — tapi baris log yang sudah terkumpul
+                            tetap ditampilkan, karena biasanya justru itu alasannya
+                            dihentikan. */}
+                        {speedtest?.run?.state === "stopped" && (
+                            <div className="bg-brand-card border border-amber-500/30 rounded-2xl p-5">
+                                <div className="text-sm font-semibold text-amber-700">
+                                    Pengukuran dihentikan
+                                </div>
+                                <div className="text-sm text-brand-textSecondary mt-1 leading-relaxed">
+                                    {speedtest.run.error ||
+                                        "Putaran dihentikan sebelum hasilnya lengkap, jadi tidak ada angka yang disimpan."}
+                                </div>
+                                {(speedtest.run.lines ?? []).length > 0 && (
+                                    <pre className="mt-3 max-h-48 overflow-auto bg-brand-bgSecondary border border-brand-border rounded-xl p-3 text-[11px] font-mono text-slate-700 whitespace-pre-wrap">
+                                        {(speedtest.run.lines ?? []).join("\n")}
+                                    </pre>
+                                )}
+                            </div>
+                        )}
+
+                        {speedtest?.run?.state === "failed" && (
+                            <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-5">
+                                <div className="text-sm font-semibold text-rose-700">
+                                    Pengukuran gagal
+                                </div>
+                                <div className="text-sm text-rose-700/90 mt-1 leading-relaxed">
+                                    {speedtest.run.error}
+                                </div>
+                                {/* Angka yang sempat terukur sebelum putaran mati
+                                    ikut ditampilkan: "download 94 Mbps lalu gagal
+                                    di upload" menunjuk ke masalah yang sama sekali
+                                    berbeda dari "gagal sejak awal". */}
+                                {(speedtestHasNumber(
+                                    speedtest.run.progress?.download_mbps,
+                                ) ||
+                                    speedtestHasNumber(
+                                        speedtest.run.progress?.ping_ms,
+                                    )) && (
+                                    <div className="text-xs text-rose-700/90 mt-2">
+                                        Sempat terukur sebelum berhenti:{" "}
+                                        <span className="font-mono">
+                                            {speedtestHasNumber(
+                                                speedtest.run.progress?.ping_ms,
+                                            )
+                                                ? `latensi ${speedtest.run.progress.ping_ms} ms`
+                                                : null}
+                                            {speedtestHasNumber(
+                                                speedtest.run.progress
+                                                    ?.download_mbps,
+                                            )
+                                                ? ` · download ${speedtest.run.progress.download_mbps} Mbps`
+                                                : null}
+                                        </span>
+                                        . Angka separuh jalan tidak disimpan ke
+                                        database.
+                                    </div>
+                                )}
+                                {(speedtest.run.lines ?? []).length > 0 && (
+                                    <pre className="mt-3 max-h-64 overflow-auto bg-brand-bgSecondary border border-brand-border rounded-xl p-3 text-[11px] font-mono text-slate-700 whitespace-pre-wrap">
+                                        {(speedtest.run.lines ?? []).join("\n")}
+                                    </pre>
+                                )}
+                            </div>
+                        )}
+
+                        {speedtest?.run?.state === "done" &&
+                            speedtest.run.result && (
+                                <div className="bg-brand-card border border-emerald-500/30 rounded-2xl p-5">
+                                    <div className="text-sm font-bold text-emerald-700">
+                                        Hasil pengukuran terbaru
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                                        {[
+                                            {
+                                                label: "Download",
+                                                value: speedtest.run.result
+                                                    .download_mbps,
+                                                unit: "Mbps",
+                                            },
+                                            {
+                                                label: "Upload",
+                                                value: speedtest.run.result
+                                                    .upload_mbps,
+                                                unit: "Mbps",
+                                            },
+                                            {
+                                                label: "Latensi",
+                                                value: speedtest.run.result
+                                                    .ping_ms,
+                                                unit: "ms",
+                                            },
+                                        ].map((metric) => (
+                                            <div
+                                                key={metric.label}
+                                                className="bg-brand-bgSecondary border border-brand-border rounded-xl p-4"
+                                            >
+                                                <div className="text-[11px] uppercase tracking-wider text-brand-textSecondary font-semibold">
+                                                    {metric.label}
+                                                </div>
+                                                <div className="text-2xl font-bold text-slate-900 mt-1">
+                                                    {metric.value ?? "–"}
+                                                    <span className="text-sm font-medium text-brand-textSecondary ml-1">
+                                                        {metric.value != null
+                                                            ? metric.unit
+                                                            : ""}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <div className="text-[11px] uppercase tracking-wider text-brand-textSecondary font-semibold">
+                                                ISP
+                                            </div>
+                                            <div className="text-sm text-slate-900 mt-1">
+                                                {speedtest.run.result.isp ||
+                                                    "tidak dilaporkan"}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[11px] uppercase tracking-wider text-brand-textSecondary font-semibold">
+                                                Server Uji
+                                            </div>
+                                            <div className="text-sm text-slate-900 mt-1">
+                                                {speedtest.run.result.server ||
+                                                    "tidak dilaporkan"}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Keluaran mentah tetap disediakan — parser
+                                        ini toleran terhadap tiga format, tapi
+                                        satu-satunya cara memastikan angka di atas
+                                        benar adalah membandingkannya dengan teks
+                                        asli dari container. */}
+                                    {(speedtest.run.lines ?? []).length > 0 && (
+                                        <details className="mt-4">
+                                            <summary className="text-xs text-brand-textSecondary cursor-pointer hover:text-slate-900">
+                                                Lihat keluaran mentah container
+                                            </summary>
+                                            <pre className="mt-2 max-h-64 overflow-auto bg-brand-bgSecondary border border-brand-border rounded-xl p-3 text-[11px] font-mono text-slate-700 whitespace-pre-wrap">
+                                                {(
+                                                    speedtest.run.lines ?? []
+                                                ).join("\n")}
+                                            </pre>
+                                        </details>
+                                    )}
+                                </div>
+                            )}
+
+                        {/* Hasil tersimpan dari database, bukan dari putaran di
+                            layar ini: berguna saat halaman baru dibuka dan
+                            operator ingin tahu kapan terakhir uplink diukur tanpa
+                            harus mengukur ulang. */}
+                        {speedtest?.last_result && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                    <div className="text-sm font-bold text-slate-900">
+                                        Pengukuran tersimpan terakhir
+                                    </div>
+                                    <div className="text-xs text-brand-textSecondary">
+                                        {new Date(
+                                            speedtest.last_result.created_at,
+                                        ).toLocaleString("id-ID")}
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-x-8 gap-y-2 mt-3 text-sm">
+                                    <div>
+                                        <span className="text-brand-textSecondary">
+                                            Download{" "}
+                                        </span>
+                                        <span className="font-semibold text-slate-900">
+                                            {
+                                                speedtest.last_result
+                                                    .download_speed_mbps
+                                            }{" "}
+                                            Mbps
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-brand-textSecondary">
+                                            Upload{" "}
+                                        </span>
+                                        <span className="font-semibold text-slate-900">
+                                            {
+                                                speedtest.last_result
+                                                    .upload_speed_mbps
+                                            }{" "}
+                                            Mbps
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-brand-textSecondary">
+                                            Latensi{" "}
+                                        </span>
+                                        <span className="font-semibold text-slate-900">
+                                            {speedtest.last_result.ping_ms ??
+                                                "–"}{" "}
+                                            ms
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-brand-textSecondary">
+                                            Router{" "}
+                                        </span>
+                                        <span className="font-mono text-slate-900">
+                                            {speedtest.last_result.router_host}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Padanan tab "Log" di Winbox. Dibuka atas permintaan,
+                            bukan otomatis: /log adalah ring buffer yang ratusan
+                            barisnya sebagian besar tidak relevan, dan menariknya
+                            setiap kali tab dibuka hanya menambah beban router.
+
+                            Yang ditampilkan hanya baris bertopik "container",
+                            sehingga keluhan seperti "container tidak jalan" bisa
+                            ditelusuri tanpa harus menjalankan speedtest lebih
+                            dulu. */}
+                        {speedtest && !speedtest.error && (
+                            <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-bold text-slate-900">
+                                            Log container di router
+                                        </div>
+                                        <div className="text-xs text-brand-textSecondary mt-1">
+                                            Baris bertopik{" "}
+                                            <span className="font-mono">
+                                                container
+                                            </span>{" "}
+                                            dari{" "}
+                                            <span className="font-mono">
+                                                /log
+                                            </span>
+                                            , terbaru di atas.
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleFetchSpeedtestLog}
+                                        disabled={speedtestLogLoading}
+                                        className="px-4 py-2 rounded-xl text-sm font-semibold border border-brand-border text-slate-700 bg-brand-bgSecondary hover:bg-brand-cardElevated transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                    >
+                                        {speedtestLogLoading
+                                            ? "Mengambil…"
+                                            : speedtestLog === null
+                                              ? "📄 Tampilkan Log"
+                                              : "↻ Muat Ulang"}
+                                    </button>
+                                </div>
+
+                                {speedtestLog !== null &&
+                                    (speedtestLog.length === 0 ? (
+                                        <div className="text-xs text-brand-textSecondary mt-4 leading-relaxed">
+                                            Tidak ada baris bertopik{" "}
+                                            <span className="font-mono">
+                                                container
+                                            </span>{" "}
+                                            di buffer log router saat ini. Itu
+                                            wajar kalau container belum pernah
+                                            dijalankan sejak router terakhir
+                                            reboot, atau kalau buffer sudah
+                                            terisi penuh oleh topik lain.
+                                        </div>
+                                    ) : (
+                                        <div className="mt-4 max-h-72 overflow-auto border border-brand-border rounded-xl divide-y divide-brand-border">
+                                            {speedtestLog.map((row, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="px-3 py-2 bg-brand-bgSecondary flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]"
+                                                >
+                                                    <span className="font-mono text-brand-textSecondary shrink-0">
+                                                        {row.time}
+                                                    </span>
+                                                    <span className="font-mono text-slate-700 flex-1 min-w-[12rem] break-all">
+                                                        {row.message}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Tab 4: Firewall & NAT */}
                 {activeTab === "firewall" && (
                     <div className="space-y-6">
                         {loadingTab ? (

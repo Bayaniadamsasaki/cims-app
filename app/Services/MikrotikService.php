@@ -389,6 +389,550 @@ class MikrotikService
     }
 
     // ──────────────────────────────────────────────────────
+    //  OSPF  (/routing/ospf/...)
+    // ──────────────────────────────────────────────────────
+    /**
+     * Pesan kegagalan perintah print terakhir, untuk membedakan "router tidak
+     * terjangkau" dari "perintahnya tidak ada".
+     */
+    protected ?string $lastPrintError = null;
+
+    /**
+     * Jalankan satu perintah print dan bedakan "tidak didukung" dari "kosong".
+     *
+     * Pembedaan ini wajib karena tata nama OSPF berubah antar mayor RouterOS: v6
+     * memakai /routing/ospf/network, v7 menggantinya dengan interface-template.
+     * Salah satu dari keduanya PASTI ditolak oleh router mana pun, jadi penolakan
+     * bukan tanda kegagalan — sementara array kosong berarti perintahnya dikenali
+     * tapi memang belum ada barisnya. Keduanya harus tampil berbeda di layar:
+     * yang pertama "tidak berlaku di versi ini", yang kedua "belum dikonfigurasi".
+     *
+     * @return array<int,array<string,string>>|null null bila perintah ditolak.
+     */
+    protected function tryPrint(?string $host, string $command): ?array
+    {
+        try {
+            $response = $this->client($host)->query($command)->read();
+        } catch (\Throwable $e) {
+            Log::warning("MikroTik {$command} gagal: {$e->getMessage()}");
+            $this->lastPrintError = $e->getMessage();
+
+            return null;
+        }
+
+        // !trap RouterOS ("no such command prefix") datang sebagai after.message,
+        // bukan sebagai exception.
+        if (isset($response['after']['message'])) {
+            $this->lastPrintError = $response['after']['message'];
+
+            return null;
+        }
+
+        if (($response[0] ?? null) === '!fatal') {
+            $this->lastPrintError = 'Koneksi RouterOS terputus saat menjalankan perintah.';
+
+            return null;
+        }
+
+        $rows = [];
+        foreach ($response as $key => $row) {
+            if (is_int($key) && is_array($row)) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Apakah $ip berada di dalam prefix $cidr. IPv4 saja — OSPFv2 tidak berjalan
+     * di atas alamat lain, dan cakupan v6 network / v7 networks= selalu IPv4.
+     */
+    protected function ipv4InCidr(string $ip, string $cidr): bool
+    {
+        if (!str_contains($cidr, '/')) {
+            return false;
+        }
+
+        [$network, $prefix] = explode('/', $cidr, 2);
+
+        if (!ctype_digit($prefix)) {
+            return false;
+        }
+
+        $bits = (int) $prefix;
+        $ipLong = ip2long($ip);
+        $networkLong = ip2long($network);
+
+        if ($bits > 32 || $ipLong === false || $networkLong === false) {
+            return false;
+        }
+
+        // /0 mencakup seluruh ruang alamat; pergeseran 32 bit tidak terdefinisi.
+        if ($bits === 0) {
+            return true;
+        }
+
+        $mask = (0xFFFFFFFF << (32 - $bits)) & 0xFFFFFFFF;
+
+        return (($ipLong & $mask) === ($networkLong & $mask));
+    }
+
+    /**
+     * Adjacency OSPF baru benar-benar terbentuk pada state "Full". State lain
+     * (Init, 2-Way, ExStart, Exchange, Loading) berarti tetangga terlihat tetapi
+     * pertukaran database belum selesai — biasanya MTU, area, network-type, atau
+     * autentikasi tidak cocok. Membaca semuanya sebagai "ada neighbor" justru
+     * menyembunyikan kegagalan yang paling sering terjadi.
+     */
+    protected function isFullAdjacency(?string $state): bool
+    {
+        return $state !== null && strtolower(trim($state)) === 'full';
+    }
+
+    /**
+     * Aturan keikutsertaan OSPF sebagaimana ditulis operator.
+     *
+     * v7 memakai /routing/ospf/interface-template — bisa menyebut nama interface
+     * ATAU prefix jaringan. v6 memakai /routing/ospf/network yang hanya mengenal
+     * prefix. `flavor` melaporkan versi mana yang menjawab, supaya UI bisa
+     * menyebut nama menu RouterOS yang benar.
+     *
+     * @return array{flavor:string|null,rules:array<int,array<string,mixed>>}
+     */
+    public function getOspfInterfaceTemplates(?string $host = null): array
+    {
+        $templates = $this->tryPrint($host, '/routing/ospf/interface-template/print');
+
+        if ($templates !== null) {
+            return [
+                'flavor' => 'v7',
+                'rules' => array_map(fn ($r) => [
+                    'interfaces' => $r['interfaces'] ?? null,
+                    'networks' => $r['networks'] ?? null,
+                    'area' => $r['area'] ?? null,
+                    'cost' => $r['cost'] ?? null,
+                    'passive' => ($r['passive'] ?? 'false') === 'true',
+                    'disabled' => ($r['disabled'] ?? 'false') === 'true',
+                    'comment' => $r['comment'] ?? null,
+                ], $templates),
+            ];
+        }
+
+        $networks = $this->tryPrint($host, '/routing/ospf/network/print');
+
+        if ($networks !== null) {
+            return [
+                'flavor' => 'v6',
+                'rules' => array_map(fn ($r) => [
+                    'interfaces' => null,
+                    'networks' => $r['network'] ?? null,
+                    'area' => $r['area'] ?? null,
+                    'cost' => null,
+                    'passive' => false,
+                    'disabled' => ($r['disabled'] ?? 'false') === 'true',
+                    'comment' => $r['comment'] ?? null,
+                ], $networks),
+            ];
+        }
+
+        return ['flavor' => null, 'rules' => []];
+    }
+
+    /**
+     * Aturan OSPF mana yang seharusnya mencakup interface ini.
+     *
+     * Dipakai untuk memisahkan dua hal yang di daftar interface tampak sama:
+     * interface yang memang belum pernah dimasukkan ke OSPF, dan interface yang
+     * SUDAH ditulis di konfigurasi tetapi tidak muncul sebagai entri efektif.
+     * Yang kedua hampir selalu berarti instance atau template-nya disabled —
+     * masalah nyata yang akan terlewat kalau keduanya diberi label sama.
+     *
+     * @param array<int,string> $addresses alamat "ip/prefix" milik interface
+     * @param array<int,array<string,mixed>> $rules
+     * @return array<string,mixed>|null
+     */
+    protected function matchOspfRule(string $interface, array $addresses, array $rules): ?array
+    {
+        foreach ($rules as $rule) {
+            if ($rule['disabled'] ?? false) {
+                continue;
+            }
+
+            // v7: interfaces= boleh berisi daftar nama, atau kata kunci "all".
+            $names = array_filter(array_map('trim', explode(',', (string) ($rule['interfaces'] ?? ''))));
+
+            foreach ($names as $candidate) {
+                if ($candidate === 'all') {
+                    return $rule + ['matched_by' => 'template interfaces=all'];
+                }
+
+                if (strcasecmp($candidate, $interface) === 0) {
+                    return $rule + ['matched_by' => "template interfaces={$candidate}"];
+                }
+            }
+
+            // v6 network statement dan v7 networks=: cakupan ditentukan prefix,
+            // jadi harus dicocokkan lewat alamat IP interface — bukan namanya.
+            $networks = array_filter(array_map('trim', explode(',', (string) ($rule['networks'] ?? ''))));
+
+            foreach ($networks as $network) {
+                foreach ($addresses as $address) {
+                    if ($this->ipv4InCidr(explode('/', $address)[0], $network)) {
+                        return $rule + ['matched_by' => "prefix {$network}"];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Satu interface, satu status.
+     *
+     * Urutan pemeriksaan menentukan hasil: kondisi yang membuat interface tidak
+     * mungkin ikut OSPF diperiksa lebih dulu supaya tidak ikut terhitung sebagai
+     * "belum OSPF". Di router kampus, bridge port, VLAN tanpa IP, dan interface
+     * cadangan jumlahnya jauh lebih banyak daripada interface routed — kalau
+     * semuanya masuk daftar "belum dikonfigurasi", daftar itu jadi tidak berguna.
+     *
+     * @param array<int,string> $addresses
+     * @param array<string,mixed>|null $ospf entri /routing/ospf/interface efektif
+     * @param array<string,mixed>|null $matchedRule aturan yang mencakup interface
+     * @return array{0:string,1:string} [status, penjelasan]
+     */
+    protected function classifyOspfInterface(
+        array $addresses,
+        bool $interfaceDisabled,
+        bool $running,
+        ?array $ospf,
+        ?array $matchedRule,
+        int $neighborCount,
+        int $fullCount
+    ): array {
+        // OSPFv2 berjalan di atas alamat IPv4. Interface tanpa IP tidak bisa
+        // dimasukkan ke OSPF, jadi ini bukan pekerjaan yang tertunda.
+        if ($addresses === [] && $ospf === null) {
+            return ['no_ip', $interfaceDisabled
+                ? 'Disabled dan tanpa alamat IP — di luar cakupan OSPF.'
+                : 'Tanpa alamat IP — tidak bisa ikut OSPF.'];
+        }
+
+        if ($ospf === null) {
+            if ($matchedRule !== null) {
+                return ['warning', 'Sudah tercakup ' . ($matchedRule['matched_by'] ?? 'aturan OSPF')
+                    . ' tetapi tidak muncul sebagai interface OSPF aktif — periksa instance atau template yang disabled.'];
+            }
+
+            return ['not_in_ospf', $interfaceDisabled
+                ? 'Punya alamat IP tetapi belum masuk OSPF (interface disabled).'
+                : 'Punya alamat IP tetapi belum masuk OSPF.'];
+        }
+
+        if ($ospf['disabled'] ?? false) {
+            return ['warning', 'Entri OSPF untuk interface ini disabled.'];
+        }
+
+        if ($ospf['passive'] ?? false) {
+            return ['passive', 'Passive — jaringannya diiklankan, adjacency tidak dibentuk.'];
+        }
+
+        if ($fullCount > 0) {
+            return ['full', "Adjacency Full dengan {$fullCount} neighbor."];
+        }
+
+        if ($neighborCount > 0) {
+            return ['warning', "Neighbor terlihat ({$neighborCount}) tetapi belum Full — cek MTU, area, network-type, atau autentikasi."];
+        }
+
+        if (!$running) {
+            return ['warning', 'Masuk OSPF tetapi interface tidak running — adjacency tidak mungkin terbentuk.'];
+        }
+
+        return ['warning', 'Masuk OSPF tetapi belum ada neighbor — sisi seberang belum dikonfigurasi, atau interface ini semestinya passive.'];
+    }
+
+    /**
+     * Payload berbentuk sama seperti hasil normal, tetapi kosong — supaya UI
+     * tidak perlu menangani dua bentuk data yang berbeda.
+     *
+     * @return array<string,mixed>
+     */
+    protected function emptyOspfCoverage(?string $error): array
+    {
+        return [
+            'reachable' => false,
+            'supported' => true,
+            'configured' => false,
+            'flavor' => null,
+            'error' => $error,
+            'instances' => [],
+            'areas' => [],
+            'neighbors' => [],
+            'rules' => [],
+            'interfaces' => [],
+            'summary' => [
+                'total' => 0,
+                'in_ospf' => 0,
+                'full' => 0,
+                'passive' => 0,
+                'warning' => 0,
+                'not_in_ospf' => 0,
+                'no_ip' => 0,
+                'neighbors' => 0,
+                'full_neighbors' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * Peta keikutsertaan OSPF per interface: mana yang sudah routing OSPF, mana
+     * yang belum, dan mana yang memang tidak bisa.
+     *
+     * Tidak ada satu pun perintah RouterOS yang menjawab pertanyaan ini. Winbox
+     * menyebar jawabannya di empat jendela — daftar interface, alamat IP, aturan
+     * OSPF, dan tabel neighbor — sehingga kesimpulan seperti "ether5 sudah punya
+     * IP tetapi tidak pernah dimasukkan ke OSPF" harus dirakit manual setiap kali
+     * ada yang bertanya. Perakitan itu yang dipindahkan ke sini.
+     *
+     * @return array<string,mixed>
+     */
+    public function getOspfCoverage(?string $host = null): array
+    {
+        $this->lastPrintError = null;
+
+        $interfaceRows = $this->tryPrint($host, '/interface/print');
+
+        if ($interfaceRows === null) {
+            return $this->emptyOspfCoverage($this->lastPrintError ?? 'Router tidak dapat dihubungi.');
+        }
+
+        $instanceRows = $this->tryPrint($host, '/routing/ospf/instance/print');
+
+        // Perintah /routing/ospf ditolak: paket routing tidak terpasang, atau
+        // user API tidak punya policy untuk membacanya. Ini TIDAK sama dengan
+        // "OSPF belum dikonfigurasi", jadi dilaporkan sebagai keadaan terpisah.
+        if ($instanceRows === null) {
+            $coverage = $this->emptyOspfCoverage(
+                'Router tidak mengenali perintah /routing/ospf — paket routing tidak terpasang, '
+                . 'atau user API tidak punya policy untuk membacanya.'
+            );
+            $coverage['reachable'] = true;
+            $coverage['supported'] = false;
+
+            return $coverage;
+        }
+
+        return $this->buildOspfCoverage(
+            $interfaceRows,
+            $this->tryPrint($host, '/ip/address/print') ?? [],
+            $instanceRows,
+            $this->tryPrint($host, '/routing/ospf/area/print') ?? [],
+            $this->tryPrint($host, '/routing/ospf/interface/print') ?? [],
+            $this->tryPrint($host, '/routing/ospf/neighbor/print') ?? [],
+            $this->getOspfInterfaceTemplates($host)
+        );
+    }
+
+    /**
+     * Rakit peta cakupan OSPF dari baris-baris mentah RouterOS.
+     *
+     * Dipisahkan dari {@see getOspfCoverage()} supaya seluruh logika klasifikasi
+     * bisa diuji tanpa router: yang masuk cuma array, yang keluar cuma array.
+     *
+     * @param array<int,array<string,string>> $interfaceRows /interface/print
+     * @param array<int,array<string,string>> $addressRows /ip/address/print
+     * @param array<int,array<string,string>> $instanceRows /routing/ospf/instance/print
+     * @param array<int,array<string,string>> $areaRows /routing/ospf/area/print
+     * @param array<int,array<string,string>> $ospfInterfaceRows /routing/ospf/interface/print
+     * @param array<int,array<string,string>> $neighborRows /routing/ospf/neighbor/print
+     * @param array{flavor:string|null,rules:array<int,array<string,mixed>>} $ruleSet
+     * @return array<string,mixed>
+     */
+    protected function buildOspfCoverage(
+        array $interfaceRows,
+        array $addressRows,
+        array $instanceRows,
+        array $areaRows,
+        array $ospfInterfaceRows,
+        array $neighborRows,
+        array $ruleSet
+    ): array {
+        $instances = array_map(fn ($r) => [
+            'name' => $r['name'] ?? null,
+            'router_id' => $r['router-id'] ?? null,
+            'version' => $r['version'] ?? null,
+            'redistribute' => $r['redistribute'] ?? null,
+            'disabled' => ($r['disabled'] ?? 'false') === 'true',
+            'comment' => $r['comment'] ?? null,
+        ], $instanceRows);
+
+        $areas = array_map(fn ($r) => [
+            'name' => $r['name'] ?? null,
+            'area_id' => $r['area-id'] ?? null,
+            'instance' => $r['instance'] ?? null,
+            'type' => $r['type'] ?? 'default',
+            'disabled' => ($r['disabled'] ?? 'false') === 'true',
+        ], $areaRows);
+
+        $neighbors = array_map(fn ($r) => [
+            'instance' => $r['instance'] ?? null,
+            'area' => $r['area'] ?? null,
+            'router_id' => $r['router-id'] ?? null,
+            'address' => $r['address'] ?? null,
+            'interface' => $r['interface'] ?? null,
+            'state' => $r['state'] ?? null,
+            'state_changes' => isset($r['state-changes']) ? (int) $r['state-changes'] : null,
+            'adjacency' => $r['adjacency'] ?? null,
+            'full' => $this->isFullAdjacency($r['state'] ?? null),
+        ], $neighborRows);
+
+        // Alamat IP per interface. Alamat yang disabled diabaikan: OSPF tidak
+        // akan pernah menjalankannya, jadi kalau ikut dihitung, interface tanpa
+        // alamat aktif akan salah tampil sebagai "belum OSPF".
+        $addressesByInterface = [];
+        foreach ($addressRows as $row) {
+            $name = $row['interface'] ?? null;
+            $address = $row['address'] ?? null;
+
+            if (!$name || !$address || ($row['disabled'] ?? 'false') === 'true') {
+                continue;
+            }
+
+            $addressesByInterface[$name][] = $address;
+        }
+
+        // Entri OSPF yang efektif menurut router. Di v7 daftar ini berisi entri
+        // dinamis hasil interface-template, jadi inilah — bukan konfigurasi —
+        // sumber tepercaya untuk "interface ini benar-benar ikut OSPF".
+        $ospfByInterface = [];
+        foreach ($ospfInterfaceRows as $row) {
+            $name = $row['interface'] ?? $row['name'] ?? null;
+
+            if ($name === null) {
+                continue;
+            }
+
+            $ospfByInterface[$name] = [
+                'instance' => $row['instance'] ?? null,
+                'area' => $row['area'] ?? null,
+                'cost' => $row['cost'] ?? null,
+                'priority' => $row['priority'] ?? null,
+                'network_type' => $row['network-type'] ?? null,
+                'state' => $row['state'] ?? null,
+                'passive' => ($row['passive'] ?? 'false') === 'true',
+                'authentication' => $row['authentication'] ?? null,
+                'dynamic' => ($row['dynamic'] ?? 'false') === 'true',
+                'disabled' => ($row['disabled'] ?? 'false') === 'true',
+            ];
+        }
+
+        $neighborsByInterface = [];
+        foreach ($neighbors as $neighbor) {
+            if ($neighbor['interface'] !== null) {
+                $neighborsByInterface[$neighbor['interface']][] = $neighbor;
+            }
+        }
+
+        $rules = $ruleSet['rules'] ?? [];
+        $rows = [];
+
+        foreach ($interfaceRows as $row) {
+            $name = $row['name'] ?? null;
+
+            if ($name === null) {
+                continue;
+            }
+
+            $addresses = $addressesByInterface[$name] ?? [];
+            $ospf = $ospfByInterface[$name] ?? null;
+            $ifaceNeighbors = $neighborsByInterface[$name] ?? [];
+            $fullCount = count(array_filter($ifaceNeighbors, fn ($n) => $n['full']));
+            $disabled = ($row['disabled'] ?? 'false') === 'true';
+            $running = ($row['running'] ?? 'false') === 'true';
+            $matchedRule = $this->matchOspfRule($name, $addresses, $rules);
+
+            [$status, $detail] = $this->classifyOspfInterface(
+                addresses: $addresses,
+                interfaceDisabled: $disabled,
+                running: $running,
+                ospf: $ospf,
+                matchedRule: $matchedRule,
+                neighborCount: count($ifaceNeighbors),
+                fullCount: $fullCount
+            );
+
+            $rows[] = [
+                'interface' => $name,
+                'type' => $row['type'] ?? null,
+                'running' => $running,
+                'disabled' => $disabled,
+                'addresses' => $addresses,
+                'comment' => $row['comment'] ?? null,
+                'in_ospf' => $ospf !== null,
+                'area' => $ospf['area'] ?? ($matchedRule['area'] ?? null),
+                'cost' => $ospf['cost'] ?? ($matchedRule['cost'] ?? null),
+                'network_type' => $ospf['network_type'] ?? null,
+                'passive' => (bool) ($ospf['passive'] ?? ($matchedRule['passive'] ?? false)),
+                'authentication' => $ospf['authentication'] ?? null,
+                'dynamic' => (bool) ($ospf['dynamic'] ?? false),
+                'matched_by' => $matchedRule['matched_by'] ?? ($ospf !== null ? 'entri interface OSPF' : null),
+                'neighbor_count' => count($ifaceNeighbors),
+                'full_neighbors' => $fullCount,
+                'neighbors' => $ifaceNeighbors,
+                'status' => $status,
+                'detail' => $detail,
+            ];
+        }
+
+        // Yang perlu ditindaklanjuti tampil lebih dulu; interface yang sehat atau
+        // tidak relevan mengendap di bawah. Router kampus punya puluhan interface,
+        // dan satu adjacency yang tidak terbentuk tidak boleh perlu di-scroll.
+        $weight = [
+            'warning' => 0,
+            'not_in_ospf' => 1,
+            'passive' => 2,
+            'full' => 3,
+            'no_ip' => 4,
+        ];
+
+        usort($rows, function ($a, $b) use ($weight) {
+            $byStatus = ($weight[$a['status']] ?? 9) <=> ($weight[$b['status']] ?? 9);
+
+            return $byStatus !== 0
+                ? $byStatus
+                : strnatcasecmp($a['interface'], $b['interface']);
+        });
+
+        $countBy = fn (string $status) => count(array_filter($rows, fn ($r) => $r['status'] === $status));
+
+        return [
+            'reachable' => true,
+            'supported' => true,
+            'configured' => $instances !== [],
+            'flavor' => $ruleSet['flavor'] ?? null,
+            'error' => null,
+            'instances' => $instances,
+            'areas' => $areas,
+            'neighbors' => $neighbors,
+            'rules' => $rules,
+            'interfaces' => $rows,
+            'summary' => [
+                'total' => count($rows),
+                'in_ospf' => count(array_filter($rows, fn ($r) => $r['in_ospf'])),
+                'full' => $countBy('full'),
+                'passive' => $countBy('passive'),
+                'warning' => $countBy('warning'),
+                'not_in_ospf' => $countBy('not_in_ospf'),
+                'no_ip' => $countBy('no_ip'),
+                'neighbors' => count($neighbors),
+                'full_neighbors' => count(array_filter($neighbors, fn ($n) => $n['full'])),
+            ],
+        ];
+    }
+
+    // ──────────────────────────────────────────────────────
     //  FIREWALL FILTER  (/ip/firewall/filter/print)
     // ──────────────────────────────────────────────────────
     /**
@@ -905,6 +1449,33 @@ class MikrotikService
         }
 
         return $response;
+    }
+
+    /**
+     * Jalankan satu container RouterOS.
+     *
+     * Container speedtest bersifat sekali jalan — ia keluar sendiri setelah
+     * pengukuran selesai, jadi tidak ada perintah stop yang perlu dipasangkan di
+     * sini. Menghentikannya di tengah jalan justru membuang hasilnya.
+     *
+     * @throws \RuntimeException bila RouterOS menolak perintah.
+     */
+    public function startContainer(?string $host, string $id): void
+    {
+        $this->writeQuery($host, (new Query('/container/start'))->equal('.id', $id));
+    }
+
+    /**
+     * Hentikan satu container RouterOS.
+     *
+     * Diperlukan sebagai jalan keluar, bukan pelengkap: container speedtest yang
+     * menggantung (server Ookla tidak menjawab, DNS timeout) akan menahan uplink
+     * dan status "running" sampai RouterOS menyerah sendiri. Tanpa perintah ini
+     * satu-satunya cara membatalkannya adalah membuka Winbox.
+     */
+    public function stopContainer(?string $host, string $id): void
+    {
+        $this->writeQuery($host, (new Query('/container/stop'))->equal('.id', $id));
     }
 
     /**

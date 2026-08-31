@@ -117,8 +117,14 @@ class MonitoringWebController extends Controller
             }
         }
 
-        // Get latest Speedtest result
-        $latestSpeedtest = SpeedtestResult::latest()->first();
+        // Kartu di halaman ini memasangkan hasil dengan tombol "Jalankan
+        // Speedtest" miliknya sendiri, yang mengukur dari server aplikasi. Sejak
+        // speedtest container router ikut menulis ke tabel yang sama, `latest()`
+        // tanpa filter bisa menampilkan angka uplink router di bawah tombol yang
+        // mengukur jalur server — dua hal yang berbeda dengan label yang sama.
+        $latestSpeedtest = SpeedtestResult::where('source', SpeedtestResult::SOURCE_SERVER)
+            ->latest()
+            ->first();
 
         return Inertia::render('Monitoring/Index', [
             'devices' => $devices,

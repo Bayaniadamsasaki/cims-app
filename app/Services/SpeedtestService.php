@@ -26,6 +26,10 @@ class SpeedtestService
         $gateway = $this->probeGateway();
 
         return SpeedtestResult::create([
+            // Ditulis eksplisit, tidak menumpang default kolom: sejak speedtest
+            // container router ikut menulis ke tabel yang sama, sumber adalah
+            // bagian dari arti barisnya, bukan metadata tambahan.
+            'source' => SpeedtestResult::SOURCE_SERVER,
             'download_speed_mbps' => $this->measureDownload(),
             'upload_speed_mbps' => $this->measureUpload(),
             'ping_ms' => $gateway['latency'],

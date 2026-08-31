@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Services\MikrotikContainerSpeedtestService;
 use App\Services\MikrotikService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -207,6 +208,18 @@ class MikrotikWebController extends Controller
     }
 
     /**
+     * JSON API: Peta keikutsertaan OSPF per interface — mana yang sudah routing
+     * OSPF, mana yang belum, dan mana yang memang tidak bisa.
+     *
+     * Sengaja tidak ikut prop deferred halaman: pengumpulannya butuh sampai
+     * delapan round-trip ke RouterOS, dan hanya relevan saat tab OSPF dibuka.
+     */
+    public function ospf(Request $request)
+    {
+        return response()->json($this->mikrotik->getOspfCoverage($this->getTargetHost($request)));
+    }
+
+    /**
      * JSON API: Fetch firewall filter rules.
      */
     public function firewallFilter(Request $request)
@@ -293,5 +306,94 @@ class MikrotikWebController extends Controller
     public function dnsConfig(Request $request)
     {
         return response()->json($this->mikrotik->getDnsConfig($this->getTargetHost($request)));
+    }
+
+    /**
+     * JSON API: Kesiapan speedtest container di router — ada/tidaknya container,
+     * apakah logging-nya aktif, putaran yang sedang berjalan, dan hasil terakhir.
+     */
+    public function speedtestStatus(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        return response()->json($speedtest->status($this->getTargetHost($request)));
+    }
+
+    /**
+     * JSON API: Mulai satu putaran speedtest di router.
+     *
+     * Satu-satunya endpoint MikroTik di controller ini yang MENULIS ke router
+     * sekaligus menjenuhkan uplink kampus selama puluhan detik. Izin dan
+     * pembatasan lajunya dipasang di routes/web.php, bukan di sini.
+     *
+     * Kegagalan dijawab 422 dengan pesan aslinya: hampir semuanya adalah kondisi
+     * router yang bisa diperbaiki operator (container belum ada, logging belum
+     * aktif, putaran lain masih jalan), jadi pesannya justru yang paling berguna.
+     */
+    public function speedtestStart(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        try {
+            return response()->json($speedtest->start($this->getTargetHost($request)));
+        } catch (\Throwable $e) {
+            return response()->json(['state' => 'failed', 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * JSON API: Perkembangan putaran speedtest yang sedang berjalan. Dipanggil
+     * berkala oleh halaman; hanya membaca /log dan /container.
+     */
+    public function speedtestPoll(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        return response()->json($speedtest->poll($this->getTargetHost($request)));
+    }
+
+    /**
+     * JSON API: Hentikan container speedtest — padanan "Stop" di menu Winbox.
+     *
+     * Ini jalan keluar untuk putaran yang menggantung. Tanpanya container yang
+     * macet hanya bisa dimatikan dari Winbox, dan sampai itu dilakukan tidak ada
+     * putaran baru yang boleh dimulai.
+     */
+    public function speedtestStop(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        try {
+            return response()->json($speedtest->stop($this->getTargetHost($request)));
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * JSON API: Stop lalu Start dalam satu tindakan — padanan "Restart" di Winbox.
+     *
+     * Dijawab dengan keadaan lengkap (bukan hanya putarannya) karena setelah
+     * restart status container di halaman sudah tidak sama lagi.
+     */
+    public function speedtestRestart(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        $host = $this->getTargetHost($request);
+
+        try {
+            $speedtest->restart($host);
+
+            // status() membaca putaran yang baru saja ditulis restart() ke cache,
+            // jadi tidak perlu digabung manual.
+            return response()->json($speedtest->status($host));
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * JSON API: Baris log bertopik container — padanan tab "Log" di Winbox.
+     *
+     * Hanya membaca /log, jadi tidak digolongkan sebagai tindakan tulis: justru
+     * inilah yang perlu dibuka lebih dulu ketika container gagal, sebelum
+     * memutuskan apa pun.
+     */
+    public function speedtestLog(Request $request, MikrotikContainerSpeedtestService $speedtest)
+    {
+        return response()->json([
+            'lines' => $speedtest->containerLog($this->getTargetHost($request)),
+        ]);
     }
 }

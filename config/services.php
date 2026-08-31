@@ -43,6 +43,18 @@ return [
         'ssl' => (bool) env('MIKROTIK_SSL'),
         'timeout' => (int) env('MIKROTIK_TIMEOUT', 10),
         'attempts' => (int) env('MIKROTIK_ATTEMPTS', 2),
+
+        // Pola pencocokan container speedtest di router. Dicocokkan longgar
+        // (substring, case-insensitive) terhadap name, tag, dan root-dir
+        // sekaligus, karena di Winbox kolom Name sering kosong dan yang terisi
+        // hanya Tag — mencocokkan satu kolom saja akan gagal di router yang
+        // sebenarnya sudah berisi container yang benar.
+        'speedtest_container' => env('MIKROTIK_SPEEDTEST_CONTAINER', 'speedtest'),
+
+        // Batas tunggu satu putaran speedtest. Diberi kelonggaran besar karena
+        // container harus resolusi DNS, memilih server Ookla, lalu mengukur dua
+        // arah; pada uplink lambat 90 detik masih normal.
+        'speedtest_timeout' => (int) env('MIKROTIK_SPEEDTEST_TIMEOUT', 180),
     ],
 
     // Identitas hotspot kampus untuk dicetak di kartu voucher mahasiswa.

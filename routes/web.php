@@ -122,6 +122,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/metrics', [\App\Http\Controllers\Web\MikrotikWebController::class, 'refreshMetrics'])->name('api.metrics');
         Route::get('/api/ip-addresses', [\App\Http\Controllers\Web\MikrotikWebController::class, 'ipAddresses'])->name('api.ip-addresses');
         Route::get('/api/routes', [\App\Http\Controllers\Web\MikrotikWebController::class, 'routes'])->name('api.routes');
+        Route::get('/api/ospf', [\App\Http\Controllers\Web\MikrotikWebController::class, 'ospf'])->name('api.ospf');
         Route::get('/api/firewall-filter', [\App\Http\Controllers\Web\MikrotikWebController::class, 'firewallFilter'])->name('api.firewall-filter');
         Route::get('/api/nat-rules', [\App\Http\Controllers\Web\MikrotikWebController::class, 'natRules'])->name('api.nat-rules');
         Route::get('/api/hotspot-active', [\App\Http\Controllers\Web\MikrotikWebController::class, 'hotspotActive'])->name('api.hotspot-active');
@@ -133,6 +134,37 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/wireless-clients', [\App\Http\Controllers\Web\MikrotikWebController::class, 'wirelessClients'])->name('api.wireless-clients');
         Route::get('/api/ppp-active', [\App\Http\Controllers\Web\MikrotikWebController::class, 'pppActive'])->name('api.ppp-active');
         Route::get('/api/dns-config', [\App\Http\Controllers\Web\MikrotikWebController::class, 'dnsConfig'])->name('api.dns-config');
+
+        // Speedtest yang diukur dari container di router.
+        //
+        // Hanya /start yang dipagari: ia menulis ke perangkat jaringan bersama
+        // DAN menjenuhkan uplink kampus selama puluhan detik, jadi satu akun
+        // biasa tidak boleh bisa memicunya berulang-ulang. Dipakai izin 'manage
+        // devices' yang sudah ada — bukan izin baru — mengikuti alasan yang sama
+        // seperti pada route hapus perangkat di atas: izin baru berarti tidak
+        // seorang pun bisa menjalankannya sampai seeder dijalankan ulang di
+        // setiap environment.
+        //
+        // status/poll hanya membaca /container dan /log, dan poll memang
+        // dipanggil tiap beberapa detik oleh halaman selama putaran berjalan,
+        // jadi keduanya cukup di balik 'auth' tanpa throttle.
+        Route::get('/api/speedtest', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestStatus'])->name('api.speedtest');
+        Route::get('/api/speedtest/poll', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestPoll'])->name('api.speedtest.poll');
+        Route::get('/api/speedtest/log', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestLog'])->name('api.speedtest.log');
+        Route::post('/api/speedtest/start', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestStart'])
+            ->middleware(['can:manage devices', 'throttle:5,1'])
+            ->name('api.speedtest.start');
+
+        // Stop dan restart sama-sama menulis ke router, jadi izinnya sama dengan
+        // start. Batas lajunya dibuat lebih longgar: stop adalah jalan keluar dari
+        // putaran yang macet, dan operator yang panik akan menekannya berkali-kali
+        // — terkena rate limit justru pada saat itu adalah yang paling merugikan.
+        Route::post('/api/speedtest/stop', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestStop'])
+            ->middleware(['can:manage devices', 'throttle:20,1'])
+            ->name('api.speedtest.stop');
+        Route::post('/api/speedtest/restart', [\App\Http\Controllers\Web\MikrotikWebController::class, 'speedtestRestart'])
+            ->middleware(['can:manage devices', 'throttle:5,1'])
+            ->name('api.speedtest.restart');
     });
 
     // Voucher WiFi Mahasiswa (MikroTik Hotspot)
