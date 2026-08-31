@@ -68,6 +68,40 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
         lastCheckedIndex.current = null;
     };
 
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+    const handleBulkDelete = () => {
+        if (selectedVisibleIds.length === 0) return;
+
+        // Nama disebut sampai tiga saja; lebih dari itu daftarnya lebih panjang
+        // dari dialognya sendiri dan angka totalnya justru jadi sulit dibaca.
+        const names = selectedVisibleIds
+            .map(id => devices.find(d => d.id === id)?.name)
+            .filter(Boolean);
+        const preview = names.slice(0, 3).join(', ');
+        const rest = names.length - 3;
+
+        confirmAction({
+            title: `Hapus ${selectedVisibleIds.length} Perangkat`,
+            message:
+                `${preview}${rest > 0 ? ` dan ${rest} perangkat lain` : ''} akan dihapus permanen, ` +
+                'beserta data interface, neighbor, metrik, log monitoring, dan tiket maintenance-nya. ' +
+                'Tindakan ini tidak dapat dibatalkan.',
+            confirmLabel: `Hapus ${selectedVisibleIds.length} Perangkat`,
+            cancelLabel: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                setIsBulkDeleting(true);
+                router.delete(route('devices.bulk-destroy'), {
+                    data: { ids: selectedVisibleIds },
+                    preserveScroll: true,
+                    onSuccess: () => clearSelection(),
+                    onFinish: () => setIsBulkDeleting(false),
+                });
+            },
+        });
+    };
+
     // Izin dibaca dari props yang sudah dibagikan HandleInertiaRequests. Ini
     // hanya menentukan apakah tombol mata di modal detail digambar; penegakan
     // sebenarnya ada di endpoint `devices.credential` (middleware
@@ -75,6 +109,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
     // tidak membuka password apa pun.
     const { auth } = usePage().props;
     const canViewCredentials = (auth?.user?.permissions ?? []).includes('view device credentials');
+
+    // Tombol hapus digambar hanya untuk pemegang 'manage devices'. Ini murni soal
+    // tidak menyuguhkan tombol yang pasti berakhir 403; penegakannya ada di
+    // middleware route 'devices.destroy' dan 'devices.bulk-destroy', jadi
+    // menyunting nilai ini dari devtools tidak menghapus perangkat apa pun.
+    const canManageDevices = (auth?.user?.permissions ?? []).includes('manage devices');
 
     const handleSyncInterfaces = (deviceId) => {
         setIsSyncing(true);
@@ -337,6 +377,24 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 >
                                     Bersihkan pilihan
                                 </button>
+                                {/* Aksi merusak dipisah garis dan diberi warna sendiri supaya tidak
+                                    terklik saat pengguna sebenarnya mengincar tombol di sebelahnya. */}
+                                {canManageDevices && (
+                                    <>
+                                        <span className="mx-1 h-5 w-px bg-blue-200" aria-hidden="true"></span>
+                                        <button
+                                            type="button"
+                                            onClick={handleBulkDelete}
+                                            disabled={isBulkDeleting}
+                                            className="inline-flex items-center rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            <svg className="mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            {isBulkDeleting ? 'Menghapus...' : `Hapus ${selectedVisibleIds.length} Terpilih`}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
@@ -474,12 +532,14 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                     >
                                                         Edit
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleDelete(device.id)}
-                                                        className="rounded-lg bg-rose-50 border border-rose-200 text-red-700 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
-                                                    >
-                                                        Hapus
-                                                    </button>
+                                                    {canManageDevices && (
+                                                        <button
+                                                            onClick={() => handleDelete(device.id)}
+                                                            className="rounded-lg bg-rose-50 border border-rose-200 text-red-700 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
+                                                        >
+                                                            Hapus
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

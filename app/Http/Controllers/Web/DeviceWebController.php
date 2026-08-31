@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -191,6 +192,70 @@ class DeviceWebController extends Controller
         $this->deviceRepo->delete($id);
 
         return redirect()->route('devices.index')->with('success', 'Device deleted successfully.');
+    }
+
+    /**
+     * Hapus beberapa perangkat sekaligus, dari baris-baris yang dicentang di
+     * tabel inventaris.
+     *
+     * Sengaja endpoint tersendiri dan BUKAN pengulangan `devices.destroy` di
+     * sisi browser: menghapus 40 perangkat lewat 40 request DELETE berurutan
+     * bisa terhenti di tengah jalan — tab ditutup, sesi habis, jaringan putus —
+     * dan meninggalkan inventaris setengah terhapus tanpa satu titik jejak yang
+     * jelas. Di sini satu request adalah satu transaksi, jadi hasilnya cuma dua
+     * kemungkinan: semua terhapus, atau tidak satu pun.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            // Satu halaman inventaris memuat maksimal 100 baris (lihat index()),
+            // jadi batas ini menutup pintu bagi request rakitan yang mencoba
+            // menyapu seluruh tabel perangkat dalam satu panggilan.
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
+            'ids.*' => ['required', 'integer', 'min:1'],
+        ], [
+            'ids.required' => 'Tidak ada perangkat yang dipilih untuk dihapus.',
+            'ids.max' => 'Maksimal 100 perangkat dapat dihapus dalam satu kali proses.',
+        ]);
+
+        $devices = Device::whereIn('id', $validated['ids'])->get();
+
+        if ($devices->isEmpty()) {
+            return back()->with('error', 'Perangkat yang dipilih sudah tidak ada di inventaris.');
+        }
+
+        $deletedIds = $devices->pluck('id')->all();
+        $deletedNames = $devices->pluck('name')->all();
+
+        // Path foto dikumpulkan lebih dulu, tetapi filenya baru dihapus setelah
+        // transaksi commit. Penghapusan file tidak ikut ter-rollback, jadi kalau
+        // dilakukan di dalam transaksi yang kemudian gagal, baris perangkatnya
+        // kembali utuh sementara fotonya sudah hilang permanen.
+        $imagePaths = $devices->pluck('image_path')->filter()->all();
+
+        // Baris anakan (interface, neighbor, metrik, log monitoring, tiket
+        // maintenance) ikut terhapus lewat cascade di level database, jadi tidak
+        // ada yatim yang tertinggal. Voucher hotspot hanya kehilangan tautannya
+        // (nullOnDelete) — datanya tetap ada.
+        DB::transaction(function () use ($deletedIds) {
+            Device::whereIn('id', $deletedIds)->delete();
+        });
+
+        foreach ($imagePaths as $path) {
+            Storage::disk('public')->delete($path);
+        }
+
+        // Hapus massal adalah aksi yang tidak bisa dibatalkan dan menyentuh
+        // banyak baris sekaligus, jadi selalu tinggalkan jejak siapa dan apa.
+        Log::warning('DeviceWebController::bulkDestroy - hapus massal perangkat inventaris', [
+            'user_id' => $request->user()?->id,
+            'count' => count($deletedIds),
+            'device_ids' => $deletedIds,
+            'device_names' => $deletedNames,
+        ]);
+
+        return redirect()->route('devices.index')
+            ->with('success', count($deletedIds) . ' perangkat berhasil dihapus dari inventaris.');
     }
 
     /**

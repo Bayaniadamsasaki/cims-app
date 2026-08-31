@@ -32,7 +32,26 @@ Route::middleware('auth')->group(function () {
     Route::post('/devices/excel/upload', [\App\Http\Controllers\Web\DeviceWebController::class, 'uploadExcelView'])->name('devices.excel.upload');
     Route::post('/devices/{id}/sync-interfaces', [\App\Http\Controllers\Web\DeviceWebController::class, 'syncInterfaces'])->name('devices.sync-interfaces');
     Route::post('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'update'])->name('devices.update');
-    Route::delete('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'destroy'])->name('devices.destroy');
+    // Hapus massal harus dideklarasikan SEBELUM `devices/{id}` di bawahnya —
+    // kalau dibalik, '/devices/bulk-destroy' akan tertangkap lebih dulu oleh
+    // pola {id} dan berakhir sebagai upaya menghapus perangkat ber-id
+    // "bulk-destroy". `whereNumber` pada route di bawah menutup celah yang sama
+    // dari arah sebaliknya.
+    //
+    // Keduanya dipagari 'manage devices', izin yang sudah ada dan dipegang Super
+    // Admin serta Network Administrator. Sengaja memakai izin lama, bukan
+    // membuat 'delete devices' baru: izin baru berarti tidak seorang pun bisa
+    // menghapus perangkat sampai seeder dijalankan ulang di setiap environment.
+    // Yang ditutup di sini adalah lubang sebenarnya — sebelumnya kedua route
+    // hanya berpagar 'auth', sehingga Technician (yang tidak punya 'manage
+    // devices') tetap bisa menghapus perangkat lewat request langsung.
+    Route::delete('/devices/bulk-destroy', [\App\Http\Controllers\Web\DeviceWebController::class, 'bulkDestroy'])
+        ->middleware('can:manage devices')
+        ->name('devices.bulk-destroy');
+    Route::delete('/devices/{id}', [\App\Http\Controllers\Web\DeviceWebController::class, 'destroy'])
+        ->middleware('can:manage devices')
+        ->whereNumber('id')
+        ->name('devices.destroy');
 
     // Master Data CRUD
     Route::get('/buildings', [\App\Http\Controllers\Web\MasterWebController::class, 'buildingsIndex'])->name('buildings.index');
