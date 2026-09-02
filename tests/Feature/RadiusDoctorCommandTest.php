@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\RadiusDoctorCommand;
 use App\Models\HotspotVoucher;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,6 +100,12 @@ class RadiusDoctorCommandTest extends TestCase
      *
      * Voucher di bawah juga membuktikan yang diperiksa bukan cuma group default:
      * setiap profile yang dipakai voucher ikut dicari policy-nya.
+     *
+     * Yang dicocokkan "Group 'paket-dosen'" — kalimat catatannya — bukan
+     * 'paket-dosen' saja: expectsOutputToContain dicocokkan per baris tulisan, dan
+     * satu baris hanya pernah dihitung untuk SATU harapan. 'paket-dosen' akan
+     * memakan baris tabel yang justru membawa 'POLICY KOSONG', lalu harapan
+     * berikutnya tidak kebagian apa pun.
      */
     public function test_a_profile_without_policy_and_an_unregistered_router_only_warn(): void
     {
@@ -114,8 +121,8 @@ class RadiusDoctorCommandTest extends TestCase
         ]);
 
         $this->artisan('radius:doctor')
-            ->expectsOutputToContain('paket-dosen')
             ->expectsOutputToContain('POLICY KOSONG')
+            ->expectsOutputToContain("Group 'paket-dosen'")
             ->expectsOutputToContain('BELUM TERDAFTAR')
             ->expectsOutputToContain('Skema siap dipakai')
             ->assertExitCode(0);
@@ -166,9 +173,49 @@ class RadiusDoctorCommandTest extends TestCase
     }
 
     /**
+     * Kelas kegagalan koneksi, dibaca dari pesan PDO apa adanya.
+     *
+     * Ini yang menentukan urutan saran, dan salah menebaknya nyata merugikan:
+     * timeout yang dijawab "betulkan bind-address" membuat operator membongkar
+     * konfigurasi MariaDB yang sudah benar, padahal paketnya tidak pernah sampai
+     * ke sana. Sebaliknya, 'Access denied' berarti jaringannya justru sudah
+     * selesai — dan itu harus terbaca, bukan malah mengirim orang kembali ke
+     * firewall.
+     *
+     * Diuji lewat pesannya, bukan dengan menimbulkan timeout sungguhan: satu
+     * koneksi yang benar-benar dibuang menambah detik tunggu ke setiap kali test
+     * ini dijalankan, dan hasilnya berbeda-beda tergantung jaringan pemeriksanya.
+     */
+    public function test_the_connection_failure_class_is_read_from_the_pdo_message(): void
+    {
+        $class = fn (string $error) => RadiusDoctorCommand::failureClass($error);
+
+        // SYN yang dibuang. Windows dan Linux menuliskannya dengan kalimat berbeda.
+        $this->assertSame('network', $class('SQLSTATE[HY000] [2002] A connection attempt failed because the connected party did not properly respond after a period of time'));
+        $this->assertSame('network', $class('SQLSTATE[HY000] [2002] Connection timed out'));
+        $this->assertSame('network', $class('SQLSTATE[HY000] [2002] No route to host'));
+
+        // Ditolak cepat — berarti jaringannya tembus, bukan sebaliknya.
+        $this->assertSame('refused', $class('SQLSTATE[HY000] [2002] Connection refused'));
+        $this->assertSame('refused', $class('SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it'));
+
+        // Keduanya hanya mungkin setelah TCP handshake berhasil.
+        $this->assertSame('auth', $class("SQLSTATE[HY000] [1045] Access denied for user 'cims_radius'@'10.0.0.1' (using password: YES)"));
+        $this->assertSame('database', $class("SQLSTATE[1049] [1049] Unknown database 'radius'"));
+
+        $this->assertSame('host', $class('SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo failed: No such host is known'));
+
+        // Yang tidak dikenali jatuh ke daftar penyebab umum, bukan ke tebakan.
+        $this->assertSame('unknown', $class('SQLSTATE[HY000] [14] unable to open database file'));
+    }
+
+    /**
      * Koneksi yang gagal dari server lain hampir selalu bind-address, GRANT, atau
      * firewall — ketiganya dibereskan di server RADIUS, bukan di kode CIMS. Itulah
      * yang harus terbaca operator, bukan cuma pesan PDO.
+     *
+     * Kegagalan sqlite di sini tidak termasuk kelas yang dikenali, jadi test ini
+     * sekaligus memastikan cabang terakhir failureClass() tetap memberi saran.
      */
     public function test_an_unreachable_server_prints_the_three_usual_causes(): void
     {

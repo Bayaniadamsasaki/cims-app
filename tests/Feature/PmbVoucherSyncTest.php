@@ -42,6 +42,15 @@ class PmbVoucherSyncTest extends TestCase
 
     private const HASH = '$2y$10$contohhashsandisiska';
 
+    /**
+     * NIM yang dijawab API pada tarikan berikutnya — lihat fakeStudents().
+     *
+     * @var array<int,string>
+     */
+    private array $apiNims = [];
+
+    private bool $apiStubbed = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -509,23 +518,40 @@ class PmbVoucherSyncTest extends TestCase
      */
     private function fakeStudents(array $nims): void
     {
-        $rows = array_map(fn (string $nim) => $this->student($nim, '1988-05-30'), $nims);
+        $this->apiNims = $nims;
 
-        Http::fake([self::API . '*' => Http::response([
-            'success' => true,
-            'message' => 'Data mahasiswa',
-            'data' => $rows,
-            'meta' => [
-                'total' => count($rows),
-                'count' => count($rows),
-                'per_page' => 1000,
-                'total_pages' => 1,
-                'has_more_pages' => false,
-            ],
-            'list_program_studi' => [
-                ['id' => 18, 'nama_program_studi' => 'S1 Informatika'],
-            ],
-        ])]);
+        // Http::fake() MENUMPUK stub, bukan menggantikannya, dan stub pertama yang
+        // cocok itulah yang menjawab setiap permintaan (PendingRequest mengambil
+        // first()). Beberapa test di bawah memanggil helper ini dua kali — tarikan
+        // pertama membangun voucher, tarikan kedua kehilangan satu NIM — jadi
+        // stubnya dipasang sekali lalu membaca $apiNims yang berlaku saat itu.
+        // Tanpa ini tarikan kedua diam-diam menjawab daftar tarikan pertama, dan
+        // seluruh pengujian penonaktifan menguji hal yang salah.
+        if ($this->apiStubbed) {
+            return;
+        }
+
+        $this->apiStubbed = true;
+
+        Http::fake([self::API . '*' => function () {
+            $rows = array_map(fn (string $nim) => $this->student($nim, '1988-05-30'), $this->apiNims);
+
+            return Http::response([
+                'success' => true,
+                'message' => 'Data mahasiswa',
+                'data' => $rows,
+                'meta' => [
+                    'total' => count($rows),
+                    'count' => count($rows),
+                    'per_page' => 1000,
+                    'total_pages' => 1,
+                    'has_more_pages' => false,
+                ],
+                'list_program_studi' => [
+                    ['id' => 18, 'nama_program_studi' => 'S1 Informatika'],
+                ],
+            ]);
+        }]);
     }
 
     /**

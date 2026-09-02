@@ -84,7 +84,7 @@ class RadiusDoctorCommand extends Command
             $db->getPdo();
         } catch (\Throwable $e) {
             $this->error('Tidak bisa tersambung: '.$e->getMessage());
-            $this->connectionHints($config);
+            $this->connectionHints($config, $e->getMessage());
 
             return self::FAILURE;
         }
@@ -129,33 +129,187 @@ class RadiusDoctorCommand extends Command
     }
 
     /**
-     * Kegagalan koneksi dari server lain hampir selalu salah satu dari tiga ini,
-     * dan ketiganya dibereskan di server RADIUS, bukan di kode CIMS.
+     * Lapisan mana yang rusak, dibaca dari pesan PDO-nya.
+     *
+     * Tiga kegagalan yang paling sering terjadi terbaca sama oleh operator —
+     * "tidak bisa tersambung" — padahal yang harus dibereskan berbeda, dan pesan
+     * PDO sudah cukup untuk memisahkannya:
+     *
+     *   - paket DITOLAK dijawab kernel dalam milidetik → jaringannya tembus,
+     *     yang salah listener MariaDB-nya (bind-address, service mati, port);
+     *   - paket DIBUANG membuat CIMS menunggu sampai batas waktu → firewall atau
+     *     rute, dan MariaDB belum tentu salah apa pun;
+     *   - 'Access denied' hanya mungkin SETELAH TCP handshake berhasil → jaringan
+     *     dan listener sudah beres, tinggal user/host/password.
+     *
+     * Karena itu urutan sarannya tidak boleh tetap. Menyarankan "betulkan
+     * bind-address" pada sebuah timeout membuat operator membongkar konfigurasi
+     * MariaDB yang sudah benar, sementara paketnya tidak pernah sampai ke sana.
      */
-    protected function connectionHints(array $config): void
+    public static function failureClass(string $error): string
+    {
+        $error = strtolower($error);
+
+        return match (true) {
+            str_contains($error, 'access denied') => 'auth',
+            str_contains($error, 'unknown database') => 'database',
+            str_contains($error, 'getaddrinfo'),
+            str_contains($error, 'php_network_getaddresses'),
+            str_contains($error, 'unknown mysql server host') => 'host',
+            str_contains($error, 'refused') => 'refused',
+            str_contains($error, 'timed out'),
+            str_contains($error, 'timeout'),
+            str_contains($error, 'did not properly respond'),
+            str_contains($error, 'failed to respond'),
+            str_contains($error, 'no route to host'),
+            str_contains($error, 'network is unreachable') => 'network',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * Saran perbaikan, diurutkan menurut kelas kegagalannya — lihat failureClass().
+     * Semuanya dibereskan di server RADIUS atau di .env, bukan di kode CIMS.
+     */
+    protected function connectionHints(array $config, string $error): void
     {
         $user = $config['username'] ?: 'cims';
         $database = $config['database'] ?: 'radius';
 
+        $host = filled($config['host'] ?? null) ? $config['host'] : '<ip-server-radius>';
+        $port = filled($config['port'] ?? null) ? $config['port'] : 3306;
+
         $this->newLine();
-        $this->warn('Penyebab paling sering, urut dari yang paling sering:');
+
+        match (self::failureClass($error)) {
+            'network' => $this->networkHints($host, $port),
+            'refused' => $this->refusedHints($host, $port),
+            'auth' => $this->authHints($user, $database),
+            'database' => $this->databaseHints($user, $database),
+            'host' => $this->hostHints($host),
+            default => $this->genericHints($user, $database),
+        };
+
         $this->newLine();
-        $this->line('1) MariaDB di server RADIUS hanya mendengar localhost.');
-        $this->line('   /etc/mysql/mariadb.conf.d/50-server.cnf → bind-address = 0.0.0.0');
+        $this->line('Jangan buka '.$port.' ke internet: radcheck menyimpan password mahasiswa apa adanya.');
+    }
+
+    /**
+     * Paket dibuang di jalan. Yang perlu dibereskan ada di antara kedua server,
+     * bukan di MariaDB — dan kalimat terakhir menutup salah paham yang mahal:
+     * doctor yang dijalankan dari laptop dev memang harus timeout, karena user
+     * MySQL-nya dikunci ke IP server CIMS.
+     */
+    protected function networkHints(string $host, int|string $port): void
+    {
+        $this->warn('Paket ke '.$host.':'.$port.' DIBUANG, bukan ditolak.');
+        $this->line('Koneksi yang ditolak dijawab kernel dalam hitungan milidetik; yang dibuang');
+        $this->line('membuat CIMS menunggu sampai batas waktu. Jadi MariaDB belum tentu salah.');
+        $this->newLine();
+        $this->line('1) Firewall menutup '.$port.' — di server RADIUS, atau di antara keduanya.');
+        $this->line('   Di server RADIUS: ufw allow from <ip-server-cims> to any port '.$port.' proto tcp');
+        $this->newLine();
+        $this->line('2) Tidak ada rute atau VLAN dari server CIMS ke '.$host.'.');
+        $this->line('   Dari server CIMS: ip route get '.$host);
+        $this->newLine();
+        $this->line('3) MariaDB tidak berjalan: systemctl status mariadb');
+        $this->newLine();
+        $this->line('Uji lapisan jaringannya sendiri, dari server CIMS:');
+        $this->line('   nc -vz '.$host.' '.$port);
+        $this->line('Kalau nc berhasil tapi perintah ini tetap timeout, berarti perintah ini');
+        $this->line('dijalankan dari mesin lain — laptop dev, bukan server CIMS. User MySQL CIMS');
+        $this->line('dikunci ke IP server CIMS, jadi radius:doctor harus dijalankan di sana.');
+    }
+
+    /** Ditolak cepat berarti jaringannya sudah tembus; yang belum ada listener-nya. */
+    protected function refusedHints(string $host, int|string $port): void
+    {
+        $this->warn('Koneksi DITOLAK cepat — jaringannya tembus, listener-nya yang belum ada.');
+        $this->newLine();
+        $this->line('1) MariaDB hanya mendengar localhost.');
+        $this->line('   /etc/mysql/mariadb.conf.d/50-server.cnf → bind-address = '.$host);
         $this->line('   lalu: systemctl restart mariadb');
+        $this->line('   Periksa: ss -lntp | grep '.$port);
         $this->newLine();
-        $this->line('2) User MySQL untuk CIMS belum ada, atau host-nya tidak mengizinkan IP CIMS.');
+        $this->line('2) MariaDB mati: systemctl status mariadb');
+        $this->newLine();
+        $this->line('3) RADIUS_DB_PORT tidak sama dengan port yang didengar MariaDB.');
+    }
+
+    /**
+     * 'Access denied' adalah kabar setengah baik: TCP handshake-nya berhasil, jadi
+     * firewall dan bind-address sudah tidak perlu disentuh lagi.
+     */
+    protected function authHints(string $user, string $database): void
+    {
+        $this->warn('Jaringan sudah beres — ini ditolak MariaDB, bukan firewall.');
+        $this->line('Yang salah salah satu dari tiga: nama user, host asalnya, atau password.');
+        $this->newLine();
+        $this->line("1) User '{$user}' belum ada untuk host asal koneksi ini.");
+        $this->line("   Di server RADIUS: SELECT user, host FROM mysql.user WHERE user = '{$user}';");
+        $this->line("   Host-nya harus IP server CIMS — 'localhost' tidak berlaku dari server lain.");
+        $this->newLine();
+        $this->line('2) RADIUS_DB_PASSWORD berbeda dengan yang tercatat di MariaDB.');
+        $this->line('   Setelah memperbaiki .env: php artisan config:clear');
+        $this->newLine();
+        $this->line('3) User-nya ada, tapi belum punya izin di database ini:');
+        $this->grantBlock($user, $database);
+    }
+
+    /**
+     * Izin seminimal mungkin. CIMS menulis tiga tabel dan membaca sisanya; tanpa
+     * CREATE/ALTER/DROP, MariaDB sendiri yang menjamin skema RADIUS tidak berubah
+     * — bukan kesepakatan di kode. `GRANT ALL ON radius.*` justru memberikannya.
+     */
+    protected function grantBlock(string $user, string $database): void
+    {
         $this->line("   CREATE USER '{$user}'@'<ip-server-cims>' IDENTIFIED BY '<password>';");
         $this->line('   GRANT SELECT, INSERT, UPDATE, DELETE ON `'.$database.'`.radcheck');
-        $this->line('     TO \''.$user.'\'@\'<ip-server-cims>\';   -- ulangi untuk radreply & radusergroup');
+        $this->line("     TO '{$user}'@'<ip-server-cims>';   -- ulangi untuk radreply & radusergroup");
         $this->line('   GRANT SELECT ON `'.$database.'`.radgroupcheck TO ...  -- juga radgroupreply,');
         $this->line('     radacct, radpostauth, nas');
         $this->line('   FLUSH PRIVILEGES;');
+    }
+
+    /**
+     * Login lolos tapi database tidak terlihat. MariaDB menyembunyikan database
+     * yang tidak ada izinnya, jadi "hilang" dan "tidak diizinkan" terlihat sama.
+     */
+    protected function databaseHints(string $user, string $database): void
+    {
+        $this->warn("Login berhasil, tapi database '{$database}' tidak terlihat oleh user ini.");
+        $this->newLine();
+        $this->line('1) Nama di RADIUS_DB_DATABASE salah.');
+        $this->line('   Di server RADIUS: SHOW DATABASES;');
+        $this->newLine();
+        $this->line("2) User '{$user}' belum punya izin apa pun di database itu — MariaDB");
+        $this->line('   menyembunyikan yang tidak diizinkan, jadi terlihat seperti tidak ada.');
+        $this->grantBlock($user, $database);
+    }
+
+    /** Belum sampai ke lapisan TCP: namanya sendiri yang tidak bisa diterjemahkan. */
+    protected function hostHints(string $host): void
+    {
+        $this->warn("Nama host '{$host}' tidak bisa diterjemahkan menjadi IP.");
+        $this->newLine();
+        $this->line('1) Salah tulis di RADIUS_DB_HOST.');
+        $this->line('2) Pakai IP, bukan hostname — satu lapis lagi yang bisa gagal, tanpa manfaat di sini.');
+    }
+
+    /** Kegagalan yang tidak dikenali: kembali ke tiga penyebab yang paling sering. */
+    protected function genericHints(string $user, string $database): void
+    {
+        $this->warn('Penyebab paling sering:');
+        $this->newLine();
+        $this->line('1) MariaDB di server RADIUS hanya mendengar localhost.');
+        $this->line('   /etc/mysql/mariadb.conf.d/50-server.cnf → bind-address = <ip-lan-server-radius>');
+        $this->line('   lalu: systemctl restart mariadb');
+        $this->newLine();
+        $this->line('2) User MySQL untuk CIMS belum ada, atau host-nya tidak mengizinkan IP CIMS.');
+        $this->grantBlock($user, $database);
         $this->newLine();
         $this->line('3) Firewall server RADIUS menutup 3306.');
         $this->line('   ufw allow from <ip-server-cims> to any port 3306 proto tcp');
-        $this->newLine();
-        $this->line('Jangan buka 3306 ke internet: radcheck menyimpan password mahasiswa apa adanya.');
     }
 
     /** Versi server dan identitas login, supaya jelas ini benar-benar DB yang dituju. */
