@@ -112,6 +112,44 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        // Database FreeRADIUS. Servernya terpisah dari CIMS dan punya MariaDB
+        // sendiri berisi skema rlm_sql stok (radcheck, radreply, radusergroup,
+        // radgroup*, radacct, radpostauth, nas, nasreload), jadi koneksi ini
+        // berdiri sendiri dan tidak boleh meminjam kredensial DB_*.
+        //
+        // RADIUS_DB_CONNECTION ada supaya phpunit.xml bisa mengarahkan koneksi
+        // ini ke sqlite :memory: — test tidak pernah menyentuh RADIUS asli.
+        'radius' => [
+            'driver' => env('RADIUS_DB_CONNECTION', 'mysql'),
+            'url' => env('RADIUS_DB_URL'),
+            'host' => env('RADIUS_DB_HOST', '127.0.0.1'),
+            'port' => env('RADIUS_DB_PORT', '3306'),
+            'database' => env('RADIUS_DB_DATABASE', 'radius'),
+            'username' => env('RADIUS_DB_USERNAME'),
+            'password' => env('RADIUS_DB_PASSWORD'),
+            'unix_socket' => env('RADIUS_DB_SOCKET', ''),
+            'charset' => env('RADIUS_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('RADIUS_DB_COLLATION', 'utf8mb4_general_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+
+            // Sengaja tidak strict, berbeda dari blok mysql di atas: skema ini
+            // milik FreeRADIUS, bukan hasil migrasi CIMS. ONLY_FULL_GROUP_BY
+            // yang dibawa strict mode akan mematahkan query agregat ke radacct,
+            // dan tanggal nol pada baris akunting lama bukan urusan kita.
+            'strict' => false,
+            'engine' => null,
+
+            // RADIUS ada di seberang jaringan kampus. Tanpa batas waktu koneksi,
+            // satu server RADIUS yang mati membuat request halaman voucher
+            // menggantung sampai timeout PHP, bukan sekadar menampilkan status
+            // "tidak tersambung".
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::ATTR_TIMEOUT => (int) env('RADIUS_DB_TIMEOUT', 5),
+                PDO::MYSQL_ATTR_SSL_CA => env('RADIUS_DB_SSL_CA'),
+            ]) : [],
+        ],
+
     ],
 
     /*

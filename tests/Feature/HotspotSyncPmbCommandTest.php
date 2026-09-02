@@ -6,16 +6,19 @@ use App\Models\HotspotVoucher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\InteractsWithRadius;
 use Tests\TestCase;
 
 /**
  * `hotspot:sync-pmb` adalah jalur tanpa layar untuk menarik mahasiswa dari
  * SISKA. Yang diuji di sini perilaku perintahnya: router tujuan diambil dari
- * .env, kegagalan API tidak berakhir sebagai exception mentah, dan laporannya
- * menyebutkan siapa yang passwordnya memakai NIM.
+ * .env, kegagalan API tidak berakhir sebagai exception mentah, laporannya
+ * menyebutkan siapa yang passwordnya memakai NIM, dan dua opsi yang mengatur
+ * penutupan akses — --no-deactivate serta --force — benar-benar tersambung.
  */
 class HotspotSyncPmbCommandTest extends TestCase
 {
+    use InteractsWithRadius;
     use RefreshDatabase;
 
     private const ROUTER = '198.51.100.5';
@@ -25,6 +28,8 @@ class HotspotSyncPmbCommandTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->setUpRadiusDatabase();
 
         config([
             'services.pmb.url' => self::API,
@@ -109,6 +114,67 @@ class HotspotSyncPmbCommandTest extends TestCase
         ])]);
 
         $this->artisan('hotspot:sync-pmb')->assertExitCode(1);
+    }
+
+    /**
+     * Penutupan akses adalah satu-satunya hal yang perintah ini lakukan tanpa
+     * ada orang yang menekan tombol, jadi jumlahnya harus terbaca di laporan —
+     * bukan cuma terjadi diam-diam di database.
+     *
+     * Tiga voucher PMB, tarikan hanya membawa dua: 2 dari 3 masih di bawah
+     * ambang, jadi pengaman menahan penutupan sampai --force diberikan.
+     */
+    public function test_the_report_names_the_closings_and_holds_them_until_force_is_given(): void
+    {
+        $this->pmbVoucher('2101001');
+        $this->pmbVoucher('2101002');
+        $gone = $this->pmbVoucher('2101003');
+
+        $this->fakeApi();
+
+        $this->artisan('hotspot:sync-pmb')
+            ->expectsOutputToContain('Tidak ada lagi di SISKA')
+            ->expectsOutputToContain('--force')
+            ->assertExitCode(0);
+
+        $this->assertSame(HotspotVoucher::STATUS_SYNCED, $gone->refresh()->status, 'Pengaman justru tidak menahan apa pun.');
+        $this->assertSame([], $this->radiusCheck('2101003'));
+
+        $this->artisan('hotspot:sync-pmb', ['--force' => true])
+            ->expectsOutputToContain('Di antaranya ditutup sekarang')
+            ->assertExitCode(0);
+
+        $gone->refresh();
+        $this->assertSame(HotspotVoucher::STATUS_DISABLED, $gone->status);
+        $this->assertSame('tidak ada di PMB', $gone->disabled_reason);
+        $this->assertSame('Reject', $this->radiusCheck('2101003')['Auth-Type'] ?? null);
+    }
+
+    /** Jalur untuk tarikan yang diketahui tidak lengkap: tulis yang ada, jangan tutup apa pun. */
+    public function test_no_deactivate_leaves_the_missing_nims_open(): void
+    {
+        $this->pmbVoucher('2101001');
+        $this->pmbVoucher('2101002');
+        $gone = $this->pmbVoucher('2101003');
+
+        $this->fakeApi();
+
+        $this->artisan('hotspot:sync-pmb', ['--no-deactivate' => true])->assertExitCode(0);
+
+        $this->assertSame(HotspotVoucher::STATUS_SYNCED, $gone->refresh()->status);
+        $this->assertSame([], $this->radiusCheck('2101003'));
+    }
+
+    /** Voucher yang sudah pernah dilihat sinkronisasi PMB — hanya ini yang boleh ditutup. */
+    private function pmbVoucher(string $nim): HotspotVoucher
+    {
+        return HotspotVoucher::create([
+            'nim' => $nim,
+            'password' => 'lama' . $nim,
+            'router_host' => self::ROUTER,
+            'source' => HotspotVoucher::SOURCE_PMB,
+            'status' => HotspotVoucher::STATUS_SYNCED,
+        ]);
     }
 
     /** Satu halaman: satu mahasiswa bertanggal lahir, satu tanpa. */

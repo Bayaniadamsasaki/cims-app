@@ -78,6 +78,21 @@ return [
         // bisa pindah ke 6 digit tanpa menyentuh kode:
         //   dmY → 30051988 (bawaan)      dmy → 300588
         'password_format' => env('HOTSPOT_PASSWORD_FORMAT', 'dmY'),
+
+        // Voucher tidak lagi dituliskan ke /ip/hotspot/user milik tiap router,
+        // melainkan ke database FreeRADIUS; router hotspot cukup menanyakan
+        // NIM + password lewat Access-Request. Kredensial database RADIUS ada di
+        // connection 'radius' pada config/database.php, bukan di sini.
+        'radius' => [
+            'connection' => env('HOTSPOT_RADIUS_CONNECTION', 'radius'),
+
+            // groupname di radusergroup untuk voucher yang kolom profile-nya
+            // kosong. Group inilah pemegang policy paket (rate limit, session
+            // timeout, dsb) di radgroupreply — tanpa group, mahasiswa tetap bisa
+            // login tapi tanpa batas apa pun. Dikosongkan berarti baris
+            // radusergroup tidak ditulis sama sekali.
+            'default_group' => env('HOTSPOT_RADIUS_DEFAULT_GROUP'),
+        ],
     ],
 
     // API SISKA/PMB, sumber daftar mahasiswa untuk voucher hotspot.

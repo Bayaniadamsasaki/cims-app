@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\HotspotVoucher;
 use App\Support\HotspotVoucherWriter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -65,6 +66,11 @@ class HotspotVouchersImport implements ToCollection
             batchLabel: $batchLabel,
             userId: $userId,
             validUntil: $validUntil,
+
+            // Baris dari Excel ditandai 'import' supaya sinkronisasi PMB tidak
+            // pernah menonaktifkannya: daftar unggahan biasanya memuat dosen,
+            // staf, dan tamu yang memang tidak ada di PMB.
+            source: HotspotVoucher::SOURCE_IMPORT,
         );
     }
 

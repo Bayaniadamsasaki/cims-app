@@ -24,9 +24,21 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
+
+        <!-- Group RADIUS bawaan dikosongkan supaya nilai HOTSPOT_RADIUS_DEFAULT_GROUP
+             di .env mesin pengembang tidak ikut menentukan hasil test: profile yang
+             diuji selalu dipatok config() di dalam test-nya sendiri. -->
+        <env name="HOTSPOT_RADIUS_DEFAULT_GROUP" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+
+        <!-- Koneksi RADIUS diarahkan ke sqlite :memory: agar test tidak pernah
+             menyentuh database FreeRADIUS yang sebenarnya. RADIUS_DB_USERNAME
+             diisi supaya RadiusService::configured() tetap bernilai true. -->
+        <env name="RADIUS_DB_CONNECTION" value="sqlite"/>
+        <env name="RADIUS_DB_DATABASE" value=":memory:"/>
+        <env name="RADIUS_DB_USERNAME" value="testing"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
     </php>

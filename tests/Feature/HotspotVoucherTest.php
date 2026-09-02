@@ -5,15 +5,19 @@ namespace Tests\Feature;
 use App\Models\HotspotVoucher;
 use App\Models\User;
 use App\Services\MikrotikService;
+use App\Support\VoucherRadiusApplier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Mockery\MockInterface;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use Tests\Concerns\InteractsWithRadius;
 use Tests\TestCase;
 
 class HotspotVoucherTest extends TestCase
 {
+    use InteractsWithRadius;
     use RefreshDatabase;
 
     /**
@@ -26,18 +30,22 @@ class HotspotVoucherTest extends TestCase
     /** Router hotspot uji — sengaja beda dari HOST agar prioritas config teruji. */
     private const HOTSPOT_HOST = '198.51.100.2';
 
-    /** Router pihak ketiga, untuk memastikan data antar-router tidak bocor. */
+    /** Router lain, dipakai membuktikan daftar voucher tidak lagi disaring per router. */
     private const OTHER_HOST = '198.51.100.9';
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        // Terapkan & hapus voucher kini menulis ke RADIUS, jadi tabelnya harus ada.
+        $this->setUpRadiusDatabase();
+
         // HOTSPOT_ROUTER_HOST menang atas MIKROTIK_HOST, jadi keduanya dipatok
         // di sini supaya test tidak tergantung isi .env mesin pengembang.
         config([
             'services.hotspot.router_host' => null,
             'services.hotspot.default_profile' => null,
+            'services.hotspot.radius.default_group' => null,
             'services.mikrotik.host' => self::HOST,
         ]);
     }
@@ -87,7 +95,7 @@ class HotspotVoucherTest extends TestCase
         $voucher = HotspotVoucher::firstOrFail();
 
         $this->assertSame(self::HOTSPOT_HOST, $voucher->router_host);
-        $this->assertNotSame(self::HOST, $voucher->router_host, 'Voucher justru dipush ke router monitoring.');
+        $this->assertNotSame(self::HOST, $voucher->router_host, 'Router monitoring justru yang tercatat.');
     }
 
     public function test_manual_voucher_defaults_its_password_to_the_nim(): void
@@ -110,14 +118,45 @@ class HotspotVoucherTest extends TestCase
         $this->assertSame('2101001', $voucher->password, 'Password harus otomatis sama dengan NIM.');
         $this->assertSame(HotspotVoucher::STATUS_PENDING, $voucher->status);
         $this->assertSame(self::HOST, $voucher->router_host);
-        $this->assertNull($voucher->mikrotik_id, 'Router belum boleh disentuh sebelum push.');
+        $this->assertNull($voucher->mikrotik_id);
+        $this->assertSame([], $this->radiusCheck('2101001'),
+            'Menyimpan voucher belum menulis apa pun ke RADIUS — itu tugas tombol Terapkan.');
     }
 
-    public function test_duplicate_nim_on_the_same_router_is_rejected(): void
+    /**
+     * Kolom profile bermuara di radusergroup.groupname sekarang, jadi group RADIUS
+     * yang harus menang. HOTSPOT_DEFAULT_PROFILE tinggal cadangan: nama
+     * user-profile RouterOS yang basi hanya akan menempatkan mahasiswa di group
+     * tanpa policy — bisa login, tanpa batas kecepatan apa pun.
+     */
+    public function test_the_radius_group_wins_over_the_old_router_profile(): void
+    {
+        config([
+            'services.hotspot.radius.default_group' => 'group-radius',
+            'services.hotspot.default_profile' => 'profile-router-lama',
+        ]);
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('hotspot.vouchers.store'), ['nim' => '2101001'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('group-radius', HotspotVoucher::where('nim', '2101001')->value('profile'));
+    }
+
+    /**
+     * NIM unik untuk seluruh kampus, bukan lagi per router: yang menjawab
+     * Access-Request untuk semua router hotspot hanya satu server RADIUS, dan
+     * username di sana cuma ada satu.
+     */
+    public function test_duplicate_nim_is_rejected_campus_wide(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->post(route('hotspot.vouchers.store'), ['nim' => '2101001']);
+        // Barisnya tercatat di router lain — dulu ini sah, sekarang tidak lagi.
+        HotspotVoucher::create([
+            'nim' => '2101001', 'password' => '2101001', 'router_host' => self::OTHER_HOST,
+            'status' => HotspotVoucher::STATUS_SYNCED,
+        ]);
 
         $this->actingAs($user)
             ->post(route('hotspot.vouchers.store'), ['nim' => '2101001'])
@@ -173,47 +212,44 @@ class HotspotVoucherTest extends TestCase
         $this->assertSame(0, HotspotVoucher::count());
     }
 
-    public function test_push_marks_synced_rows_and_records_per_row_failures(): void
+    /**
+     * Kegagalan tulis sekarang berlaku per chunk, bukan per baris: satu transaksi
+     * menulis 500 voucher sekaligus, jadi yang harus dijaga bukan lagi "baris mana
+     * yang gagal" melainkan bahwa kegagalannya tercatat dan RADIUS tidak
+     * tertinggal setengah tertulis.
+     */
+    public function test_a_failed_radius_write_marks_the_rows_failed_and_leaves_radius_untouched(): void
     {
-        $user = User::factory()->create();
-
-        $ok = HotspotVoucher::create([
+        $voucher = HotspotVoucher::create([
             'nim' => '2101001', 'password' => '2101001', 'router_host' => self::HOST,
             'status' => HotspotVoucher::STATUS_PENDING,
         ]);
-        $bad = HotspotVoucher::create([
-            'nim' => '2101002', 'password' => '2101002', 'router_host' => self::HOST,
-            'status' => HotspotVoucher::STATUS_PENDING,
-        ]);
 
-        $this->mock(MikrotikService::class, function (MockInterface $mock) {
-            $mock->shouldReceive('testConnection')->andReturn(['success' => true, 'identity' => 'uji']);
-            $mock->shouldReceive('upsertHotspotUser')
-                ->with(self::HOST, \Mockery::on(fn ($attr) => $attr['name'] === '2101001'))
-                ->andReturn('*1A');
-            $mock->shouldReceive('upsertHotspotUser')
-                ->with(self::HOST, \Mockery::on(fn ($attr) => $attr['name'] === '2101002'))
-                ->andThrow(new \RuntimeException('RouterOS menolak perintah: user profile not found'));
-        });
+        // health() hanya membaca radcheck, jadi hilangnya radreply baru terasa saat
+        // penulisan berjalan — persis seperti hak akses yang kurang di satu tabel.
+        Schema::connection($this->radiusConnection)->drop('radreply');
 
-        $this->actingAs($user)
+        $this->actingAs(User::factory()->create())
             ->post(route('hotspot.vouchers.push'))
             ->assertRedirect()
-            ->assertSessionHas('error'); // ada 1 kegagalan → flash error, bukan success
+            ->assertSessionHas('error')
+            ->assertSessionMissing('success');
 
-        $ok->refresh();
-        $this->assertSame(HotspotVoucher::STATUS_SYNCED, $ok->status);
-        $this->assertSame('*1A', $ok->mikrotik_id);
-        $this->assertNotNull($ok->synced_at);
-        $this->assertNull($ok->last_error);
+        $voucher->refresh();
+        $this->assertSame(HotspotVoucher::STATUS_FAILED, $voucher->status);
+        $this->assertNotNull($voucher->last_error);
+        $this->assertNull($voucher->synced_at);
 
-        $bad->refresh();
-        $this->assertSame(HotspotVoucher::STATUS_FAILED, $bad->status);
-        $this->assertStringContainsString('user profile not found', $bad->last_error);
-        $this->assertNull($bad->mikrotik_id);
+        // Transaksinya utuh: kredensial tidak boleh separuh sampai di RADIUS.
+        $this->assertSame([], $this->radiusCheck('2101001'));
     }
 
-    public function test_push_aborts_when_the_router_is_unreachable(): void
+    /**
+     * Kebalikan dari aturan lama. Dulu router yang tidak bisa dihubungi
+     * membatalkan push; sekarang voucher tidak lewat router sama sekali, jadi
+     * router mati pun tidak boleh menghalangi mahasiswa mendapat akses.
+     */
+    public function test_an_unreachable_router_no_longer_blocks_a_push(): void
     {
         $voucher = HotspotVoucher::create([
             'nim' => '2101001', 'password' => '2101001', 'router_host' => self::HOST,
@@ -227,9 +263,10 @@ class HotspotVoucherTest extends TestCase
 
         $this->actingAs(User::factory()->create())
             ->post(route('hotspot.vouchers.push'))
-            ->assertSessionHas('error');
+            ->assertSessionHas('success');
 
-        $this->assertSame(HotspotVoucher::STATUS_PENDING, $voucher->refresh()->status);
+        $this->assertSame(HotspotVoucher::STATUS_SYNCED, $voucher->refresh()->status);
+        $this->assertSame('2101001', $this->radiusCheck('2101001')['Cleartext-Password'] ?? null);
     }
 
     public function test_editing_credentials_sends_a_synced_voucher_back_to_pending(): void
@@ -254,7 +291,12 @@ class HotspotVoucherTest extends TestCase
         $this->assertSame(HotspotVoucher::STATUS_PENDING, $voucher->refresh()->status);
     }
 
-    public function test_index_lists_vouchers_with_stats_and_defers_router_lookups(): void
+    /**
+     * Daftar voucher tidak lagi disaring per router. Sejak RADIUS yang menjawab
+     * seluruh router hotspot, menyembunyikan voucher milik alamat router lain cuma
+     * membuat NIM yang sudah aktif di kampus terlihat belum ada.
+     */
+    public function test_index_lists_every_router_and_defers_router_lookups(): void
     {
         HotspotVoucher::create([
             'nim' => '2101001', 'password' => '2101001', 'router_host' => self::HOST,
@@ -264,12 +306,13 @@ class HotspotVoucherTest extends TestCase
             'nim' => '2101002', 'password' => '2101002', 'router_host' => self::HOST,
             'status' => HotspotVoucher::STATUS_SYNCED,
         ]);
-        // Voucher milik router lain tidak boleh bocor ke halaman ini.
         HotspotVoucher::create([
             'nim' => '2101003', 'password' => '2101003', 'router_host' => self::OTHER_HOST,
             'status' => HotspotVoucher::STATUS_PENDING,
         ]);
 
+        // Probe router hanya milik prop deferred: kunjungan pertama tidak boleh
+        // menunggu jaringan sama sekali.
         $this->mock(MikrotikService::class, function (MockInterface $mock) {
             $mock->shouldNotReceive('testConnection');
             $mock->shouldNotReceive('getHotspotProfiles');
@@ -279,9 +322,10 @@ class HotspotVoucherTest extends TestCase
             ->get(route('hotspot.vouchers.index'))
             ->assertInertia(fn ($page) => $page
                 ->component('Hotspot/Vouchers')
-                ->has('vouchers.data', 2)
-                ->where('stats.total', 2)
-                ->where('stats.pending', 1)
+                ->has('vouchers.data', 3)
+                ->where('vouchers.data.2.nim', '2101003')
+                ->where('stats.total', 3)
+                ->where('stats.pending', 2)
                 ->where('stats.synced', 1)
                 ->where('routerHost', self::HOST)
                 ->has('batches', 1)
@@ -381,12 +425,21 @@ class HotspotVoucherTest extends TestCase
         $this->assertSame('Budi Santoso', HotspotVoucher::where('nim', '2101001')->firstOrFail()->student_name);
     }
 
-    public function test_deleting_a_synced_voucher_also_removes_it_from_the_router(): void
+    /**
+     * Menghapus voucher mencabut kredensialnya di RADIUS. Baris /ip/hotspot/user
+     * sisa era push-ke-router tetap ikut dibersihkan bila mikrotik_id-nya masih
+     * terisi — router memakainya sebagai database lokal, jadi meninggalkannya
+     * berarti mahasiswa itu masih bisa login di router tersebut.
+     */
+    public function test_deleting_a_voucher_revokes_radius_and_cleans_a_legacy_router_entry(): void
     {
         $voucher = HotspotVoucher::create([
             'nim' => '2101001', 'password' => '2101001', 'router_host' => self::HOST,
             'status' => HotspotVoucher::STATUS_SYNCED, 'mikrotik_id' => '*1A',
         ]);
+
+        app(VoucherRadiusApplier::class)->apply([$voucher]);
+        $this->assertNotSame([], $this->radiusCheck('2101001'), 'Prasyarat: kredensialnya memang ada dulu.');
 
         $this->mock(MikrotikService::class, function (MockInterface $mock) {
             $mock->shouldReceive('deleteHotspotUser')->once()->with(self::HOST, '*1A');
@@ -397,6 +450,8 @@ class HotspotVoucherTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertSame(0, HotspotVoucher::count());
+        $this->assertSame([], $this->radiusCheck('2101001'));
+        $this->assertSame([], $this->radiusGroupsOf('2101001'));
     }
 
     /**

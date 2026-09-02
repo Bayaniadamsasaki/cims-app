@@ -9,6 +9,8 @@ use App\Models\HotspotVoucher;
 use App\Services\MikrotikService;
 use App\Services\PmbStudentService;
 use App\Services\PmbVoucherSync;
+use App\Services\RadiusService;
+use App\Support\VoucherRadiusApplier;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,31 +21,42 @@ use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * Voucher WiFi mahasiswa: kelola daftar NIM + password di database CIMS,
- * lalu push ke /ip/hotspot/user pada router MikroTik.
+ * Voucher WiFi mahasiswa: kelola daftar NIM + password di database CIMS, lalu
+ * terapkan ke database FreeRADIUS.
  *
- * Alur sengaja dua tahap (simpan dulu → push manual) supaya file Excel yang
- * salah tidak langsung mengotori konfigurasi router.
+ * Satu identitas berlaku di semua router hotspot kampus. Yang menjawab
+ * Access-Request cuma satu server RADIUS, jadi voucher tidak lagi milik router
+ * tertentu — kolom router_host tinggal catatan router yang dipakai saat baris ini
+ * dibuat, bukan penentu apa pun.
+ *
+ * Alurnya tetap sengaja dua tahap (simpan dulu → terapkan manual) supaya file
+ * Excel yang salah tidak langsung mengubah siapa yang boleh login.
+ *
+ * MikrotikService tetap dipakai, tapi hanya untuk yang memang cuma diketahui
+ * router: sesi yang sedang berjalan dan memutusnya.
  */
 class HotspotVoucherWebController extends Controller
 {
-    /** Maksimal voucher yang dikirim ke router dalam satu klik push. */
-    protected const PUSH_CHUNK = 300;
-
     /** Batas aman jumlah kartu voucher per file PDF. */
     protected const PRINT_LIMIT = 2000;
 
-    public function __construct(protected MikrotikService $mikrotik)
-    {
+    public function __construct(
+        protected MikrotikService $mikrotik,
+        protected RadiusService $radius,
+        protected VoucherRadiusApplier $applier,
+    ) {
     }
 
     /**
-     * Router tujuan: dari query string, HOTSPOT_ROUTER_HOST, MIKROTIK_HOST,
-     * atau router MikroTik pertama di inventaris.
+     * Router yang sedang dilihat: dari query string, HOTSPOT_ROUTER_HOST,
+     * MIKROTIK_HOST, atau router MikroTik pertama di inventaris.
      *
-     * HOTSPOT_ROUTER_HOST didahulukan karena router yang menjalankan hotspot
-     * biasanya bukan router uplink yang dipakai monitoring — voucher yang masuk
-     * ke router salah akan ditolak dengan "username doesn't exist".
+     * Sejak voucher berpindah ke RADIUS, alamat ini tidak lagi menentukan siapa
+     * yang boleh login — ia hanya menentukan router mana yang ditanyai soal sesi
+     * aktif, dan dicatat di kolom router_host sebagai jejak.
+     *
+     * HOTSPOT_ROUTER_HOST tetap didahulukan karena router yang menjalankan
+     * hotspot biasanya bukan router uplink yang dipakai monitoring.
      */
     protected function resolveHost(Request $request): ?string
     {
@@ -83,8 +96,15 @@ class HotspotVoucherWebController extends Controller
     }
 
     /**
-     * Halaman utama: tabel voucher + statistik. Data yang butuh round-trip ke
-     * router dikirim sebagai deferred prop agar halaman langsung terbuka.
+     * Halaman utama: tabel voucher + statistik.
+     *
+     * Daftarnya tidak lagi disaring per router — satu voucher berlaku di seluruh
+     * kampus, dan menyaringnya per alamat router hanya akan menyembunyikan baris
+     * yang dibuat saat router masih memakai IP lain.
+     *
+     * Data yang butuh round-trip ke luar dikirim sebagai deferred prop, dan dibagi
+     * dua grup: RADIUS (yang menentukan izin login) tidak boleh ikut menunggu
+     * router yang mungkin sedang mati, dan sebaliknya.
      */
     public function index(Request $request)
     {
@@ -97,22 +117,33 @@ class HotspotVoucherWebController extends Controller
             'batch' => $request->query('batch'),
         ];
 
-        $query = HotspotVoucher::query()
-            ->where('router_host', $host)
+        $vouchers = HotspotVoucher::query()
             ->search($filters['search'])
             ->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
             ->when($filters['profile'], fn ($q, $profile) => $q->where('profile', $profile))
             ->when($filters['batch'], fn ($q, $batch) => $q->where('batch_label', $batch))
-            ->orderBy('nim');
+            ->orderBy('nim')
+            ->paginate(50)
+            ->withQueryString();
 
-        $vouchers = $query->paginate(50)->withQueryString();
-
-        $counts = HotspotVoucher::where('router_host', $host)
+        $counts = HotspotVoucher::query()
             ->selectRaw('status, count(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        // Satu probe router per kunjungan, dibagi ke semua deferred prop.
+        // Sebab nonaktifnya ikut dihitung: status 'disabled' tanpa alasan membuat
+        // operator menebak apakah itu keputusannya sendiri atau hasil sinkronisasi
+        // PMB — dua hal yang penanganannya berbeda.
+        $disabledReasons = HotspotVoucher::query()
+            ->where('status', HotspotVoucher::STATUS_DISABLED)
+            ->selectRaw('disabled_reason, count(*) as total')
+            ->groupBy('disabled_reason')
+            ->pluck('total', 'disabled_reason')
+            ->mapWithKeys(fn ($total, $reason) => [
+                (blank($reason) ? 'diblokir operator' : (string) $reason) => (int) $total,
+            ]);
+
+        // Satu probe router per kunjungan, dibagi ke semua deferred prop miliknya.
         $probe = null;
         $live = function () use (&$probe, $host) {
             return $probe ??= [
@@ -128,7 +159,7 @@ class HotspotVoucherWebController extends Controller
             'routerHost' => $host,
             'routers' => $this->mikrotikRouters(),
             'hotspot' => $this->hotspotIdentity(),
-            'batches' => HotspotVoucher::where('router_host', $host)
+            'batches' => HotspotVoucher::query()
                 ->whereNotNull('batch_label')
                 ->distinct()
                 ->orderBy('batch_label')
@@ -140,9 +171,17 @@ class HotspotVoucherWebController extends Controller
                 'failed' => (int) ($counts['failed'] ?? 0),
                 'disabled' => (int) ($counts['disabled'] ?? 0),
             ],
-            'connection' => Inertia::defer(fn () => $live()['connection']),
-            'hotspotProfiles' => Inertia::defer(fn () => $live()['profiles']),
-            'hotspotServers' => Inertia::defer(fn () => $live()['servers']),
+            'disabledReasons' => $disabledReasons,
+
+            // RADIUS lebih dulu: inilah yang menentukan mahasiswa bisa login.
+            'connection' => Inertia::defer(fn () => $this->radius->health()),
+            'radiusGroups' => Inertia::defer(fn () => $this->radius->groups()),
+
+            // Router menyusul di grup terpisah, dipakai panel sesi aktif dan
+            // pembanding nama profile.
+            'routerConnection' => Inertia::defer(fn () => $live()['connection'], 'router'),
+            'hotspotProfiles' => Inertia::defer(fn () => $live()['profiles'], 'router'),
+            'hotspotServers' => Inertia::defer(fn () => $live()['servers'], 'router'),
         ]);
     }
 
@@ -152,11 +191,11 @@ class HotspotVoucherWebController extends Controller
     public function store(Request $request)
     {
         $host = $this->resolveHost($request);
-        $data = $this->validateVoucher($request, $host);
+        $data = $this->validateVoucher($request);
 
-        // Voucher baru ikut profile kampus (HOTSPOT_DEFAULT_PROFILE) supaya
-        // limit bandwidth & shared-user-nya benar, bukan profile "default"
-        // milik router yang biasanya tanpa batas.
+        // Voucher baru ikut paket kampus (HOTSPOT_RADIUS_DEFAULT_GROUP) supaya
+        // rate limit & batas sesinya benar, bukan group "default" yang biasanya
+        // tanpa policy sama sekali.
         $data['profile'] = filled($data['profile'] ?? null)
             ? $data['profile']
             : $this->defaultProfile();
@@ -164,16 +203,24 @@ class HotspotVoucherWebController extends Controller
         HotspotVoucher::create($data + [
             'router_host' => $host,
             'status' => HotspotVoucher::STATUS_PENDING,
+            'source' => HotspotVoucher::SOURCE_MANUAL,
             'created_by' => $request->user()?->id,
         ]);
 
-        return back()->with('success', "Voucher untuk NIM {$data['nim']} tersimpan sebagai pending. Klik \"Push ke Router\" untuk mengaktifkannya.");
+        return back()->with('success', "Voucher untuk NIM {$data['nim']} tersimpan sebagai pending. Klik \"Terapkan ke RADIUS\" untuk mengaktifkannya.");
     }
 
-    /** User profile RouterOS bawaan untuk voucher yang tidak menyebut profile. */
+    /**
+     * Paket bawaan untuk voucher yang tidak menyebut profile.
+     *
+     * HOTSPOT_RADIUS_DEFAULT_GROUP didahulukan karena kolom profile sekarang
+     * bermuara di radusergroup.groupname. HOTSPOT_DEFAULT_PROFILE dipertahankan
+     * sebagai cadangan untuk pemasangan yang belum mengisi yang baru.
+     */
     protected function defaultProfile(): ?string
     {
-        return config('services.hotspot.default_profile') ?: null;
+        return $this->radius->defaultGroup()
+            ?: (config('services.hotspot.default_profile') ?: null);
     }
 
     /**
@@ -196,65 +243,111 @@ class HotspotVoucherWebController extends Controller
             // Tombol "Tarik dari SISKA" hanya berguna bila API_PMB & tokennya
             // sudah diisi; tanpa ini tombolnya cuma memunculkan pesan gagal.
             'pmb_configured' => app(PmbStudentService::class)->configured(),
+
+            // Begitu pula tombol "Terapkan ke RADIUS" bila RADIUS_DB_* kosong.
+            // Dipisah dari prop connection yang deferred: yang ini cuma membaca
+            // config, jadi tombolnya tidak perlu menunggu jaringan.
+            'radius_configured' => $this->radius->configured(),
         ];
     }
 
     /**
-     * Ubah data voucher. Perubahan kredensial otomatis menandai perlu push ulang.
+     * Ubah data voucher. Perubahan kredensial otomatis menandai perlu diterapkan
+     * ulang ke RADIUS.
      */
     public function update(Request $request, int $id)
     {
         $voucher = HotspotVoucher::findOrFail($id);
-        $data = $this->validateVoucher($request, $voucher->router_host, $voucher->id);
+        $data = $this->validateVoucher($request, $voucher->id);
 
         $voucher->fill($data);
 
-        if ($voucher->isDirty(['nim', 'password', 'profile', 'server', 'limit_uptime'])) {
+        $previousNim = (string) $voucher->getOriginal('nim');
+        $renamed = $voucher->isDirty('nim');
+
+        // 'server' tidak ikut dilihat: itu nama hotspot server RouterOS, tidak
+        // punya padanan di RADIUS, jadi mengubahnya tidak membuat baris jadi basi.
+        if ($voucher->isDirty(['nim', 'password', 'profile', 'limit_uptime'])) {
             $voucher->status = HotspotVoucher::STATUS_PENDING;
             $voucher->last_error = null;
         }
 
+        // NIM berganti berarti username barunya belum pernah ada di RADIUS.
+        if ($renamed) {
+            $voucher->synced_at = null;
+        }
+
         $voucher->save();
 
-        return back()->with('success', "Voucher NIM {$voucher->nim} diperbarui.");
+        // NIM lama harus dicabut, bukan ditinggalkan: username itu sudah tidak ada
+        // di CIMS, tapi password dan groupnya masih menerima login.
+        $warning = '';
+
+        if ($renamed && filled($previousNim)) {
+            try {
+                $this->radius->forget($previousNim);
+            } catch (\Throwable $e) {
+                Log::warning("Cabut NIM lama {$previousNim} dari RADIUS gagal: {$e->getMessage()}");
+                $warning = " Namun NIM lama {$previousNim} gagal dicabut dari RADIUS — jalankan radius:reconcile.";
+            }
+        }
+
+        return back()->with($warning === '' ? 'success' : 'error',
+            "Voucher NIM {$voucher->nim} diperbarui.".$warning);
     }
 
     /**
-     * Hapus voucher dari CIMS sekaligus dari router bila sudah pernah dipush.
+     * Hapus voucher dari CIMS sekaligus mencabut izin loginnya.
      */
     public function destroy(int $id)
     {
         $voucher = HotspotVoucher::findOrFail($id);
-        $warning = null;
+        $nim = $voucher->nim;
+        $warnings = [];
 
+        // RADIUS lebih dulu: selama barisnya masih di radcheck, mahasiswa yang
+        // vouchernya sudah hilang dari halaman ini tetap bisa login.
+        try {
+            $this->radius->forget($nim);
+        } catch (\Throwable $e) {
+            Log::warning("Cabut NIM {$nim} dari RADIUS gagal: {$e->getMessage()}");
+            $warnings[] = 'entri RADIUS gagal dicabut ('.Str::limit($e->getMessage(), 100)
+                .') — jalankan radius:reconcile';
+        }
+
+        // Sisa era push-ke-router: baris /ip/hotspot/user yang tertinggal dipakai
+        // router sebagai database lokal, jadi ia tetap harus dibersihkan.
         if ($voucher->mikrotik_id) {
             try {
                 $this->mikrotik->deleteHotspotUser($voucher->router_host, $voucher->mikrotik_id);
             } catch (\Throwable $e) {
-                Log::warning("Hapus hotspot user {$voucher->nim} di router gagal: {$e->getMessage()}");
-                $warning = ' Namun entri di router gagal dihapus: ' . Str::limit($e->getMessage(), 120);
+                Log::warning("Hapus hotspot user {$nim} di router gagal: {$e->getMessage()}");
+                $warnings[] = "entri lama di router {$voucher->router_host} gagal dihapus";
             }
         }
 
-        $nim = $voucher->nim;
         $voucher->delete();
 
-        return back()->with($warning ? 'error' : 'success', "Voucher NIM {$nim} dihapus dari CIMS." . $warning);
+        return back()->with($warnings === [] ? 'success' : 'error',
+            "Voucher NIM {$nim} dihapus dari CIMS."
+            .($warnings === [] ? '' : ' Namun '.implode('; ', $warnings).'.'));
     }
 
     /**
      * Aturan validasi form voucher (dipakai store & update).
      *
+     * NIM unik secara global sekarang, bukan lagi per router: satu mahasiswa cukup
+     * punya satu identitas karena yang menjawab seluruh router hotspot kampus
+     * hanyalah satu server RADIUS.
+     *
      * @return array<string,mixed>
      */
-    protected function validateVoucher(Request $request, ?string $host, ?int $ignoreId = null): array
+    protected function validateVoucher(Request $request, ?int $ignoreId = null): array
     {
         $validated = $request->validate([
             'nim' => [
                 'required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/',
-                Rule::unique('hotspot_vouchers', 'nim')
-                    ->where(fn ($q) => $q->where('router_host', $host))
-                    ->ignore($ignoreId),
+                Rule::unique('hotspot_vouchers', 'nim')->ignore($ignoreId),
             ],
             'student_name' => ['nullable', 'string', 'max:255'],
             'faculty' => ['nullable', 'string', 'max:255'],
@@ -268,7 +361,7 @@ class HotspotVoucherWebController extends Controller
             'comment' => ['nullable', 'string', 'max:255'],
         ], [
             'nim.regex' => 'NIM hanya boleh berisi huruf, angka, titik, garis bawah, dan tanda hubung.',
-            'nim.unique' => 'NIM ini sudah punya voucher di router tersebut.',
+            'nim.unique' => 'NIM ini sudah punya voucher.',
         ]);
 
         // Kebijakan kampus: password voucher sama dengan NIM bila tidak diisi.
@@ -280,13 +373,14 @@ class HotspotVoucherWebController extends Controller
     }
 
     /**
-     * Push voucher terpilih (atau semua yang pending/gagal) ke router.
-     * Dibatasi PUSH_CHUNK per klik supaya request tidak timeout untuk ribuan NIM.
+     * Terapkan voucher terpilih (atau semua yang pending/gagal) ke RADIUS.
+     *
+     * Tidak ada lagi batas per klik. Push ke MikroTik dulu satu perintah API per
+     * NIM, jadi 892 voucher harus dipecah beberapa klik; menulis ke RADIUS cukup
+     * beberapa INSERT bulk, jadi sekali klik selesai.
      */
     public function push(Request $request)
     {
-        $host = $this->resolveHost($request);
-
         $request->validate([
             'ids' => ['nullable', 'array'],
             'ids.*' => ['integer'],
@@ -294,142 +388,136 @@ class HotspotVoucherWebController extends Controller
 
         $ids = $request->input('ids', []);
 
-        $connection = $this->mikrotik->testConnection($host);
+        // Dijaga sejak awal: RADIUS mati berarti tidak satu baris pun akan sampai,
+        // dan menandai 892 voucher 'failed' karena satu koneksi yang putus hanya
+        // membuang jejak status yang sebelumnya benar.
+        $health = $this->radius->health();
 
-        if (!$connection['success']) {
-            return back()->with('error', "Router {$host} tidak bisa dihubungi: " . Str::limit($connection['error'] ?? 'unknown', 150));
+        if (! $health['success']) {
+            return back()->with('error', 'Server RADIUS tidak bisa dihubungi: '
+                .Str::limit((string) ($health['error'] ?? 'unknown'), 150));
         }
 
-        $base = HotspotVoucher::where('router_host', $host)
-            ->when(!empty($ids), fn ($q) => $q->whereIn('id', $ids))
+        $base = HotspotVoucher::query()
+            ->when(! empty($ids), fn ($q) => $q->whereIn('id', $ids))
             ->when(empty($ids), fn ($q) => $q->whereIn('status', [
                 HotspotVoucher::STATUS_PENDING,
                 HotspotVoucher::STATUS_FAILED,
             ]));
 
-        $outstanding = (clone $base)->count();
-        $vouchers = $base->orderBy('nim')->limit(self::PUSH_CHUNK)->get();
-
-        if ($vouchers->isEmpty()) {
-            return back()->with('error', 'Tidak ada voucher yang perlu dipush ke router.');
+        if ((clone $base)->doesntExist()) {
+            return back()->with('error', 'Tidak ada voucher yang perlu diterapkan ke RADIUS.');
         }
 
-        [$ok, $failed, $firstError] = $this->pushMany($vouchers);
+        // lazyById: barisnya dialirkan per 500, jadi jumlah voucher tidak lagi
+        // menentukan besar memori yang dipakai satu request.
+        $result = $this->applyToRadius($base->lazyById(500));
 
-        $remaining = max(0, $outstanding - $vouchers->count());
-        $message = "Push ke {$host}: {$ok} voucher berhasil";
+        $message = "Terapkan ke RADIUS: {$result['ok']} voucher berhasil";
 
-        if ($failed > 0) {
-            $message .= ", {$failed} gagal (" . Str::limit((string) $firstError, 120) . ')';
+        if ($result['failed'] > 0) {
+            $message .= ", {$result['failed']} gagal (".Str::limit((string) $result['error'], 120).')';
         }
 
-        if ($remaining > 0) {
-            $message .= ". Sisa {$remaining} voucher — klik Push sekali lagi untuk melanjutkan.";
-        }
-
-        return back()->with($failed > 0 ? 'error' : 'success', $message . '.');
+        return back()->with($result['failed'] > 0 ? 'error' : 'success', $message.'.');
     }
 
     /**
-     * Push satu voucher (tombol per baris).
+     * Terapkan satu voucher (tombol per baris).
      */
     public function pushOne(int $id)
     {
         $voucher = HotspotVoucher::findOrFail($id);
 
-        [$ok, $failed, $firstError] = $this->pushMany(collect([$voucher]));
+        $health = $this->radius->health();
 
-        return $ok === 1
-            ? back()->with('success', "Voucher NIM {$voucher->nim} aktif di router {$voucher->router_host}.")
-            : back()->with('error', "Push NIM {$voucher->nim} gagal: " . Str::limit((string) $firstError, 150));
-    }
-
-    /**
-     * Kirim sekumpulan voucher ke router, catat hasil per baris.
-     *
-     * @param \Illuminate\Support\Collection<int,HotspotVoucher> $vouchers
-     * @return array{0:int,1:int,2:string|null}
-     */
-    protected function pushMany($vouchers): array
-    {
-        $ok = 0;
-        $failed = 0;
-        $firstError = null;
-
-        foreach ($vouchers as $voucher) {
-            try {
-                $routerId = $this->mikrotik->upsertHotspotUser(
-                    $voucher->router_host,
-                    $voucher->toRouterAttributes()
-                );
-
-                $voucher->forceFill([
-                    'mikrotik_id' => $routerId !== '' ? $routerId : $voucher->mikrotik_id,
-                    'status' => HotspotVoucher::STATUS_SYNCED,
-                    'last_error' => null,
-                    'synced_at' => now(),
-                ])->save();
-
-                $ok++;
-            } catch (\Throwable $e) {
-                Log::warning("Push voucher {$voucher->nim} ke {$voucher->router_host} gagal: {$e->getMessage()}");
-
-                $voucher->forceFill([
-                    'status' => HotspotVoucher::STATUS_FAILED,
-                    'last_error' => Str::limit($e->getMessage(), 500),
-                ])->save();
-
-                $failed++;
-                $firstError ??= $e->getMessage();
-            }
+        if (! $health['success']) {
+            return back()->with('error', 'Server RADIUS tidak bisa dihubungi: '
+                .Str::limit((string) ($health['error'] ?? 'unknown'), 150));
         }
 
-        return [$ok, $failed, $firstError];
+        $result = $this->applyToRadius([$voucher]);
+
+        return $result['ok'] === 1
+            ? back()->with('success', "Voucher NIM {$voucher->nim} aktif di RADIUS.")
+            : back()->with('error', "Menerapkan NIM {$voucher->nim} ke RADIUS gagal: "
+                .Str::limit((string) $result['error'], 150));
     }
 
     /**
-     * Blokir / buka blokir voucher di router tanpa menghapus datanya.
+     * Tulis voucher ke RADIUS, lalu catat hasilnya sekali jalan.
+     *
+     * @param  iterable<int,HotspotVoucher>  $vouchers
+     * @return array{ok:int,failed:int,error:?string}
+     */
+    protected function applyToRadius(iterable $vouchers): array
+    {
+        return $this->applier->apply($vouchers);
+    }
+
+    /**
+     * Blokir / buka blokir voucher di RADIUS tanpa menghapus kredensialnya.
+     *
+     * Blokirnya cuma satu baris 'Auth-Type := Reject' di radcheck — password
+     * mahasiswa tidak ditulis ulang, dan membukanya kembali hanya menghapus baris
+     * itu. Karena penolakannya tercatat atas nama NIM yang jelas, radpostauth bisa
+     * membedakan mahasiswa yang diblokir dari yang salah ketik NIM.
      */
     public function toggle(int $id)
     {
         $voucher = HotspotVoucher::findOrFail($id);
 
-        if (!$voucher->mikrotik_id) {
-            return back()->with('error', "Voucher NIM {$voucher->nim} belum pernah dipush ke router.");
-        }
-
         $disable = $voucher->status !== HotspotVoucher::STATUS_DISABLED;
 
         try {
-            $this->mikrotik->setHotspotUserDisabled($voucher->router_host, $voucher->mikrotik_id, $disable);
+            $disable
+                ? $this->radius->disable($voucher->nim)
+                : $this->radius->enable($voucher->nim);
         } catch (\Throwable $e) {
-            return back()->with('error', "Gagal mengubah status NIM {$voucher->nim} di router: " . Str::limit($e->getMessage(), 150));
+            return back()->with('error', "Gagal mengubah status NIM {$voucher->nim} di RADIUS: "
+                .Str::limit($e->getMessage(), 150));
         }
 
         $voucher->forceFill([
-            'status' => $disable ? HotspotVoucher::STATUS_DISABLED : HotspotVoucher::STATUS_SYNCED,
+            // Buka blokir tidak otomatis berarti 'aktif': kalau kredensialnya belum
+            // pernah sampai ke RADIUS, yang benar adalah 'pending'.
+            'status' => $disable
+                ? HotspotVoucher::STATUS_DISABLED
+                : ($voucher->synced_at ? HotspotVoucher::STATUS_SYNCED : HotspotVoucher::STATUS_PENDING),
             'last_error' => null,
+
+            // Blokir operator sengaja tanpa alasan tertulis. Sinkronisasi PMB hanya
+            // menghidupkan kembali baris yang dimatikannya sendiri — yang
+            // disabled_reason-nya terisi — jadi keputusan ini tidak ikut dibatalkan.
+            'disabled_reason' => null,
         ])->save();
 
-        return back()->with('success', "Voucher NIM {$voucher->nim} " . ($disable ? 'diblokir' : 'diaktifkan kembali') . '.');
+        return back()->with('success', "Voucher NIM {$voucher->nim} "
+            .($disable ? 'diblokir di RADIUS' : 'diaktifkan kembali').'.');
     }
 
     /**
      * Putuskan sesi hotspot yang sedang aktif untuk satu NIM.
+     *
+     * Ini satu-satunya hal yang masih harus lewat API router: sesi yang sedang
+     * berjalan hanya diketahui router, dan memutusnya lewat RADIUS butuh CoA
+     * (port 3799) yang belum dipasang. Routernya diambil dari pilihan halaman,
+     * bukan dari voucher->router_host yang bisa jadi alamat lama.
      */
-    public function kick(int $id)
+    public function kick(Request $request, int $id)
     {
         $voucher = HotspotVoucher::findOrFail($id);
+        $host = $this->resolveHost($request);
 
         try {
-            $kicked = $this->mikrotik->kickHotspotActive($voucher->router_host, $voucher->nim);
+            $kicked = $this->mikrotik->kickHotspotActive($host, $voucher->nim);
         } catch (\Throwable $e) {
-            return back()->with('error', "Gagal memutus sesi NIM {$voucher->nim}: " . Str::limit($e->getMessage(), 150));
+            return back()->with('error', "Gagal memutus sesi NIM {$voucher->nim}: ".Str::limit($e->getMessage(), 150));
         }
 
         return back()->with('success', $kicked > 0
-            ? "{$kicked} sesi aktif NIM {$voucher->nim} diputus."
-            : "Tidak ada sesi aktif untuk NIM {$voucher->nim}.");
+            ? "{$kicked} sesi aktif NIM {$voucher->nim} diputus di {$host}."
+            : "Tidak ada sesi aktif untuk NIM {$voucher->nim} di {$host}.");
     }
 
     /**
@@ -448,7 +536,8 @@ class HotspotVoucherWebController extends Controller
         $host = $this->resolveHost($request);
 
         if (blank($host)) {
-            return back()->with('error', 'Router tujuan belum ditentukan. Pilih router MikroTik terlebih dahulu.');
+            return back()->with('error', 'Router pencatat belum ditentukan. Pilih router MikroTik terlebih dahulu, '
+                .'atau isi HOTSPOT_ROUTER_HOST di .env.');
         }
 
         $file = $request->file('file');
@@ -491,7 +580,7 @@ class HotspotVoucherWebController extends Controller
             }
         }
 
-        return back()->with('success', $message . '. Semua berstatus pending — klik "Push ke Router" untuk mengaktifkan.');
+        return back()->with('success', $message . '. Semua berstatus pending — klik "Terapkan ke RADIUS" untuk mengaktifkan.');
     }
 
     /**
@@ -501,6 +590,11 @@ class HotspotVoucherWebController extends Controller
      * password mahasiswa dibentuk dari tanggal lahirnya. Mahasiswa yang tanggal
      * lahirnya belum terisi di SISKA tetap dapat voucher dengan password NIM,
      * dan jumlahnya disebut di pesan hasil supaya bisa ditindaklanjuti.
+     *
+     * Tarikan ini juga menutup akses NIM yang sudah tidak ada di SISKA. Yang
+     * sengaja TIDAK tersedia di sini adalah --force: kalau pengaman penurunan
+     * drastis menyala, keputusan menembusnya harus lewat terminal, bukan satu
+     * klik di halaman yang bisa memutus WiFi seluruh kampus.
      */
     public function syncPmb(Request $request, PmbVoucherSync $sync)
     {
@@ -516,7 +610,8 @@ class HotspotVoucherWebController extends Controller
         $host = $this->resolveHost($request);
 
         if (blank($host)) {
-            return back()->with('error', 'Router tujuan belum ditentukan. Pilih router MikroTik terlebih dahulu.');
+            return back()->with('error', 'Router pencatat belum ditentukan. Pilih router MikroTik terlebih dahulu, '
+                .'atau isi HOTSPOT_ROUTER_HOST di .env.');
         }
 
         try {
@@ -541,6 +636,14 @@ class HotspotVoucherWebController extends Controller
 
         $message = "Sinkronisasi SISKA selesai: {$report['created']} voucher baru, {$report['updated']} diperbarui";
 
+        if ($report['revived'] > 0) {
+            $message .= ", {$report['revived']} hidup kembali";
+        }
+
+        if ($report['deactivated'] > 0) {
+            $message .= ", {$report['deactivated']} ditutup karena sudah tidak ada di SISKA";
+        }
+
         if ($report['by_nim'] > 0) {
             $message .= ". {$report['by_nim']} mahasiswa belum punya tanggal lahir di SISKA, jadi passwordnya "
                 . 'memakai NIM (contoh: ' . implode(', ', array_slice($report['nim_samples'], 0, 3)) . ')';
@@ -550,17 +653,38 @@ class HotspotVoucherWebController extends Controller
             $message .= ", {$report['skipped']} NIM dilewati karena tidak bisa jadi username hotspot";
         }
 
-        return back()->with('success', $message . '. Semua berstatus pending — klik "Push ke Router" untuk mengaktifkan.');
+        $message .= '. Voucher baru berstatus pending — klik "Terapkan ke RADIUS" untuk mengaktifkan.';
+
+        // Penonaktifan yang gagal sampai ke RADIUS lebih penting daripada
+        // hitungan di atas: mahasiswanya masih bisa login padahal tabel sudah
+        // menyebutnya nonaktif.
+        if ($report['deactivate_failed'] > 0) {
+            return back()->with('warning', $message . " Namun {$report['deactivate_failed']} penonaktifan gagal "
+                . 'ditulis ke RADIUS, jadi mahasiswanya masih bisa login — jalankan '
+                . '`php artisan radius:reconcile` untuk memperbaikinya.');
+        }
+
+        // Pengaman penurunan drastis dan tarikan bersaring hanya melaporkan alasan;
+        // menembusnya butuh --force yang memang cuma ada di terminal.
+        if ($report['deactivate_candidates'] > 0 && $report['deactivate_skipped'] !== null) {
+            return back()->with('warning', $message . ' Catatan: '
+                . Str::limit($report['deactivate_skipped'], 400));
+        }
+
+        return back()->with('success', $message);
     }
 
     /**
      * Query voucher sesuai filter/pilihan yang sedang aktif di halaman.
+     *
+     * Tidak lagi disaring per router: export dan cetak harus memuat baris yang
+     * sama dengan yang dilihat operator di tabel.
      */
-    protected function filteredQuery(Request $request, ?string $host)
+    protected function filteredQuery(Request $request)
     {
         $ids = array_filter(explode(',', (string) $request->query('ids')));
 
-        return HotspotVoucher::where('router_host', $host)
+        return HotspotVoucher::query()
             ->when($ids !== [], fn ($q) => $q->whereIn('id', $ids))
             ->search($request->query('search'))
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
@@ -588,11 +712,9 @@ class HotspotVoucherWebController extends Controller
      */
     public function export(Request $request)
     {
-        $host = $this->resolveHost($request);
+        $rows = [['NIM', 'Nama', 'Password', 'Prodi', 'Fakultas', 'Paket', 'Router Pencatat', 'Status', 'Alasan Nonaktif', 'Asal', 'Batch', 'Berlaku Sampai', 'Terakhir Diterapkan']];
 
-        $rows = [['NIM', 'Nama', 'Password', 'Prodi', 'Fakultas', 'Profile', 'Router', 'Status', 'Batch', 'Berlaku Sampai', 'Terakhir Sync']];
-
-        foreach ($this->filteredQuery($request, $host)->cursor() as $voucher) {
+        foreach ($this->filteredQuery($request)->cursor() as $voucher) {
             $rows[] = [
                 $voucher->nim,
                 $voucher->student_name,
@@ -602,6 +724,8 @@ class HotspotVoucherWebController extends Controller
                 $voucher->profile,
                 $voucher->router_host,
                 strtoupper($voucher->status),
+                $voucher->disabled_reason,
+                $voucher->source,
                 $voucher->batch_label,
                 $voucher->valid_until?->format('Y-m-d'),
                 $voucher->synced_at?->toDateTimeString(),
@@ -635,9 +759,7 @@ class HotspotVoucherWebController extends Controller
      */
     public function printCards(Request $request)
     {
-        $host = $this->resolveHost($request);
-
-        $vouchers = $this->filteredQuery($request, $host)->limit(self::PRINT_LIMIT)->get();
+        $vouchers = $this->filteredQuery($request)->limit(self::PRINT_LIMIT)->get();
 
         if ($vouchers->isEmpty()) {
             return back()->with('error', 'Tidak ada voucher yang cocok untuk dicetak.');
@@ -657,14 +779,19 @@ class HotspotVoucherWebController extends Controller
     }
 
     /**
-     * JSON: sesi hotspot yang sedang aktif, digabung dengan data mahasiswa.
+     * JSON: sesi hotspot yang sedang aktif di router terpilih, digabung dengan
+     * data mahasiswa.
+     *
+     * Nama dicari tanpa menyaring router_host: satu voucher berlaku di semua
+     * router, jadi menyaringnya justru membuat mahasiswa yang login di router lain
+     * tampil sebagai "tidak terdaftar".
      */
     public function activeUsers(Request $request)
     {
         $host = $this->resolveHost($request);
         $active = $this->mikrotik->getHotspotActive($host);
 
-        $names = HotspotVoucher::where('router_host', $host)
+        $names = HotspotVoucher::query()
             ->whereIn('nim', array_filter(array_column($active, 'user')))
             ->pluck('student_name', 'nim');
 
