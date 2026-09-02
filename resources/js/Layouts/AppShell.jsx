@@ -13,6 +13,7 @@ import {
     IconMaintenance,
     IconMaster,
     IconMonitoring,
+    IconPackage,
     IconReports,
     IconRouter,
     IconSpeedtest,
@@ -71,9 +72,20 @@ const NAV_SECTIONS = [
                 name: "Voucher WiFi Mahasiswa",
                 icon: IconWifi,
                 route: "hotspot.vouchers.index",
-                match: "hotspot.*",
+                // Sengaja tidak "hotspot.*": Paket Hotspot ada di bawah prefix yang
+                // sama tapi halaman yang berbeda, dan dua menu menyala sekaligus
+                // membuat operator kehilangan petunjuk sedang di mana.
+                match: "hotspot.vouchers.*",
                 badge: "Hotspot",
                 badgeClass: "bg-indigo-50 text-indigo-700",
+            },
+            {
+                name: "Paket Hotspot",
+                icon: IconPackage,
+                route: "hotspot.packages.index",
+                match: "hotspot.packages.*",
+                badge: "RADIUS",
+                badgeClass: "bg-violet-50 text-violet-700",
             },
             { name: "Live Monitoring", icon: IconMonitoring, route: "monitoring.index", match: "monitoring.*" },
         ],

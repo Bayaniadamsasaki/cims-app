@@ -177,6 +177,12 @@ class HotspotVoucherWebController extends Controller
             'connection' => Inertia::defer(fn () => $this->radius->health()),
             'radiusGroups' => Inertia::defer(fn () => $this->radius->groups()),
 
+            // Group yang ada tapi belum punya policy. Satu-satunya kegagalan di
+            // alur ini yang tidak memunculkan error apa pun: vouchernya "berhasil",
+            // mahasiswanya masuk, dan batas kecepatannya tidak pernah ada. Grup
+            // deferred yang sama dengan radiusGroups, jadi tidak menambah round-trip.
+            'groupsWithoutPolicy' => Inertia::defer(fn () => $this->radius->groupsWithoutPolicy()),
+
             // Router menyusul di grup terpisah, dipakai panel sesi aktif dan
             // pembanding nama profile.
             'routerConnection' => Inertia::defer(fn () => $live()['connection'], 'router'),

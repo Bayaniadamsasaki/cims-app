@@ -52,6 +52,7 @@ export default function Vouchers({
     disabledReasons = {},
     connection,
     radiusGroups,
+    groupsWithoutPolicy,
     routerConnection,
     hotspotProfiles,
     hotspotServers,
@@ -80,6 +81,10 @@ export default function Vouchers({
     // array kosong berarti RADIUS terbaca tapi belum punya satu group pun.
     const groups = Array.isArray(radiusGroups) ? radiusGroups : [];
 
+    // Group yang ada tapi kosong. Dipisah dari `groups` karena artinya berbeda:
+    // yang ini terdaftar dan dipakai, tapi tidak memberi batas apa pun.
+    const emptyGroups = Array.isArray(groupsWithoutPolicy) ? groupsWithoutPolicy : [];
+
     // Nama profile yang ada di router dipakai sebagai petunjuk lunak saja. Yang
     // menentukan paket adalah policy group di radgroupreply, dan group boleh
     // memakai Mikrotik-Rate-Limit tanpa user-profile senama di router.
@@ -101,6 +106,11 @@ export default function Vouchers({
         if (!value) return null;
         if (radiusGroups !== undefined && !groups.includes(value)) {
             return `Group "${value}" belum ada di RADIUS — mahasiswanya tetap bisa login, tapi tanpa batas apa pun sampai groupnya dibuat.`;
+        }
+        // Group yang terdaftar tapi kosong sama akibatnya dengan group yang tidak
+        // ada, dan justru lebih menipu: namanya muncul di dropdown seolah beres.
+        if (emptyGroups.includes(value)) {
+            return `Group "${value}" ada di RADIUS tapi belum punya batas kecepatan sama sekali — isi dulu di halaman Paket Hotspot, kalau tidak mahasiswanya login tanpa batas.`;
         }
         if (routerProfileNames.length > 0 && !routerProfileNames.includes(value)) {
             return `Tidak ada user-profile bernama "${value}" di router. Wajar bila policy groupnya memakai Mikrotik-Rate-Limit di radgroupreply.`;
@@ -389,6 +399,27 @@ export default function Vouchers({
                     ))}
                 </dl>
             </div>
+
+            {/* Paket default yang kosong memengaruhi setiap voucher sekaligus: semuanya
+                mengarah ke group ini, dan group tanpa policy dijawab Access-Accept
+                tanpa atribut — mahasiswanya masuk tanpa batas kecepatan, tanpa satu
+                pun pesan gagal yang menandakannya. */}
+            {profileDefault && emptyGroups.includes(profileDefault) && (
+                <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                    <strong>
+                        Paket default <code>{profileDefault}</code> belum punya batas kecepatan.
+                    </strong>{' '}
+                    Voucher yang diterapkan tetap bisa login, tapi tanpa batas apa pun — dan RADIUS tidak melaporkannya
+                    sebagai kegagalan.{' '}
+                    <a
+                        href={route('hotspot.packages.index')}
+                        className="font-semibold underline decoration-amber-400 underline-offset-2 hover:text-amber-950"
+                    >
+                        Isi di halaman Paket Hotspot
+                    </a>
+                    .
+                </div>
+            )}
 
             {/* Voucher yang benar di RADIUS tetap tidak bisa dipakai di router yang
                 tidak menjalankan hotspot sama sekali. Tanpa peringatan ini, semua

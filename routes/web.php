@@ -185,6 +185,33 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{id}', [\App\Http\Controllers\Web\HotspotVoucherWebController::class, 'destroy'])->name('destroy');
     });
 
+    // Paket Hotspot — isi group RADIUS (kecepatan, batas sesi) yang dipakai voucher.
+    //
+    // Menulis di sini memengaruhi SEMUA mahasiswa yang memakai paket itu sekaligus,
+    // jadi write-nya digerbang izin. 'manage devices' dipakai ulang dengan sengaja:
+    // permission baru berarti tidak ada satu pun akun yang memegangnya sampai
+    // UserSeeder dijalankan lagi di server — dan itu pernah membuat menu hilang
+    // tanpa jejak. Lihat UserSeeder::PERMISSIONS sebelum menambah yang baru.
+    //
+    // Baca (index) cukup 'auth'. Halaman ini justru yang menjelaskan kenapa sebuah
+    // group tidak punya batas kecepatan; menyembunyikannya dari operator yang tidak
+    // boleh menulis hanya membuat pertanyaan itu tidak terjawab.
+    Route::prefix('hotspot/packages')->name('hotspot.packages.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\HotspotPackageWebController::class, 'index'])->name('index');
+
+        Route::middleware('can:manage devices')->group(function () {
+            Route::post('/', [\App\Http\Controllers\Web\HotspotPackageWebController::class, 'store'])->name('store');
+
+            // Pembatas {group} menyamai kolom groupname yang divalidasi controller.
+            // Tanpa itu, nama ber-slash akan tertelan segmen route dan menghasilkan
+            // 404 yang membingungkan alih-alih pesan validasi.
+            Route::post('/{group}', [\App\Http\Controllers\Web\HotspotPackageWebController::class, 'update'])
+                ->where('group', '[A-Za-z0-9._-]+')->name('update');
+            Route::delete('/{group}', [\App\Http\Controllers\Web\HotspotPackageWebController::class, 'destroy'])
+                ->where('group', '[A-Za-z0-9._-]+')->name('destroy');
+        });
+    });
+
     // Ruijie Reyee Cloud API Explorer Routes
     Route::prefix('ruijie')->name('ruijie.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Web\RuijieWebController::class, 'index'])->name('index');

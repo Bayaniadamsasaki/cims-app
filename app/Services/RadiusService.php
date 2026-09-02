@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\HotspotVoucher;
+use App\Support\MikrotikRateLimit;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,24 @@ class RadiusService
 
     /** Atribut radreply yang dikelola CIMS. */
     public const MANAGED_REPLY = ['Mikrotik-Group', 'Mikrotik-Rate-Limit', 'Session-Timeout'];
+
+    /**
+     * Atribut radgroupreply yang dikelola halaman Paket Hotspot.
+     *
+     * Daftar ini menjaga hal yang sama seperti MANAGED_REPLY, tapi untuk sesuatu
+     * yang lebih mudah menimbulkan penyesalan: isi group dipakai bersama seluruh
+     * mahasiswa. Kalau seseorang pernah menambahkan atribut lain di group ini
+     * dengan tangan — `Framed-Pool`, `Mikrotik-Address-List`, `Filter-Id` —
+     * menyimpan formulir tidak boleh menghapusnya. Yang di luar daftar ini
+     * ditampilkan sebagai keterangan dan tidak pernah disentuh.
+     */
+    public const MANAGED_GROUP_REPLY = [
+        'Mikrotik-Rate-Limit',
+        'Mikrotik-Group',
+        'Session-Timeout',
+        'Idle-Timeout',
+        'Acct-Interim-Interval',
+    ];
 
     /** Username per transaksi. Cukup besar untuk sekali klik, cukup kecil untuk packet MySQL. */
     protected const CHUNK = 500;
@@ -382,5 +401,261 @@ class RadiusService
 
             return [];
         }
+    }
+
+    /**
+     * Group yang dipakai voucher tapi belum punya satu pun baris policy.
+     *
+     * Ini kekeliruan paling mahal di integrasi ini justru karena tidak menimbulkan
+     * error: Access-Request-nya dijawab Access-Accept tanpa atribut apa pun,
+     * mahasiswa tetap bisa login, dan batas kecepatan yang disangka berlaku tidak
+     * pernah ada. Halaman voucher dan halaman paket memakai daftar ini untuk
+     * mengatakannya sebelum ada yang mengeluh WiFi-nya "kok kencang sekali".
+     *
+     * Tidak pernah melempar exception: dipakai sebagai prop halaman.
+     *
+     * @return array<int,string>
+     */
+    public function groupsWithoutPolicy(): array
+    {
+        if (! $this->configured()) {
+            return [];
+        }
+
+        try {
+            $db = $this->connection();
+
+            $withPolicy = Collection::make($db->table('radgroupreply')->distinct()->pluck('groupname'))
+                ->merge($db->table('radgroupcheck')->distinct()->pluck('groupname'))
+                ->map(fn ($group) => trim((string) $group))
+                ->filter()
+                ->all();
+
+            return Collection::make($db->table('radusergroup')->distinct()->pluck('groupname'))
+                ->map(fn ($group) => trim((string) $group))
+                ->filter()
+                ->unique()
+                ->reject(fn (string $group) => in_array($group, $withPolicy, true))
+                ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            Log::warning('RADIUS policy check failed: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
+    /**
+     * Isi setiap paket hotspot, apa adanya dari database RADIUS.
+     *
+     * Satu "paket" tidak tinggal di satu tabel: policy-nya di radgroupreply,
+     * syaratnya di radgroupcheck, dan jumlah pemakainya di radusergroup. Halaman
+     * Paket Hotspot butuh ketiganya sekaligus, jadi diambil tiga query lalu
+     * dikelompokkan di PHP — bukan satu query per paket.
+     *
+     * Group yang hanya muncul di radusergroup tetap ikut, dengan has_policy false.
+     * Itu bukan kelengkapan yang manis-manis saja: group tanpa policy adalah
+     * keadaan yang justru harus terlihat, bukan hilang dari daftar.
+     *
+     * Tidak pernah melempar exception: dipakai sebagai prop halaman.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function packages(): array
+    {
+        if (! $this->configured()) {
+            return [];
+        }
+
+        try {
+            $db = $this->connection();
+
+            $reply = Collection::make($db->table('radgroupreply')
+                ->select('groupname', 'attribute', 'op', 'value')->get())
+                ->groupBy(fn ($row) => trim((string) $row->groupname));
+
+            $check = Collection::make($db->table('radgroupcheck')
+                ->select('groupname', 'attribute', 'op', 'value')->get())
+                ->groupBy(fn ($row) => trim((string) $row->groupname));
+
+            // Dihitung di server, bukan dengan menarik seluruh radusergroup:
+            // tabel itu tumbuh sebesar jumlah mahasiswa, dan halaman ini hanya
+            // butuh angkanya.
+            $members = Collection::make($db->table('radusergroup')
+                ->select('groupname')
+                ->selectRaw('count(distinct username) as total')
+                ->groupBy('groupname')->get())
+                ->mapWithKeys(fn ($row) => [trim((string) $row->groupname) => (int) $row->total]);
+
+            return $reply->keys()
+                ->merge($check->keys())
+                ->merge($members->keys())
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->unique()
+                ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->map(fn (string $name) => $this->describePackage(
+                    $name,
+                    Collection::make($reply->get($name, [])),
+                    Collection::make($check->get($name, [])),
+                    (int) ($members->get($name) ?? 0),
+                ))
+                ->all();
+        } catch (\Throwable $e) {
+            Log::warning('RADIUS package listing failed: '.$e->getMessage());
+
+            return [];
+        }
+    }
+
+    /**
+     * Satu baris daftar paket: yang bisa diubah formulir, dan yang cuma dibaca.
+     *
+     * `extra` dan `check` sengaja dipisahkan dari atribut terkelola. Keduanya nyata
+     * berlaku di RADIUS — operator harus melihatnya — tapi keduanya juga di luar
+     * jangkauan formulir ini: `extra` karena bukan milik CIMS, `check` karena grant
+     * CIMS di radgroupcheck hanya SELECT.
+     *
+     * @param  Collection<int,object>  $reply
+     * @param  Collection<int,object>  $check
+     * @return array<string,mixed>
+     */
+    protected function describePackage(string $name, Collection $reply, Collection $check, int $members): array
+    {
+        $managed = [];
+        $extra = [];
+
+        foreach ($reply as $row) {
+            $attribute = trim((string) $row->attribute);
+
+            // Yang teratas menang bila satu atribut kebetulan tercatat dua kali.
+            // Menyimpan formulir merapikannya jadi satu baris.
+            if (in_array($attribute, self::MANAGED_GROUP_REPLY, true) && ! isset($managed[$attribute])) {
+                $managed[$attribute] = (string) $row->value;
+
+                continue;
+            }
+
+            $extra[] = [
+                'attribute' => $attribute,
+                'op' => trim((string) $row->op),
+                'value' => (string) $row->value,
+            ];
+        }
+
+        $rate = $managed['Mikrotik-Rate-Limit'] ?? null;
+        $mikrotikGroup = trim((string) ($managed['Mikrotik-Group'] ?? ''));
+
+        return [
+            'name' => $name,
+            'rate_limit' => $rate,
+            'speed' => MikrotikRateLimit::parse($rate),
+            'session_timeout' => $this->seconds($managed['Session-Timeout'] ?? null),
+            'idle_timeout' => $this->seconds($managed['Idle-Timeout'] ?? null),
+            'interim_interval' => $this->seconds($managed['Acct-Interim-Interval'] ?? null),
+            'mikrotik_group' => $mikrotikGroup !== '' ? $mikrotikGroup : null,
+            'extra' => $extra,
+            'check' => $check->map(fn ($row) => [
+                'attribute' => trim((string) $row->attribute),
+                'op' => trim((string) $row->op),
+                'value' => (string) $row->value,
+            ])->values()->all(),
+            'members' => $members,
+            'has_policy' => $reply->isNotEmpty() || $check->isNotEmpty(),
+        ];
+    }
+
+    /** Detik dari nilai radgroupreply; null bila kosong, nol, atau bukan angka. */
+    protected function seconds(?string $value): ?int
+    {
+        $value = trim((string) $value);
+
+        return ctype_digit($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /** Jumlah NIM yang terdaftar di group ini. */
+    public function packageMembers(string $groupname): int
+    {
+        return (int) $this->connection()->table('radusergroup')
+            ->where('groupname', trim($groupname))
+            ->distinct()
+            ->count('username');
+    }
+
+    /**
+     * Tulis policy satu paket. Atribut yang dikirim kosong berarti "tanpa batas
+     * itu" dan barisnya dihapus, bukan disimpan sebagai 0 — `Session-Timeout := 0`
+     * memutus sesi seketika, dan itu bukan yang dimaksud operator ketika ia
+     * mengosongkan kolom.
+     *
+     * Yang dihapus hanya MANAGED_GROUP_REPLY; baris lain di group ini tidak pernah
+     * tersentuh. Satu transaksi, supaya paket tidak pernah setengah tersimpan —
+     * rate limit baru dengan session-timeout lama yang seharusnya sudah hilang
+     * adalah paket yang tidak pernah diminta siapa pun.
+     *
+     * @param  array<string,string|null>  $attributes
+     */
+    public function savePackage(string $groupname, array $attributes): void
+    {
+        $groupname = trim($groupname);
+
+        $rows = [];
+
+        foreach (self::MANAGED_GROUP_REPLY as $attribute) {
+            $value = trim((string) ($attributes[$attribute] ?? ''));
+
+            if ($value === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'groupname' => $groupname,
+                'attribute' => $attribute,
+                'op' => ':=',
+                'value' => $value,
+            ];
+        }
+
+        $this->connection()->transaction(function () use ($groupname, $rows) {
+            $db = $this->connection();
+
+            $db->table('radgroupreply')
+                ->where('groupname', $groupname)
+                ->whereIn('attribute', self::MANAGED_GROUP_REPLY)
+                ->delete();
+
+            if ($rows !== []) {
+                $db->table('radgroupreply')->insert($rows);
+            }
+        });
+    }
+
+    /**
+     * Hapus policy satu paket.
+     *
+     * Di sini SELURUH baris radgroupreply group itu dihapus — termasuk yang di luar
+     * MANAGED_GROUP_REPLY. Perbedaan dengan savePackage() itu disengaja: menyimpan
+     * formulir bisa terjadi tanpa sengaja, menghapus paket tidak, dan meninggalkan
+     * separuh policy justru membuat group itu tetap terlihat "punya isi" padahal
+     * paketnya sudah dianggap tidak ada.
+     *
+     * Keanggotaan (radusergroup) tidak disentuh: itu milik voucher, dan pemanggil
+     * yang menolak penghapusan selama masih ada pemakainya. radgroupcheck juga
+     * tidak — grant CIMS di tabel itu hanya SELECT — jadi sisanya dihitung dan
+     * dilaporkan supaya halaman bisa menyebut apa yang masih tertinggal.
+     *
+     * @return array{reply:int,check:int}
+     */
+    public function deletePackage(string $groupname): array
+    {
+        $groupname = trim($groupname);
+        $db = $this->connection();
+
+        return [
+            'reply' => (int) $db->table('radgroupreply')->where('groupname', $groupname)->delete(),
+            'check' => (int) $db->table('radgroupcheck')->where('groupname', $groupname)->count(),
+        ];
     }
 }
