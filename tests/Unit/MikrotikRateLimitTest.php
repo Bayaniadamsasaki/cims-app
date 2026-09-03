@@ -25,6 +25,25 @@ class MikrotikRateLimitTest extends TestCase
         $this->assertSame('2M/8M', MikrotikRateLimit::format(2, 8));
     }
 
+    /**
+     * Angka bulat yang sama untuk kedua arah — bentuk yang paling sering diisi
+     * operator. Yang dijaga di sini bentuk tokennya: '2M', bukan '2.0M' atau
+     * '2000k', dan kedua ruas tetap ditulis meski nilainya sama.
+     *
+     * Urutan rx/tx justru tidak terlihat pada nilai simetris seperti ini; itu
+     * pekerjaan test di atas.
+     */
+    public function test_an_equal_upload_and_download_becomes_two_whole_megabits(): void
+    {
+        $this->assertSame('2M/2M', MikrotikRateLimit::format(2, 2));
+    }
+
+    /** Nilai terkecil yang diizinkan formulir paket: 0.064 Mbps = 64k. */
+    public function test_the_smallest_speed_the_form_allows_becomes_64k(): void
+    {
+        $this->assertSame('64k/64k', MikrotikRateLimit::format(0.064, 0.064));
+    }
+
     public function test_a_simple_value_parses_back_into_the_same_two_numbers(): void
     {
         $this->assertSame(

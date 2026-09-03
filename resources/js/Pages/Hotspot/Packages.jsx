@@ -415,6 +415,18 @@ export default function Packages({
                                 {form.errors.name && <span className="mt-1 block text-xs text-rose-700">{form.errors.name}</span>}
                             </div>
 
+                            {/*
+                              Batasnya disamakan dengan aturan server di
+                              HotspotPackageWebController::validatePackage(): numeric,
+                              min 0.064, max 10000.
+
+                              step="any" disengaja, bukan kelalaian. HTML menghitung
+                              langkah dari `min`, jadi step numerik berapa pun membuat
+                              nilai sah menjadi 0.064, 0.164, 0.264 … dan MENOLAK angka
+                              bulat — "2" ditolak dengan pesan "nilai terdekat 1.964 dan
+                              2.064". Server sendiri tidak punya aturan langkah, dan
+                              nilainya toh dibulatkan ke kelipatan 1k saat disimpan.
+                            */}
                             {!advanced && (
                                 <>
                                     <div>
@@ -424,8 +436,9 @@ export default function Packages({
                                         <input
                                             type="number"
                                             required
-                                            step="0.1"
+                                            step="any"
                                             min="0.064"
+                                            max="10000"
                                             value={form.data.download}
                                             onChange={(e) => form.setData('download', e.target.value)}
                                             className={INPUT_CLASS}
@@ -442,8 +455,9 @@ export default function Packages({
                                         <input
                                             type="number"
                                             required
-                                            step="0.1"
+                                            step="any"
                                             min="0.064"
+                                            max="10000"
                                             value={form.data.upload}
                                             onChange={(e) => form.setData('upload', e.target.value)}
                                             className={INPUT_CLASS}
@@ -452,6 +466,11 @@ export default function Packages({
                                             <span className="mt-1 block text-xs text-rose-700">{form.errors.upload}</span>
                                         )}
                                     </div>
+
+                                    <span className="sm:col-span-2 -mt-1 block text-[11px] leading-tight text-slate-400">
+                                        Bilangan bulat maupun pecahan: <code>8</code> berarti 8M, <code>0.512</code>{' '}
+                                        berarti 512k. Terkecil 0.064 (64k), terbesar 10000.
+                                    </span>
                                 </>
                             )}
 

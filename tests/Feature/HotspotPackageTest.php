@@ -76,6 +76,56 @@ class HotspotPackageTest extends TestCase
             ->where('groupname', self::GROUP)->value('op'));
     }
 
+    /**
+     * Nilai yang dilaporkan operator: 2 Mbps untuk kedua arah, dikirim sebagai
+     * string persis seperti yang dilakukan input number di browser.
+     *
+     * Dulu nilai ini tidak pernah sampai ke sini. Input-nya memakai step="0.1" di
+     * atas min="0.064", dan HTML menghitung langkah dari min — jadi browser menolak
+     * setiap angka bulat sebelum formulirnya terkirim ("nilai terdekat 1.964 dan
+     * 2.064"). Yang bisa dijaga PHP hanya ujung satunya: 2 diterima, dan jadi 2M/2M.
+     */
+    public function test_a_whole_number_of_megabits_is_accepted_and_becomes_two_megabits_each_way(): void
+    {
+        $this->actingAs($this->operator())
+            ->post(route('hotspot.packages.store'), $this->payload([
+                'download' => '2',
+                'upload' => '2',
+            ]))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertSame('2M/2M', $this->policyOf(self::GROUP)['Mikrotik-Rate-Limit']);
+    }
+
+    /**
+     * Batas yang diiklankan atribut min pada input halaman, dijaga juga di server:
+     * 0.064 diterima, di bawahnya tidak. Sekaligus membuktikan formulir yang ditolak
+     * tidak menyentuh policy yang sudah tersimpan.
+     */
+    public function test_the_smallest_speed_the_form_offers_is_accepted_and_below_it_is_not(): void
+    {
+        $operator = $this->operator();
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.store'), $this->payload([
+                'download' => '0.064',
+                'upload' => '0.064',
+            ]))
+            ->assertSessionHas('success');
+
+        $this->assertSame('64k/64k', $this->policyOf(self::GROUP)['Mikrotik-Rate-Limit']);
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.update', self::GROUP), $this->payload([
+                'download' => '0.05',
+                'upload' => '1',
+            ]))
+            ->assertSessionHasErrors('download');
+
+        $this->assertSame('64k/64k', $this->policyOf(self::GROUP)['Mikrotik-Rate-Limit']);
+    }
+
     public function test_minutes_in_the_form_are_stored_as_seconds(): void
     {
         $this->actingAs($this->operator())

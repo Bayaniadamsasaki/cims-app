@@ -172,9 +172,12 @@ class HotspotPackageWebController extends Controller
     protected function validatePackage(Request $request, ?string $group = null): array
     {
         $rules = [
-            // Nol berarti "tanpa batas" dan menghapus barisnya; lihat
-            // RadiusService::savePackage(). Batas atasnya 10 Gbps, sekadar
-            // penjagaan terhadap salah ketik nol yang kebanyakan.
+            // Terkecil 64k, terbesar 10 Gbps — yang kedua sekadar penjagaan terhadap
+            // salah ketik nol yang kebanyakan. Granularitasnya sengaja tidak dibatasi:
+            // nilainya dibulatkan ke kelipatan 1k oleh MikrotikRateLimit::format(),
+            // dan input di halaman memakai step="any" supaya angka bulat seperti 2
+            // tidak ditolak browser. Kalau aturan di sini berubah, ubah juga min/max
+            // pada kedua input kecepatan di resources/js/Pages/Hotspot/Packages.jsx.
             'download' => ['required', 'numeric', 'min:0.064', 'max:10000'],
             'upload' => ['required', 'numeric', 'min:0.064', 'max:10000'],
 
