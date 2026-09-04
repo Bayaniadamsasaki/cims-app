@@ -515,12 +515,77 @@ class RadiusDoctorCommand extends Command
         }
 
         $this->table(['Group', 'Voucher memakai', 'radgroupreply', 'radgroupcheck', 'Keadaan'], $rows);
+        $this->showGroupPolicy($db, $name, $groups->all());
     }
 
     /**
-     * FreeRADIUS membuang Access-Request dari NAS yang tidak dikenalnya. Baris
-     * radcheck yang benar tetap tidak menolong kalau router hotspot belum
-     * terdaftar di sini. Kolom secret sengaja tidak pernah dibaca.
+     * Atribut yang sebenarnya menempel di tiap group, bukan cuma jumlahnya.
+     *
+     * Jumlah baris saja menyembunyikan pertanyaan yang paling sering menentukan
+     * apakah batas sesi bersamaan aman dinyalakan: apakah Acct-Interim-Interval
+     * ada di sini. Tanpa atribut itu, sesi yang mati diam-diam tidak pernah
+     * memperbarui radacct dan barisnya menganggur sampai ada yang menutupnya.
+     *
+     * @param  array<int, string>  $groups
+     */
+    protected function showGroupPolicy(ConnectionInterface $db, string $name, array $groups): void
+    {
+        $schema = Schema::connection($name);
+        $rows = [];
+
+        foreach (['radgroupreply' => 'reply', 'radgroupcheck' => 'check'] as $table => $kind) {
+            if (! $schema->hasTable($table)) {
+                continue;
+            }
+
+            $attributes = $db->table($table)
+                ->whereIn('groupname', $groups)
+                ->orderBy('groupname')
+                ->orderBy('attribute')
+                ->limit(60)
+                ->get(['groupname', 'attribute', 'op', 'value']);
+
+            foreach ($attributes as $row) {
+                $rows[] = [
+                    (string) $row->groupname,
+                    $kind,
+                    (string) $row->attribute,
+                    trim((string) $row->op).' '.$row->value,
+                ];
+            }
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        $this->table(['Group', 'Jenis', 'Attribute', 'Nilai'], $rows);
+
+        $hasInterim = collect($rows)->contains(fn ($row) => $row[2] === 'Acct-Interim-Interval');
+
+        if (! $hasInterim) {
+            $this->line('  Tidak ada Acct-Interim-Interval di policy group mana pun. Sesi yang mati tanpa '
+                .'Accounting-Stop akan menganggur di radacct tanpa batas waktu — isi kolom Interim Update '
+                .'di halaman Paket Hotspot supaya sesi basi bisa dikenali dari umurnya.');
+        }
+    }
+
+    /**
+     * FreeRADIUS membuang Access-Request dari NAS yang tidak dikenalnya — tapi
+     * "dikenal" belum tentu berarti "ada di tabel nas".
+     *
+     * Modul sql stok memakai read_clients = no, jadi daftar client dibaca dari
+     * clients.conf dan tabel nas boleh kosong selamanya tanpa satu pun login
+     * gagal. Karena itu tabel nas yang kosong TIDAK boleh diperlakukan sama
+     * dengan router yang hilang: kalau radpostauth atau radacct sudah berisi,
+     * router itu jelas sudah diterima FreeRADIUS lewat clients.conf, dan
+     * menyuruh operator mendaftarkannya di SQL hanya mengirim dia mengejar
+     * masalah yang tidak ada.
+     *
+     * Yang tetap layak dicatat adalah keadaan sebaliknya: tabel nas sudah dipakai
+     * (ada barisnya) tapi router hotspot tidak ada di dalamnya.
+     *
+     * Kolom secret sengaja tidak pernah dibaca.
      */
     protected function checkNas(ConnectionInterface $db, string $name): void
     {
@@ -547,6 +612,9 @@ class RadiusDoctorCommand extends Command
         $names = $registered->pluck('nasname')->map(fn ($n) => trim((string) $n))->all();
         $rows = [];
 
+        // Bukti bahwa FreeRADIUS sudah menerima router ini dari sumber lain.
+        $traffic = $registered->isEmpty() && $this->radiusHasTraffic($db, $name);
+
         foreach ($expected as $key => $host) {
             $found = in_array($host, $names, true);
 
@@ -554,15 +622,55 @@ class RadiusDoctorCommand extends Command
             // walau lebih longgar daripada mendaftarkan alamat routernya.
             $wildcard = collect($names)->contains(fn ($n) => in_array($n, ['0.0.0.0/0', '0.0.0.0'], true));
 
-            if (! $found && ! $wildcard) {
-                $this->notes[] = "Router {$host} ({$key}) belum ada di tabel nas — Access-Request "
-                    .'dari router itu akan diabaikan FreeRADIUS.';
+            if (! $found && ! $wildcard && ! $traffic) {
+                $this->notes[] = "Router {$host} ({$key}) belum ada di tabel nas. Itu hanya masalah kalau "
+                    .'modul sql dipasang read_clients = yes; kalau client didaftarkan di clients.conf '
+                    .'(bawaan FreeRADIUS), tabel ini memang boleh kosong.';
             }
 
-            $rows[] = [$key, $host, $found ? 'terdaftar' : ($wildcard ? 'tercakup 0.0.0.0/0' : 'BELUM TERDAFTAR')];
+            $rows[] = [$key, $host, match (true) {
+                $found => 'terdaftar',
+                $wildcard => 'tercakup 0.0.0.0/0',
+                $traffic => 'lewat clients.conf',
+                default => 'BELUM TERDAFTAR',
+            }];
         }
 
         $this->table(['Sumber', 'Alamat router', 'Di tabel nas'], $rows);
+
+        if ($traffic) {
+            $this->line('  Tabel nas kosong tapi RADIUS sudah pernah menjawab login, jadi daftar client '
+                .'dibaca dari clients.conf — bukan dari SQL. Tidak ada yang perlu diperbaiki di sini, dan '
+                .'menambah baris ke tabel nas tidak akan berpengaruh selama read_clients masih no.');
+        }
+    }
+
+    /**
+     * Apakah RADIUS ini pernah benar-benar melayani lalu lintas?
+     *
+     * Satu baris di radpostauth atau radacct sudah cukup: keduanya hanya bisa
+     * terisi kalau ada NAS yang diterima dan dijawab. Itulah bukti yang membuat
+     * tabel nas kosong berhenti menjadi tuduhan.
+     */
+    protected function radiusHasTraffic(ConnectionInterface $db, string $name): bool
+    {
+        $schema = Schema::connection($name);
+
+        foreach (['radpostauth', 'radacct'] as $table) {
+            if (! $schema->hasTable($table)) {
+                continue;
+            }
+
+            try {
+                if ((int) $db->table($table)->count() > 0) {
+                    return true;
+                }
+            } catch (\Throwable) {
+                // Tidak bisa dibaca berarti tidak bisa dipakai sebagai bukti.
+            }
+        }
+
+        return false;
     }
 
     /**

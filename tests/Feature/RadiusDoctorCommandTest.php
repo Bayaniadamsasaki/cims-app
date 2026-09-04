@@ -202,6 +202,36 @@ class RadiusDoctorCommandTest extends TestCase
     }
 
     /**
+     * Tabel nas kosong bukan tuduhan kalau RADIUS-nya jelas sudah melayani login.
+     *
+     * Modul sql stok memakai read_clients = no: daftar client dibaca dari
+     * clients.conf, dan tabel nas boleh kosong selamanya tanpa satu pun login
+     * gagal. Menyuruh operator mendaftarkan router di SQL pada keadaan itu
+     * mengirim dia mengejar masalah yang tidak ada — dan barisnya pun tidak akan
+     * berpengaruh, karena CIMS cuma punya SELECT di tabel nas.
+     */
+    public function test_an_empty_nas_table_is_not_blamed_when_radius_already_serves_logins(): void
+    {
+        $this->seedRadiusGroup('mahasiswa');
+        $this->seedRadiusSession('2101001', silentMinutesAgo: 1);
+
+        $this->radiusDb()->table('radpostauth')->insert([
+            'username' => '2101001',
+            'pass' => 'rahasia',
+            'reply' => 'Access-Accept',
+            'authdate' => now()->toDateTimeString(),
+        ]);
+
+        $exit = Artisan::call('radius:doctor');
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('lewat clients.conf', $output);
+        $this->assertStringNotContainsString('belum ada di tabel nas', $output);
+        $this->assertStringNotContainsString('BELUM TERDAFTAR', $output);
+    }
+
+    /**
      * Tabel daloRADIUS berarti ada UI lain yang bisa mengubah baris yang sama
      * dengan CIMS. Itu perlu diketahui operator, tapi skemanya tetap sah — jadi
      * dilaporkan sebagai catatan, bukan penolakan.
