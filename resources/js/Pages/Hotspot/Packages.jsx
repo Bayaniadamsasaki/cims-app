@@ -1,6 +1,6 @@
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
 
 const INPUT_CLASS =
@@ -114,6 +114,36 @@ export default function Packages({
     const [advanced, setAdvanced] = useState(false);
 
     const form = useForm(EMPTY_FORM);
+
+    /**
+     * Selama formulir terbuka, halaman di belakangnya tidak boleh ikut bergulir.
+     *
+     * Formulir ini lebih tinggi dari layar laptop biasa, dan dua area bergulir yang
+     * saling menumpuk membuat gerakan roda mouse jatuh ke latar belakang: yang
+     * bergerak justru daftar paket di belakang, sementara tombol Simpan tetap di
+     * luar layar dan tampak seperti tidak ada.
+     *
+     * Esc ikut ditutup karena pada layar pendek tombol tutup di kepala modal bisa
+     * saja belum terlihat. Klik latar belakang sengaja TIDAK menutup: isian formulir
+     * ini sepuluh kolom, dan satu klik yang tidak sengaja tidak boleh membuangnya.
+     */
+    useEffect(() => {
+        if (!showForm) return undefined;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') setShowForm(false);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [showForm]);
 
     // Deferred prop: undefined = masih menunggu router, [] = router terbaca tapi
     // tidak punya user-profile hotspot sama sekali.
@@ -428,11 +458,26 @@ export default function Packages({
             </div>
 
             {showForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6">
-                        <div className="mb-5 flex items-start justify-between border-b border-slate-200 pb-4">
+                /* Yang bergulir adalah panelnya sendiri, bukan halaman di belakang —
+                   dan tingginya dipatok ke tinggi layar supaya kepala modal tidak
+                   pernah terpotong ke atas. Di layar kecil bentuknya lembar bawah:
+                   melebar penuh dan menempel ke bawah, karena di sanalah jempol
+                   berada. dvh dipakai, bukan vh, supaya bilah alamat browser ponsel
+                   yang muncul-hilang tidak ikut memotong tombol Simpan. */
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-md sm:items-center sm:p-4">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="package-form-title"
+                        className="relative max-h-[92dvh] w-full max-w-2xl overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+                    >
+                        {/* Kepala dan baris tombol sticky: keduanya harus tetap terlihat
+                            berapa pun panjang isian, karena yang satu menjelaskan paket
+                            mana yang sedang diubah dan yang lain satu-satunya jalan
+                            keluar dari perubahan yang belum tersimpan. */}
+                        <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">
+                                <h3 id="package-form-title" className="text-lg font-bold text-slate-900">
                                     {editing ? `Ubah Paket ${editing}` : 'Tambah Paket Hotspot'}
                                 </h3>
                                 <p className="text-xs text-slate-500">
@@ -441,8 +486,9 @@ export default function Packages({
                                 </p>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setShowForm(false)}
-                                className="text-slate-400 transition hover:text-slate-700"
+                                className="shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                                 aria-label="Tutup"
                             >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -451,7 +497,11 @@ export default function Packages({
                             </button>
                         </div>
 
-                        <form onSubmit={submitForm} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <form
+                            id="package-form"
+                            onSubmit={submitForm}
+                            className="grid grid-cols-1 gap-4 px-5 sm:grid-cols-2 sm:px-6"
+                        >
                             <div className="sm:col-span-2">
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">Nama paket*</label>
                                 <input
@@ -801,24 +851,30 @@ export default function Packages({
                                     </div>
                                 )}
                             </div>
-
-                            <div className="sm:col-span-2 mt-1 flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowForm(false)}
-                                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={form.processing}
-                                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                                >
-                                    {form.processing ? 'Menyimpan…' : editing ? 'Simpan Perubahan' : 'Simpan Paket'}
-                                </button>
-                            </div>
                         </form>
+
+                        {/* Baris tombol berada di LUAR <form> dan disambungkan lewat
+                            atribut form=: sebagai anak langsung panel, sticky-nya berlaku
+                            terhadap seluruh isi yang bergulir. Di dalam grid formulir,
+                            sticky hanya berlaku sebatas baris grid-nya sendiri — tombolnya
+                            tetap ikut hilang ke bawah, persis keluhan yang diperbaiki. */}
+                        <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                form="package-form"
+                                disabled={form.processing}
+                                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            >
+                                {form.processing ? 'Menyimpan…' : editing ? 'Simpan Perubahan' : 'Simpan Paket'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

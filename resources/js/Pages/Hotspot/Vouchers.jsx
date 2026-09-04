@@ -1,6 +1,6 @@
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
 
 /** Padanan status voucher → label & warna badge. */
@@ -109,6 +109,37 @@ export default function Vouchers({
     // 'radius' = semua router (sumber yang menegakkan batas login), 'router' =
     // hanya router terpilih (sumber yang tahu keadaan sebenarnya).
     const [sessionSource, setSessionSource] = useState('radius');
+
+    // Selama salah satu modal terbuka, halaman di belakangnya dikunci.
+    //
+    // Tanpa ini dua area bisa bergulir sekaligus: isi modal DAN daftar voucher di
+    // belakangnya. Yang bergulir lebih dulu biasanya yang belakang, jadi kesannya
+    // formulir "tidak bisa di-scroll" padahal yang bergerak halamannya.
+    //
+    // Escape ditutup di sini, bukan di tiap tombol: modal ini menutupi seluruh
+    // layar, dan satu-satunya jalan keluar lain adalah tombol × yang bisa berada
+    // di luar pandangan pada layar pendek.
+    const modalOpen = showForm || showImport;
+
+    useEffect(() => {
+        if (!modalOpen) return undefined;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const onKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            setShowForm(false);
+            setShowImport(false);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [modalOpen]);
 
     // Identitas hotspot (SSID, portal, paket) selalu datang dari HOTSPOT_* di
     // .env lewat props — jangan tulis nilai kampus sebagai literal di file ini.
@@ -1007,27 +1038,44 @@ export default function Vouchers({
                 )}
             </div>
 
-            {/* Modal tambah / edit voucher */}
+            {/* Modal tambah / edit voucher.
+                Panelnya dibatasi tinggi dan MENJADI wadah gulir sendiri — bukan
+                overlay-nya. Kalau yang bergulir overlay sementara panelnya bebas
+                tinggi, isi yang melebihi layar terpotong di atas (di luar jangkauan
+                scroll) dan baris tombolnya terdorong ke bawah layar. */}
             {showForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6">
-                        <div className="mb-5 flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-md sm:items-center sm:p-4">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="voucher-form-title"
+                        className="relative max-h-[92dvh] w-full max-w-2xl overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+                    >
+                        {/* Padding ada di anak-anak wadah gulir, bukan di wadahnya:
+                            padding pada wadah gulir menyisakan celah di atas header
+                            sticky yang isi formulir terlihat menyembul lewat situ. */}
+                        <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">
+                                <h3 id="voucher-form-title" className="text-lg font-bold text-slate-900">
                                     {editing ? `Edit Voucher ${editing.nim}` : 'Tambah Voucher Manual'}
                                 </h3>
                                 <p className="text-xs text-slate-500">
                                     Berlaku di semua router hotspot kampus · cukup isi NIM, password otomatis sama dengan NIM
                                 </p>
                             </div>
-                            <button onClick={() => setShowForm(false)} className="text-slate-400 transition hover:text-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                aria-label="Tutup"
+                                className="-mr-1 shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
 
-                        <form onSubmit={submitForm} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <form id="voucher-form" onSubmit={submitForm} className="grid grid-cols-1 gap-4 px-5 sm:grid-cols-2 sm:px-6">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">NIM (username hotspot)*</label>
                                 <input
@@ -1222,44 +1270,62 @@ export default function Vouchers({
                             </div>
                                 </>
                             )}
-
-                            <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 sm:col-span-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowForm(false)}
-                                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={form.processing}
-                                    className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:bg-slate-300"
-                                >
-                                    {editing ? 'Simpan Perubahan' : 'Simpan sebagai Pending'}
-                                </button>
-                            </div>
                         </form>
+
+                        {/* Di LUAR <form>, disambungkan lewat atribut form=.
+                            sticky pada anak grid hanya berlaku di dalam sel gridnya
+                            sendiri, jadi selama baris ini masih menjadi anak formulir
+                            ia akan ikut tergulir hilang. Sebagai anak langsung panel,
+                            ia menempel pada seluruh isi yang bergulir. */}
+                        <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                form="voucher-form"
+                                disabled={form.processing}
+                                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:bg-slate-300"
+                            >
+                                {editing ? 'Simpan Perubahan' : 'Simpan sebagai Pending'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
-            {/* Modal import Excel */}
+            {/* Modal import Excel — pola gulir yang sama seperti modal voucher. */}
             {showImport && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6">
-                        <div className="mb-5 flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-md sm:items-center sm:p-4">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="voucher-import-title"
+                        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+                    >
+                        <div className="sticky top-0 z-10 mb-5 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">Import Daftar Mahasiswa</h3>
+                                <h3 id="voucher-import-title" className="text-lg font-bold text-slate-900">
+                                    Import Daftar Mahasiswa
+                                </h3>
                                 <p className="text-xs text-slate-500">Excel/CSV → voucher pending, berlaku di seluruh kampus</p>
                             </div>
-                            <button onClick={() => setShowImport(false)} className="text-slate-400 transition hover:text-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setShowImport(false)}
+                                aria-label="Tutup"
+                                className="-mr-1 shrink-0 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            >
                                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
 
-                        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 sm:mx-6">
                             Kolom yang dikenali: <strong>NIM</strong> (wajib), Nama, Prodi, Fakultas, Password, Profile, Keterangan.
                             Nama kolom boleh berbeda urutan — cukup ada judulnya. Bila file tidak punya judul kolom, kolom A dianggap
                             NIM dan kolom B nama. Password kosong otomatis diisi sama dengan NIM.
@@ -1271,7 +1337,7 @@ export default function Vouchers({
                             </a>
                         </div>
 
-                        <form onSubmit={submitImport} className="space-y-4">
+                        <form id="voucher-import-form" onSubmit={submitImport} className="space-y-4 px-5 sm:px-6">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-600">File Excel / CSV*</label>
                                 <input
@@ -1369,24 +1435,25 @@ export default function Vouchers({
                                 klik tombol <strong>Terapkan ke RADIUS</strong>, jadi file yang salah tidak langsung mengubah
                                 siapa yang boleh login.
                             </p>
-
-                            <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowImport(false)}
-                                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={importForm.processing || !importForm.data.file}
-                                    className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                                >
-                                    {importForm.processing ? 'Mengimpor…' : 'Import Sekarang'}
-                                </button>
-                            </div>
                         </form>
+
+                        <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+                            <button
+                                type="button"
+                                onClick={() => setShowImport(false)}
+                                className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                form="voucher-import-form"
+                                disabled={importForm.processing || !importForm.data.file}
+                                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                                {importForm.processing ? 'Mengimpor…' : 'Import Sekarang'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
