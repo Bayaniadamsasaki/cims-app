@@ -785,32 +785,140 @@ class HotspotVoucherWebController extends Controller
     }
 
     /**
-     * JSON: sesi hotspot yang sedang aktif di router terpilih, digabung dengan
-     * data mahasiswa.
+     * JSON: sesi hotspot yang sedang berjalan, dari dua sumber sekaligus.
      *
-     * Nama dicari tanpa menyaring router_host: satu voucher berlaku di semua
-     * router, jadi menyaringnya justru membuat mahasiswa yang login di router lain
-     * tampil sebagai "tidak terdaftar".
+     * Keduanya dikirim dengan sengaja, karena keduanya menjawab pertanyaan berbeda:
+     *
+     *   - radacct di RADIUS tahu SEMUA router. Satu akun yang dipakai bersamaan di
+     *     dua router berbeda hanya terlihat dari sini, dan angkanya persis yang akan
+     *     dipakai FreeRADIUS bila Simultaneous-Use dipasang.
+     *   - /ip/hotspot/active di router terpilih tahu keadaan sebenarnya. Ia tidak
+     *     punya baris yatim: kalau perangkatnya sudah pergi, sesinya juga hilang.
+     *
+     * Selisih keduanya bukan gangguan, justru isi laporannya: baris yang ada di
+     * RADIUS tapi tidak ada di router adalah sesi basi — dan sesi basi itulah yang
+     * akan menolak login mahasiswa begitu batas sesi bersamaan diaktifkan.
+     *
+     * Nama dicari tanpa menyaring router_host: satu voucher berlaku di semua router,
+     * jadi menyaringnya justru membuat mahasiswa yang login di router lain tampil
+     * sebagai "tidak terdaftar".
      */
     public function activeUsers(Request $request)
     {
         $host = $this->resolveHost($request);
-        $active = $this->mikrotik->getHotspotActive($host);
 
-        $names = HotspotVoucher::query()
-            ->whereIn('nim', array_filter(array_column($active, 'user')))
-            ->pluck('student_name', 'nim');
+        $radius = $this->radius->activeSessions();
 
-        $sessions = array_map(fn ($session) => $session + [
-            'student_name' => $names[$session['user']] ?? null,
-            'registered' => isset($names[$session['user']]),
-        ], $active);
+        // Tanpa router terpilih, kedua panggilan RouterOS pasti gagal setelah
+        // menunggu timeout lebih dulu. RADIUS sudah cukup untuk mengisi panel,
+        // jadi jangan buat operator menunggu kegagalan yang sudah pasti.
+        $router = $host === null ? [] : $this->mikrotik->getHotspotActive($host);
+
+        // Dipanggil terpisah karena getHotspotActive() mengembalikan array kosong
+        // baik saat router memang sepi maupun saat router mati — dan seluruh arti
+        // kolom "ada di router" bergantung pada bisa tidaknya keduanya dibedakan.
+        $routerOk = $host !== null && (bool) ($this->mikrotik->testConnection($host)['success'] ?? false);
+
+        $names = $this->studentNames($radius['sessions'], $router);
+        $seen = $this->routerSessionKeys($router);
+
+        $radius['sessions'] = array_map(fn (array $session) => $session + [
+            'student_name' => $names[$session['username']] ?? null,
+            'registered' => isset($names[$session['username']]),
+            'on_router' => $this->confirmOnRouter($session, $seen, $host, $routerOk),
+        ], $radius['sessions']);
+
+        $radius['shared'] = array_map(fn (array $row) => $row + [
+            'student_name' => $names[$row['username']] ?? null,
+        ], $radius['shared']);
 
         return response()->json([
-            'router_host' => $host,
-            'total' => count($sessions),
-            'sessions' => $sessions,
             'fetched_at' => now()->toDateTimeString(),
+            'router_host' => $host,
+            'router_ok' => $routerOk,
+            'radius' => $radius,
+            'router' => [
+                'total' => count($router),
+                'sessions' => array_map(fn (array $session) => $session + [
+                    'student_name' => $names[$session['user'] ?? ''] ?? null,
+                    'registered' => isset($names[$session['user'] ?? '']),
+                ], $router),
+            ],
         ]);
+    }
+
+    /**
+     * Nama mahasiswa untuk NIM dari kedua sumber sekaligus, satu query.
+     *
+     * @param  array<int, array<string, mixed>>  $radiusSessions
+     * @param  array<int, array<string, mixed>>  $routerSessions
+     * @return array<string, string|null>
+     */
+    protected function studentNames(array $radiusSessions, array $routerSessions): array
+    {
+        $nims = array_filter(array_unique(array_merge(
+            array_column($radiusSessions, 'username'),
+            array_column($routerSessions, 'user'),
+        )));
+
+        if ($nims === []) {
+            return [];
+        }
+
+        return HotspotVoucher::query()
+            ->whereIn('nim', $nims)
+            ->pluck('student_name', 'nim')
+            ->all();
+    }
+
+    /**
+     * Kunci sesi yang sedang benar-benar hidup di router, untuk pencocokan cepat.
+     *
+     * @param  array<int, array<string, mixed>>  $routerSessions
+     * @return array<string, true>
+     */
+    protected function routerSessionKeys(array $routerSessions): array
+    {
+        $keys = [];
+
+        foreach ($routerSessions as $session) {
+            $keys[$this->sessionKey($session['user'] ?? null, $session['mac'] ?? null)] = true;
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Apakah sesi RADIUS ini terbukti masih hidup di router?
+     *
+     * Sengaja tiga nilai, bukan boolean. false berarti "router sudah ditanya dan
+     * sesi ini tidak ada di sana" — itu tuduhan bahwa barisnya basi, dan hanya
+     * boleh diucapkan kalau routernya memang menjawab. null berarti belum tahu:
+     * router mati, atau sesi ini milik NAS lain yang tidak sedang kita lihat.
+     * Menyamakan keduanya akan menandai semua sesi sehat sebagai basi setiap kali
+     * satu router kebetulan sedang tidak bisa dihubungi.
+     *
+     * @param  array<string, mixed>  $session
+     * @param  array<string, true>  $routerKeys
+     */
+    protected function confirmOnRouter(array $session, array $routerKeys, ?string $host, bool $routerOk): ?bool
+    {
+        if ($host === null || ! $routerOk || ($session['nas_ip'] ?? null) !== $host) {
+            return null;
+        }
+
+        return isset($routerKeys[$this->sessionKey($session['username'] ?? null, $session['mac'] ?? null)]);
+    }
+
+    /**
+     * Kunci gabungan user + MAC yang tahan perbedaan format antar sumber.
+     *
+     * RouterOS menulis MAC dengan huruf besar dan titik dua, radacct mengikuti apa
+     * pun yang dikirim NAS, jadi pembandingan mentah akan selalu gagal.
+     */
+    protected function sessionKey(?string $user, ?string $mac): string
+    {
+        return strtolower(trim((string) $user))
+            .'|'.strtolower((string) preg_replace('/[^0-9a-fA-F]/', '', (string) $mac));
     }
 }

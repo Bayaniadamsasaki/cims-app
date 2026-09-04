@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\HotspotVoucher;
 use App\Support\MikrotikRateLimit;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -61,6 +62,16 @@ class RadiusService
         'Idle-Timeout',
         'Acct-Interim-Interval',
     ];
+
+    /**
+     * Ambang "sesi basi" dalam menit.
+     *
+     * Sesi yang laporan terakhirnya lebih tua dari ini hampir pasti sudah mati
+     * tanpa Accounting-Stop. 15 menit dipilih supaya masih longgar untuk
+     * Acct-Interim-Interval yang lazim (5–10 menit) tanpa perlu menunggu setengah
+     * hari sebelum sebuah baris patut dicurigai.
+     */
+    public const STALE_AFTER_MINUTES = 15;
 
     /** Username per transaksi. Cukup besar untuk sekali klik, cukup kecil untuk packet MySQL. */
     protected const CHUNK = 500;
@@ -363,6 +374,228 @@ class RadiusService
         }
 
         return $found;
+    }
+
+    /**
+     * Sesi yang masih terbuka di radacct — seluruh router sekaligus.
+     *
+     * Syaratnya sengaja sama persis dengan yang dipakai FreeRADIUS sendiri untuk
+     * menghitung Simultaneous-Use: `acctstoptime IS NULL`. Jadi angka di panel ini
+     * bukan perkiraan yang mirip, melainkan bilangan yang sama yang akan dipakai
+     * server kalau nanti diminta menolak login kedua sebuah NIM.
+     *
+     * Dua hal yang membedakannya dari /ip/hotspot/active di router:
+     *
+     *   1. Cakupannya semua NAS. Router hanya tahu sesi miliknya sendiri — dan
+     *      justru satu akun yang dipakai bersamaan di dua router berbeda itulah
+     *      yang tidak akan pernah terlihat dari sana.
+     *   2. Ia bisa keliru. Baris yang tidak pernah ditutup — HP mati, router
+     *      reboot, Accounting-Stop hilang di jalan — tetap terhitung "online".
+     *      Karena itu setiap baris membawa umur laporan terakhirnya: baris-baris
+     *      itulah yang akan mengunci mahasiswa dari login berikutnya begitu
+     *      Simultaneous-Use dinyalakan, dan operator harus melihatnya lebih dulu.
+     *
+     * Tidak pernah melempar exception: dipakai endpoint panel, dan RADIUS mati
+     * tidak boleh membuat halaman voucher ikut gagal.
+     *
+     * @return array{configured:bool,error:?string,total:int,shown:int,stale:int,stale_after_minutes:int,truncated:bool,shared:array<int,array<string,mixed>>,sessions:array<int,array<string,mixed>>}
+     */
+    public function activeSessions(int $limit = 200): array
+    {
+        $blank = [
+            'configured' => $this->configured(),
+            'error' => null,
+            'total' => 0,
+            'shown' => 0,
+            'stale' => 0,
+            'stale_after_minutes' => self::STALE_AFTER_MINUTES,
+            'truncated' => false,
+            'shared' => [],
+            'sessions' => [],
+        ];
+
+        if (! $this->configured()) {
+            return ['error' => 'Koneksi RADIUS belum diatur — panel ini membaca radacct '
+                .'di server RADIUS, bukan router.'] + $blank;
+        }
+
+        try {
+            return $this->readSessions(max($limit, 1)) + $blank;
+        } catch (\Throwable $e) {
+            Log::warning('RADIUS session listing failed: '.$e->getMessage());
+
+            return ['error' => $e->getMessage()] + $blank;
+        }
+    }
+
+    /**
+     * Bagian activeSessions() yang boleh gagal. Dipisah supaya penanganan error
+     * tinggal satu tempat dan alur bacanya tidak tenggelam di dalam try.
+     *
+     * Urutannya "yang paling lama tidak melapor lebih dulu", bukan yang terbaru
+     * login. Itu keputusan yang menentukan: kalau daftarnya terpotong oleh $limit,
+     * yang boleh hilang adalah baris yang sehat — baris basi justru satu-satunya
+     * yang wajib terlihat.
+     *
+     * @return array<string,mixed>
+     */
+    protected function readSessions(int $limit): array
+    {
+        $db = $this->connection();
+        $now = $this->serverNow($db);
+        $cutoff = $now->copy()->subMinutes(self::STALE_AFTER_MINUTES)->format('Y-m-d H:i:s');
+
+        $total = (int) $db->table('radacct')->whereNull('acctstoptime')->count();
+
+        // coalesce() supaya sesi yang belum pernah dapat interim update tetap
+        // terbandingkan lewat waktu mulainya. Keduanya ada di skema stok
+        // FreeRADIUS 3.x, jadi tidak perlu dijaga keberadaannya di sini.
+        $stale = (int) $db->table('radacct')
+            ->whereNull('acctstoptime')
+            ->whereRaw('coalesce(acctupdatetime, acctstarttime) < ?', [$cutoff])
+            ->count();
+
+        $rows = $db->table('radacct')
+            ->whereNull('acctstoptime')
+            ->orderByRaw('coalesce(acctupdatetime, acctstarttime) asc')
+            ->limit($limit)
+            ->get([
+                'acctsessionid', 'username', 'nasipaddress', 'acctstarttime',
+                'acctupdatetime', 'acctsessiontime', 'acctinputoctets',
+                'acctoutputoctets', 'callingstationid', 'framedipaddress',
+            ]);
+
+        $sessions = Collection::make($rows)
+            ->map(fn ($row) => $this->describeSession($row, $now))
+            ->values()
+            ->all();
+
+        return [
+            'total' => $total,
+            'shown' => count($sessions),
+            'stale' => $stale,
+            'truncated' => $total > count($sessions),
+            'shared' => $this->sharedUsernames($db),
+            'sessions' => $sessions,
+        ];
+    }
+
+    /**
+     * NIM yang sedang punya lebih dari satu sesi terbuka sekaligus.
+     *
+     * Inilah jawaban langsung atas "apakah ada akun yang dipakai bersama" — dan ia
+     * tersedia tanpa perlu menyalakan Simultaneous-Use lebih dulu. Melihat dulu,
+     * menolak kemudian: daftar ini yang memberi tahu berapa banyak mahasiswa akan
+     * terkena begitu batasnya dipasang.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    protected function sharedUsernames(ConnectionInterface $db): array
+    {
+        $rows = $db->table('radacct')
+            ->whereNull('acctstoptime')
+            ->select('username')
+            ->selectRaw('count(*) as total')
+            ->groupBy('username')
+            ->havingRaw('count(*) > 1')
+            ->orderByRaw('count(*) desc')
+            ->limit(50)
+            ->get();
+
+        return Collection::make($rows)
+            ->map(fn ($row) => [
+                'username' => (string) $row->username,
+                'sessions' => (int) $row->total,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Jam yang dipakai menilai umur sesi: jam server RADIUS, bukan jam CIMS.
+     *
+     * radacct diisi FreeRADIUS memakai waktu lokal servernya. APP_TIMEZONE di sini
+     * Asia/Makassar sementara server Ubuntu lazim berjalan di UTC — memakai now()
+     * milik PHP akan membuat setiap sesi terlihat basi delapan jam, dan panel yang
+     * menuduh semua orang lebih buruk daripada tidak ada panel.
+     *
+     * Nilainya diurai dengan timezone yang sama dengan timestamp radacct (keduanya
+     * lewat Carbon::parse tanpa zona), jadi selisihnya benar walau zonanya sendiri
+     * tidak diketahui. Yang dibandingkan memang selisih, bukan jam dinding.
+     */
+    protected function serverNow(ConnectionInterface $db): Carbon
+    {
+        try {
+            $value = trim((string) ($db->selectOne('select now() as server_now')->server_now ?? ''));
+
+            if ($value !== '') {
+                return Carbon::parse($value);
+            }
+        } catch (\Throwable) {
+            // sqlite saat test tidak punya now().
+        }
+
+        return Carbon::now();
+    }
+
+    /**
+     * Satu baris radacct sebagaimana perlu dibaca operator.
+     *
+     * `silent_for` dihitung dari acctupdatetime dengan acctstarttime sebagai
+     * cadangan. Tanpa Acct-Interim-Interval, FreeRADIUS tidak pernah memperbarui
+     * baris itu, jadi setiap sesi panjang akan tampak basi. Itu bukan salah hitung
+     * — itu memang keadaan yang harus dibereskan sebelum Simultaneous-Use bisa
+     * dipercaya — tapi `reported` dikirim supaya panel bisa menyebutkan bedanya,
+     * bukan membiarkan operator menuduh mahasiswa yang tidak salah apa pun.
+     *
+     * Arah oktet mengikuti sudut pandang NAS, bukan mahasiswa: acctinputoctets
+     * adalah yang MASUK ke router (unggahan mahasiswa), acctoutputoctets yang
+     * KELUAR darinya (unduhan). Tertukar di sini berarti grafik pemakaian terbalik
+     * dan tidak ada yang menyadarinya.
+     *
+     * @return array<string,mixed>
+     */
+    protected function describeSession(object $row, Carbon $now): array
+    {
+        $start = $this->moment($row->acctstarttime ?? null);
+        $update = $this->moment($row->acctupdatetime ?? null);
+        $reference = $update ?? $start;
+
+        $silentFor = $reference ? max($now->getTimestamp() - $reference->getTimestamp(), 0) : null;
+
+        return [
+            'session_id' => trim((string) ($row->acctsessionid ?? '')) ?: null,
+            'username' => (string) ($row->username ?? ''),
+            'nas_ip' => trim((string) ($row->nasipaddress ?? '')) ?: null,
+            'ip' => trim((string) ($row->framedipaddress ?? '')) ?: null,
+            'mac' => trim((string) ($row->callingstationid ?? '')) ?: null,
+            'started_at' => $start?->format('Y-m-d H:i:s'),
+            'uptime_seconds' => $start ? max($now->getTimestamp() - $start->getTimestamp(), 0) : null,
+            'silent_for' => $silentFor,
+            'reported' => $update !== null,
+            'stale' => $silentFor !== null && $silentFor > self::STALE_AFTER_MINUTES * 60,
+            'bytes_in' => (int) ($row->acctinputoctets ?? 0),
+            'bytes_out' => (int) ($row->acctoutputoctets ?? 0),
+        ];
+    }
+
+    /**
+     * Timestamp radacct menjadi Carbon. Null untuk kolom kosong dan untuk
+     * '0000-00-00 00:00:00' — nilai sah di MySQL lama yang bukan waktu apa pun.
+     */
+    protected function moment(mixed $value): ?Carbon
+    {
+        $value = trim((string) $value);
+
+        if ($value === '' || str_starts_with($value, '0000-00-00')) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

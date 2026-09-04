@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\HotspotVoucher;
+use App\Services\RadiusService;
 use Illuminate\Console\Command;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,7 @@ class RadiusDoctorCommand extends Command
         $this->checkGroups($db, $name);
         $this->checkNas($db, $name);
         $this->checkExisting($db, $name);
+        $this->checkSessions($db, $name);
 
         return $this->summary();
     }
@@ -605,6 +607,189 @@ class RadiusDoctorCommand extends Command
                 ->map(fn ($row) => [$row->attribute, number_format((int) $row->jumlah, 0, ',', '.')])
                 ->all());
         }
+    }
+
+    /**
+     * Accounting dan pembatasan akun bersama.
+     *
+     * Dua hal bergantung penuh pada radacct, dan keduanya gagal tanpa suara kalau
+     * accounting tidak sampai: panel sesi aktif, dan Simultaneous-Use kalau nanti
+     * dipasang. radacct yang tidak pernah ditulis terlihat sama persis dengan
+     * "tidak ada yang sedang online" — dan Simultaneous-Use di atas radacct kosong
+     * tidak menolak siapa pun.
+     *
+     * Sesi basi dilaporkan terpisah karena arah bahayanya berlawanan: bukan membuat
+     * batas tidak berlaku, melainkan membuatnya berlaku pada orang yang sudah tidak
+     * online. Itu wujud kegagalan yang sampai ke mahasiswa sebagai "akun saya
+     * dipakai orang lain" padahal tidak ada siapa pun.
+     */
+    protected function checkSessions(ConnectionInterface $db, string $name): void
+    {
+        if (! Schema::connection($name)->hasTable('radacct')) {
+            $this->notes[] = 'Tabel radacct tidak ada — panel sesi aktif akan selalu kosong, dan '
+                .'Simultaneous-Use tidak akan bisa menghitung apa pun.';
+
+            return;
+        }
+
+        $sessions = app(RadiusService::class)->activeSessions(1);
+
+        if (filled($sessions['error'] ?? null)) {
+            $this->warn('radacct tidak bisa dibaca: '.$sessions['error']);
+
+            return;
+        }
+
+        $rows = (int) $db->table('radacct')->count();
+        $shared = collect($sessions['shared'] ?? []);
+        $auths = $this->authAttempts($db, $name);
+
+        $this->table(['Sesi & accounting', 'Nilai'], [
+            ['Baris radacct (seluruh riwayat)', number_format($rows, 0, ',', '.')],
+            ['Login tercatat di radpostauth', $auths === null ? 'tabel tidak ada' : number_format($auths, 0, ',', '.')],
+            ['Sesi terbuka sekarang (acctstoptime IS NULL)', number_format((int) $sessions['total'], 0, ',', '.')],
+            ['Di antaranya basi (>'.RadiusService::STALE_AFTER_MINUTES.' menit tanpa lapor)',
+                number_format((int) $sessions['stale'], 0, ',', '.')],
+            ['NIM dengan lebih dari satu sesi terbuka', number_format($shared->count(), 0, ',', '.')],
+            ['Accounting terakhir masuk', $this->lastAccounting($db) ?? 'belum pernah'],
+        ]);
+
+        $this->sessionNotes($rows, $sessions, $shared->count(), $auths);
+        $this->checkSharingLimit($db, $name);
+    }
+
+    /**
+     * Berapa kali RADIUS pernah menjawab Access-Request.
+     *
+     * Dipakai untuk membedakan dua sebab radacct kosong yang terlihat sama:
+     * instalasi yang memang belum dipakai siapa pun, dan accounting yang tidak
+     * sampai padahal login-nya berhasil. Hanya yang kedua sebuah masalah.
+     *
+     * null berarti radpostauth tidak ada — bukan nol.
+     */
+    protected function authAttempts(ConnectionInterface $db, string $name): ?int
+    {
+        if (! Schema::connection($name)->hasTable('radpostauth')) {
+            return null;
+        }
+
+        try {
+            return (int) $db->table('radpostauth')->count();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** Waktu baris accounting terbaru, apa adanya dari server RADIUS. */
+    protected function lastAccounting(ConnectionInterface $db): ?string
+    {
+        try {
+            $value = $db->table('radacct')
+                ->selectRaw('max(coalesce(acctupdatetime, acctstarttime)) as terakhir')
+                ->value('terakhir');
+
+            return filled($value) ? (string) $value : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * radacct kosong hanya menjadi catatan kalau ada yang sudah pernah login.
+     *
+     * Instalasi baru juga punya radacct kosong, dan menegurnya di situ membuat
+     * perintah ini tidak pernah bisa berkata "lolos" pada sistem yang memang
+     * belum dipakai. Yang benar-benar salah adalah login yang berhasil tapi tidak
+     * meninggalkan jejak accounting — di situ router mengirim Access-Request ke
+     * RADIUS tapi Accounting-Request-nya tidak, dan panel sesi akan selamanya
+     * kosong tanpa satu pun pesan error.
+     *
+     * @param  array<string,mixed>  $sessions
+     */
+    protected function sessionNotes(int $rows, array $sessions, int $shared, ?int $auths): void
+    {
+        if ($rows === 0) {
+            $message = 'radacct kosong — belum ada satu pun paket Accounting yang sampai. '
+                .'Di router: /radius set [find service~"hotspot"] accounting=yes, dan pastikan '
+                .'/ip hotspot profile yang dipakai memang use-radius=yes.';
+
+            if (($auths ?? 0) > 0) {
+                $this->notes[] = $message.' Ini bukan sekadar sistem yang belum dipakai: radpostauth '
+                    .'mencatat '.number_format($auths, 0, ',', '.').' login, jadi Access-Request sampai '
+                    .'tapi Accounting-Request tidak.';
+            } else {
+                $this->line('  radacct dan radpostauth dua-duanya kosong — wajar untuk sistem yang belum '
+                    .'dipakai. '.$message);
+            }
+
+            return;
+        }
+
+        if ((int) $sessions['stale'] > 0) {
+            $this->notes[] = $sessions['stale'].' sesi terbuka sudah lebih dari '
+                .RadiusService::STALE_AFTER_MINUTES.' menit tidak melapor. Isi Acct-Interim-Interval '
+                .'di halaman Paket Hotspot dan pasang penutup sesi yatim di server sebelum '
+                .'Simultaneous-Use dinyalakan — kalau tidak, baris inilah yang menolak login mereka.';
+        }
+
+        if ($shared > 0) {
+            $this->notes[] = $shared.' NIM sedang punya lebih dari satu sesi terbuka sekaligus. '
+                .'Sebagian mungkin sesi basi, sebagian memang akun yang dipakai bersama; '
+                .'panel "Sedang Online" di halaman voucher memisahkan keduanya.';
+        }
+    }
+
+    /**
+     * Apakah ada yang membatasi satu akun dipakai bersamaan.
+     *
+     * Simultaneous-Use adalah check attribute, jadi tempatnya radgroupcheck (untuk
+     * seluruh anggota paket) atau radcheck (untuk satu NIM). Tidak ada di keduanya
+     * berarti satu NIM boleh login di berapa pun perangkat sekaligus — keadaan yang
+     * tidak memunculkan error apa pun dan hanya terlihat kalau ditanyakan.
+     *
+     * CIMS tidak menuliskannya: grant di radgroupcheck memang hanya SELECT. Yang
+     * bisa dilakukan perintah ini melaporkan keadaannya beserta cara memasangnya.
+     *
+     * Ketidakhadirannya dilaporkan sebagai keterangan, bukan catatan: membatasi
+     * atau tidak membatasi akun bersama adalah keputusan kampus, bukan cacat
+     * skema, dan perintah ini adalah gerbang skema.
+     */
+    protected function checkSharingLimit(ConnectionInterface $db, string $name): void
+    {
+        $schema = Schema::connection($name);
+        $rows = [];
+        $found = 0;
+
+        foreach (['radgroupcheck' => 'groupname', 'radcheck' => 'username'] as $table => $subject) {
+            if (! $schema->hasTable($table)) {
+                continue;
+            }
+
+            $limits = $db->table($table)
+                ->where('attribute', 'Simultaneous-Use')
+                ->orderBy($subject)
+                ->limit(20)
+                ->get([$subject, 'op', 'value']);
+
+            $found += $limits->count();
+
+            foreach ($limits as $limit) {
+                $rows[] = [$table, (string) $limit->$subject, trim((string) $limit->op).' '.$limit->value];
+            }
+        }
+
+        if ($found === 0) {
+            $this->line('  Tidak ada Simultaneous-Use di radgroupcheck maupun radcheck — satu NIM boleh '
+                .'dipakai di berapa pun perangkat sekaligus. Untuk membatasi satu akun satu sesi: '
+                .'INSERT INTO radgroupcheck (groupname, attribute, op, value) VALUES '
+                .'(\''.(trim((string) config('services.hotspot.radius.default_group')) ?: 'mahasiswa')
+                .'\', \'Simultaneous-Use\', \':=\', \'1\'); lalu aktifkan sql di blok session{} '
+                .'pada sites-enabled/default.');
+
+            return;
+        }
+
+        $this->table(['Batas sesi bersamaan — tabel', 'Berlaku untuk', 'Nilai'], $rows);
     }
 
     /**

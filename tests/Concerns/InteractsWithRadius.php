@@ -67,11 +67,17 @@ trait InteractsWithRadius
             $t->string('username', 64)->default('');
             $t->string('nasipaddress', 45)->default('');
             $t->dateTime('acctstarttime')->nullable();
+            // Ditulis oleh Interim-Update, jadi boleh null selamanya kalau
+            // Acct-Interim-Interval tidak dipasang. Panel sesi membedakan
+            // "sudah lama tidak lapor" dari "tidak pernah dijadwalkan lapor"
+            // justru dari kolom ini, jadi tiruannya harus punya.
+            $t->dateTime('acctupdatetime')->nullable();
             $t->dateTime('acctstoptime')->nullable();
             $t->integer('acctsessiontime')->nullable();
             $t->bigInteger('acctinputoctets')->nullable();
             $t->bigInteger('acctoutputoctets')->nullable();
             $t->string('callingstationid', 50)->default('');
+            $t->string('framedipaddress', 45)->default('');
         });
 
         $schema->create('radpostauth', function (Blueprint $t) {
@@ -150,6 +156,47 @@ trait InteractsWithRadius
             'attribute' => 'Mikrotik-Rate-Limit',
             'op' => ':=',
             'value' => $rateLimit,
+        ]);
+    }
+
+    /**
+     * Satu baris sesi accounting, seperti yang ditulis FreeRADIUS sendiri.
+     *
+     * $startedMinutesAgo dan $silentMinutesAgo dihitung dari Carbon::now(), jadi
+     * test yang mengurus sesi basi cukup memakai Carbon::setTestNow() dan tidak
+     * perlu menyusun tanggal sendiri. $silentMinutesAgo = null berarti sesi ini
+     * belum pernah mengirim Interim-Update sama sekali.
+     *
+     * $closed menutup sesi (acctstoptime terisi) — dipakai untuk membuktikan
+     * bahwa panel hanya menghitung yang masih terbuka, karena hanya yang terbuka
+     * yang dihitung FreeRADIUS saat menegakkan Simultaneous-Use.
+     *
+     * @param  array<string, mixed>  $overrides
+     */
+    protected function seedRadiusSession(
+        string $username,
+        int $startedMinutesAgo = 30,
+        ?int $silentMinutesAgo = 1,
+        bool $closed = false,
+        array $overrides = [],
+    ): void {
+        $start = now()->subMinutes($startedMinutesAgo);
+
+        $this->radiusDb()->table('radacct')->insert([
+            'acctsessionid' => $overrides['acctsessionid'] ?? bin2hex(random_bytes(4)),
+            'acctuniqueid' => $overrides['acctuniqueid'] ?? bin2hex(random_bytes(8)),
+            'username' => $username,
+            'nasipaddress' => $overrides['nasipaddress'] ?? '192.168.10.1',
+            'acctstarttime' => $start->format('Y-m-d H:i:s'),
+            'acctupdatetime' => $silentMinutesAgo === null
+                ? null
+                : now()->subMinutes($silentMinutesAgo)->format('Y-m-d H:i:s'),
+            'acctstoptime' => $closed ? now()->format('Y-m-d H:i:s') : null,
+            'acctsessiontime' => $overrides['acctsessiontime'] ?? $startedMinutesAgo * 60,
+            'acctinputoctets' => $overrides['acctinputoctets'] ?? 1024,
+            'acctoutputoctets' => $overrides['acctoutputoctets'] ?? 4096,
+            'callingstationid' => $overrides['callingstationid'] ?? 'AA:BB:CC:DD:EE:FF',
+            'framedipaddress' => $overrides['framedipaddress'] ?? '10.5.50.2',
         ]);
     }
 

@@ -28,6 +28,45 @@ const EMPTY_FORM = {
 const INPUT_CLASS =
     'w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600';
 
+/** Detik → "2j 15m" / "15m" / "40s". Uptime RouterOS sudah berupa teks, radacct tidak. */
+const formatDuration = (seconds) => {
+    if (seconds === null || seconds === undefined) return '-';
+
+    const total = Math.max(Math.round(seconds), 0);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+
+    if (hours > 0) return `${hours}j ${minutes}m`;
+    if (minutes > 0) return `${minutes}m`;
+
+    return `${total}s`;
+};
+
+const formatMb = (bytes) => `${Math.round((bytes ?? 0) / 1048576)} MB`;
+
+/**
+ * Badge keadaan satu sesi RADIUS.
+ *
+ * Tiga keadaan, bukan dua, karena "tidak terlihat di router" dan "belum bisa
+ * dipastikan" adalah hal yang sangat berbeda bagi operator: yang pertama boleh
+ * ditindak, yang kedua tidak boleh — routernya sendiri sedang tidak menjawab.
+ */
+const sessionState = (session) => {
+    if (session.stale) {
+        return { label: 'Basi', className: 'bg-amber-100 text-amber-800 border-amber-300' };
+    }
+
+    if (session.on_router === false) {
+        return { label: 'Tak ada di router', className: 'bg-rose-50 text-rose-700 border-rose-200' };
+    }
+
+    if (session.on_router === true) {
+        return { label: 'Terkonfirmasi', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    }
+
+    return { label: 'Aktif', className: 'bg-slate-100 text-slate-600 border-slate-300' };
+};
+
 /**
  * Voucher WiFi Mahasiswa — daftar NIM + password yang diterapkan ke database
  * FreeRADIUS. Satu voucher berlaku di semua router hotspot kampus: yang menjawab
@@ -67,6 +106,9 @@ export default function Vouchers({
     const [showDetail, setShowDetail] = useState(false);
     const [sessions, setSessions] = useState(null);
     const [loadingSessions, setLoadingSessions] = useState(false);
+    // 'radius' = semua router (sumber yang menegakkan batas login), 'router' =
+    // hanya router terpilih (sumber yang tahu keadaan sebenarnya).
+    const [sessionSource, setSessionSource] = useState('radius');
 
     // Identitas hotspot (SSID, portal, paket) selalu datang dari HOTSPOT_* di
     // .env lewat props — jangan tulis nilai kampus sebagai literal di file ini.
@@ -266,19 +308,38 @@ export default function Vouchers({
             onConfirm: () => router.delete(route('hotspot.vouchers.destroy', voucher.id), { preserveScroll: true }),
         });
 
+    /**
+     * Ambil sesi yang sedang berjalan dari dua sumber sekaligus.
+     *
+     * Kalau RADIUS belum bisa dibaca, tampilannya jatuh ke tab router supaya
+     * panelnya tetap berguna — bukan menampilkan tabel kosong yang seolah-olah
+     * berarti tidak ada yang online.
+     */
     const loadSessions = async () => {
         setLoadingSessions(true);
         try {
             const response = await fetch(route('hotspot.vouchers.active', { host: routerHost }), {
                 headers: { Accept: 'application/json' },
             });
-            setSessions(await response.json());
+            const data = await response.json();
+            setSessions(data);
+            setSessionSource(data?.radius?.error || !data?.radius?.configured ? 'router' : 'radius');
         } catch (error) {
-            setSessions({ total: 0, sessions: [], error: 'Gagal mengambil data sesi aktif dari router.' });
+            setSessions({
+                radius: { error: 'Gagal mengambil data sesi aktif.', sessions: [], shared: [], total: 0 },
+                router: { total: 0, sessions: [] },
+            });
+            setSessionSource('router');
         } finally {
             setLoadingSessions(false);
         }
     };
+
+    const radiusInfo = sessions?.radius ?? {};
+    const routerInfo = sessions?.router ?? {};
+    const radiusRows = radiusInfo.sessions ?? [];
+    const routerRows = routerInfo.sessions ?? [];
+    const sharedRows = radiusInfo.shared ?? [];
 
     return (
         <CimsLayout
@@ -301,7 +362,15 @@ export default function Vouchers({
                                 className="rounded-xl border-slate-200 bg-white text-sm font-semibold text-slate-700"
                                 aria-label="Router untuk panel sesi aktif dan tombol Kick"
                             >
-                                {routers.length === 0 && <option value={routerHost ?? ''}>{routerHost ?? 'Tanpa router'}</option>}
+                                {/* Host yang benar-benar ditanyai belum tentu ada di Device
+                                    Inventory: HOTSPOT_ROUTER_HOST bisa menunjuk alamat yang
+                                    sudah tidak dipakai. Tanpa option-nya sendiri, <select>
+                                    menampilkan pilihan pertama — dan dropdown ini berbohong
+                                    soal router mana yang sesi aktifnya sedang dibaca. */}
+                                {routerHost && ! routers.some((r) => r.ip === routerHost) && (
+                                    <option value={routerHost}>{routerHost} — tidak ada di inventaris</option>
+                                )}
+                                {routers.length === 0 && ! routerHost && <option value="">Tanpa router</option>}
                                 {routers.map((r) => (
                                     <option key={r.ip} value={r.ip}>
                                         {r.name} ({r.ip})
@@ -546,17 +615,33 @@ export default function Vouchers({
                 </div>
             </div>
 
-            {/* Panel monitoring sesi hotspot yang sedang aktif */}
+            {/* Panel monitoring sesi hotspot yang sedang berjalan.
+
+                Sumber utamanya sekarang radacct di RADIUS, bukan satu router: satu
+                akun yang dipakai bersamaan di dua router hanya terlihat dari sana,
+                dan angka itulah yang akan dipakai FreeRADIUS kalau batas sesi
+                bersamaan dinyalakan. Tampilan router tetap ada karena selisih
+                keduanya adalah satu-satunya cara melihat sesi basi sebelum ia
+                menolak login mahasiswa. */}
             {sessions && (
                 <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50/50 px-5 py-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-900">
-                            Sedang Online di Hotspot — {sessions.total ?? 0} sesi
-                            {sessions.fetched_at && <span className="ml-2 text-xs font-normal text-slate-500">per {sessions.fetched_at}</span>}
-                        </h3>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                                Sedang Online di Hotspot — {radiusInfo.total ?? 0} sesi di seluruh router
+                                {sessions.fetched_at && (
+                                    <span className="ml-2 text-xs font-normal text-slate-500">per {sessions.fetched_at}</span>
+                                )}
+                            </h3>
+                            <p className="mt-1 max-w-2xl text-xs text-slate-500">
+                                Hitungan utamanya dibaca dari <span className="font-mono text-slate-700">radacct</span> di server
+                                RADIUS, jadi mencakup semua router hotspot — bukan hanya{' '}
+                                <span className="font-mono text-slate-700">{routerHost}</span>.
+                            </p>
+                        </div>
                         <div className="flex gap-2">
                             <button onClick={loadSessions} className="text-xs font-semibold text-blue-700 hover:underline">
-                                Refresh
+                                {loadingSessions ? 'Memuat…' : 'Refresh'}
                             </button>
                             <button onClick={() => setSessions(null)} className="text-xs font-semibold text-slate-500 hover:underline">
                                 Tutup
@@ -564,57 +649,194 @@ export default function Vouchers({
                         </div>
                     </div>
 
-                    {/* Panel inilah rumah status router sekarang: isinya dibaca langsung
-                        dari RouterOS, bukan dari RADIUS, jadi kegagalannya harus terbaca
-                        di sini — bukan di banner yang mengurusi izin login. */}
-                    <p className="mt-1 text-xs text-slate-500">
-                        Dibaca langsung dari <span className="font-mono text-slate-700">{routerHost}</span> lewat API RouterOS
-                        {routerConnection === undefined
-                            ? ' — koneksi router masih diperiksa…'
-                            : routerConnection?.success
-                              ? ` — ${routerConnection.identity ?? routerHost} (${routerConnection.board} · RouterOS ${routerConnection.version}).`
-                              : ` — router tidak bisa dihubungi: ${routerConnection?.error ?? 'tidak diketahui'}. Sesi aktif dan tombol Kick belum bisa dipakai sampai koneksinya pulih; izin login mahasiswa tidak terpengaruh.`}
-                    </p>
-
-                    {sessions.error && <p className="mt-2 text-xs text-rose-700">{sessions.error}</p>}
-
-                    <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-left text-xs">
-                            <thead className="text-slate-500">
-                                <tr>
-                                    <th className="py-2 pr-4 font-bold">NIM / User</th>
-                                    <th className="py-2 pr-4 font-bold">Nama</th>
-                                    <th className="py-2 pr-4 font-bold">IP</th>
-                                    <th className="py-2 pr-4 font-bold">MAC</th>
-                                    <th className="py-2 pr-4 font-bold">Uptime</th>
-                                    <th className="py-2 pr-4 font-bold">Download / Upload</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-blue-100">
-                                {(sessions.sessions ?? []).map((s, index) => (
-                                    <tr key={`${s.user}-${index}`}>
-                                        <td className="py-2 pr-4 font-mono font-semibold text-slate-800">{s.user ?? '-'}</td>
-                                        <td className="py-2 pr-4 text-slate-600">
-                                            {s.student_name ?? (s.registered ? '-' : 'bukan voucher CIMS')}
-                                        </td>
-                                        <td className="py-2 pr-4 font-mono text-slate-600">{s.address ?? '-'}</td>
-                                        <td className="py-2 pr-4 font-mono text-slate-500">{s.mac ?? '-'}</td>
-                                        <td className="py-2 pr-4 text-slate-600">{s.uptime ?? '-'}</td>
-                                        <td className="py-2 pr-4 text-slate-600">
-                                            {Math.round((s.bytes_out ?? 0) / 1048576)} MB / {Math.round((s.bytes_in ?? 0) / 1048576)} MB
-                                        </td>
-                                    </tr>
-                                ))}
-                                {(sessions.sessions ?? []).length === 0 && (
-                                    <tr>
-                                        <td colSpan="6" className="py-4 text-center text-slate-500">
-                                            Belum ada mahasiswa yang login ke hotspot saat ini.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {[
+                            { key: 'radius', label: `RADIUS · semua router (${radiusInfo.shown ?? 0})` },
+                            { key: 'router', label: `Router ini (${routerInfo.total ?? 0})` },
+                        ].map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setSessionSource(tab.key)}
+                                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                                    sessionSource === tab.key
+                                        ? 'border-blue-600 bg-blue-600 text-white'
+                                        : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-100'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                        {(radiusInfo.stale ?? 0) > 0 && (
+                            <span className="rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                                {radiusInfo.stale} sesi basi
+                            </span>
+                        )}
+                        {sharedRows.length > 0 && (
+                            <span className="rounded-lg border border-rose-300 bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-800">
+                                {sharedRows.length} NIM dipakai bersamaan
+                            </span>
+                        )}
                     </div>
+
+                    {radiusInfo.error && (
+                        <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                            RADIUS: {radiusInfo.error}
+                        </p>
+                    )}
+
+                    {/* Peringatan ini dipasang sebelum tabelnya, bukan sesudah: angka
+                        "sesi basi" adalah alasan utama batas sesi bersamaan belum
+                        boleh dinyalakan, dan operator harus membacanya lebih dulu. */}
+                    {(radiusInfo.stale ?? 0) > 0 && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            <span className="font-semibold">{radiusInfo.stale} sesi</span> tidak melaporkan diri lebih dari{' '}
+                            {radiusInfo.stale_after_minutes ?? 15} menit. Baris seperti ini umumnya sisa perangkat yang mati atau
+                            router yang restart — bukan mahasiswa yang benar-benar online. Selama barisnya masih terbuka, ia akan
+                            menolak login NIM tersebut begitu batas satu sesi per mahasiswa dinyalakan. Pasang{' '}
+                            <span className="font-mono">Acct-Interim-Interval</span> di paket dan penutup sesi yatim di server
+                            RADIUS lebih dulu.
+                        </div>
+                    )}
+
+                    {sharedRows.length > 0 && (
+                        <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                            <p className="font-semibold">NIM dengan lebih dari satu sesi terbuka:</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                {sharedRows.map((row) => (
+                                    <span
+                                        key={row.username}
+                                        className="rounded-md border border-rose-300 bg-white px-2 py-0.5 font-mono text-[11px] text-rose-800"
+                                    >
+                                        {row.username} · {row.sessions}×{row.student_name ? ` · ${row.student_name}` : ''}
+                                    </span>
+                                ))}
+                            </div>
+                            <p className="mt-1.5 text-rose-800">
+                                Periksa kolom keadaan dulu — sesi basi juga terhitung ganda padahal orangnya cuma satu.
+                            </p>
+                        </div>
+                    )}
+
+                    {sessionSource === 'radius' ? (
+                        <div className="mt-3 overflow-x-auto">
+                            <table className="min-w-full text-left text-xs">
+                                <thead className="text-slate-500">
+                                    <tr>
+                                        <th className="py-2 pr-4 font-bold">NIM / Nama</th>
+                                        <th className="py-2 pr-4 font-bold">Router / IP</th>
+                                        <th className="py-2 pr-4 font-bold">MAC</th>
+                                        <th className="py-2 pr-4 font-bold">Uptime</th>
+                                        <th className="py-2 pr-4 font-bold">Terakhir lapor</th>
+                                        <th className="py-2 pr-4 font-bold">Download / Upload</th>
+                                        <th className="py-2 pr-4 font-bold">Keadaan</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-blue-100">
+                                    {radiusRows.map((s, index) => {
+                                        const state = sessionState(s);
+
+                                        return (
+                                            <tr key={s.session_id ?? `${s.username}-${index}`}>
+                                                <td className="py-2 pr-4">
+                                                    <span className="block font-mono font-semibold text-slate-800">{s.username || '-'}</span>
+                                                    <span className="block text-slate-500">
+                                                        {s.student_name ?? (s.registered ? '-' : 'bukan voucher CIMS')}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2 pr-4 font-mono text-slate-600">
+                                                    <span className="block">{s.nas_ip ?? '-'}</span>
+                                                    <span className="block text-slate-400">{s.ip ?? '-'}</span>
+                                                </td>
+                                                <td className="py-2 pr-4 font-mono text-slate-500">{s.mac ?? '-'}</td>
+                                                <td className="py-2 pr-4 text-slate-600">{formatDuration(s.uptime_seconds)}</td>
+                                                <td className="py-2 pr-4 text-slate-600">
+                                                    {s.reported ? `${formatDuration(s.silent_for)} lalu` : 'belum pernah'}
+                                                </td>
+                                                <td className="py-2 pr-4 text-slate-600">
+                                                    {formatMb(s.bytes_out)} / {formatMb(s.bytes_in)}
+                                                </td>
+                                                <td className="py-2 pr-4">
+                                                    <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${state.className}`}>
+                                                        {state.label}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {radiusRows.length === 0 && (
+                                        <tr>
+                                            <td colSpan="7" className="py-4 text-center text-slate-500">
+                                                {radiusInfo.configured === false
+                                                    ? 'Koneksi RADIUS belum diatur, jadi sesi seluruh router belum bisa dibaca.'
+                                                    : 'Tidak ada sesi terbuka di radacct saat ini.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                            {radiusInfo.truncated && (
+                                <p className="mt-2 text-[11px] text-slate-500">
+                                    Menampilkan {radiusInfo.shown} dari {radiusInfo.total} sesi, diurutkan dari yang paling lama
+                                    tidak melapor — yang berpotensi bermasalah selalu ikut tampil.
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            {/* Status router hidup di sini, bukan di banner halaman:
+                                hanya tampilan ini dan tombol Kick yang memerlukan API
+                                RouterOS, jadi hanya di sini kegagalannya berarti. */}
+                            <p className="mt-3 text-xs text-slate-500">
+                                Dibaca langsung dari <span className="font-mono text-slate-700">{routerHost}</span> lewat API
+                                RouterOS
+                                {routerConnection === undefined
+                                    ? ' — koneksi router masih diperiksa…'
+                                    : routerConnection?.success
+                                      ? ` — ${routerConnection.identity ?? routerHost} (${routerConnection.board} · RouterOS ${routerConnection.version}).`
+                                      : ` — router tidak bisa dihubungi: ${routerConnection?.error ?? 'tidak diketahui'}. Tombol Kick belum bisa dipakai sampai koneksinya pulih; izin login mahasiswa tidak terpengaruh.`}
+                            </p>
+
+                            <div className="mt-2 overflow-x-auto">
+                                <table className="min-w-full text-left text-xs">
+                                    <thead className="text-slate-500">
+                                        <tr>
+                                            <th className="py-2 pr-4 font-bold">NIM / User</th>
+                                            <th className="py-2 pr-4 font-bold">Nama</th>
+                                            <th className="py-2 pr-4 font-bold">IP</th>
+                                            <th className="py-2 pr-4 font-bold">MAC</th>
+                                            <th className="py-2 pr-4 font-bold">Uptime</th>
+                                            <th className="py-2 pr-4 font-bold">Download / Upload</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-blue-100">
+                                        {routerRows.map((s, index) => (
+                                            <tr key={`${s.user}-${index}`}>
+                                                <td className="py-2 pr-4 font-mono font-semibold text-slate-800">{s.user ?? '-'}</td>
+                                                <td className="py-2 pr-4 text-slate-600">
+                                                    {s.student_name ?? (s.registered ? '-' : 'bukan voucher CIMS')}
+                                                </td>
+                                                <td className="py-2 pr-4 font-mono text-slate-600">{s.address ?? '-'}</td>
+                                                <td className="py-2 pr-4 font-mono text-slate-500">{s.mac ?? '-'}</td>
+                                                <td className="py-2 pr-4 text-slate-600">{s.uptime ?? '-'}</td>
+                                                <td className="py-2 pr-4 text-slate-600">
+                                                    {formatMb(s.bytes_out)} / {formatMb(s.bytes_in)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {routerRows.length === 0 && (
+                                            <tr>
+                                                <td colSpan="6" className="py-4 text-center text-slate-500">
+                                                    {sessions.router_ok === false
+                                                        ? 'Router tidak menjawab, jadi isi sesinya belum bisa dipastikan.'
+                                                        : 'Belum ada mahasiswa yang login lewat router ini saat ini.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 

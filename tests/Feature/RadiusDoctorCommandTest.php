@@ -6,6 +6,7 @@ use App\Console\Commands\RadiusDoctorCommand;
 use App\Models\HotspotVoucher;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 use Tests\Concerns\InteractsWithRadius;
 use Tests\TestCase;
@@ -60,6 +61,66 @@ class RadiusDoctorCommandTest extends TestCase
             ->expectsOutputToContain('ada policy')
             ->expectsOutputToContain('Semua pemeriksaan lolos')
             ->assertExitCode(0);
+    }
+
+    /**
+     * radacct kosong punya dua sebab yang terlihat sama dan tidak sama nilainya.
+     *
+     * Sistem yang belum dipakai siapa pun juga punya radacct kosong; itu bukan
+     * cacat, dan menegurnya di situ membuat perintah ini tidak pernah bisa berkata
+     * "lolos". Yang benar-benar rusak adalah login yang berhasil tapi tidak
+     * meninggalkan jejak accounting — Access-Request sampai, Accounting-Request
+     * tidak — dan itulah yang harus muncul sebagai catatan.
+     */
+    public function test_authentication_without_accounting_is_reported_as_a_note(): void
+    {
+        $this->seedRadiusGroup('mahasiswa');
+        $this->registerNas(self::ROUTER);
+
+        $this->radiusDb()->table('radpostauth')->insert([
+            'username' => '2101001',
+            'pass' => 'rahasia',
+            'reply' => 'Access-Accept',
+            'authdate' => now()->toDateTimeString(),
+        ]);
+
+        // Diperiksa dari keluaran utuh, bukan lewat expectsOutputToContain():
+        // yang terakhir mengikat satu potongan ke satu baris tulis, jadi dua
+        // potongan dari satu kalimat yang sama tidak akan pernah cocok bersamaan.
+        $exit = Artisan::call('radius:doctor');
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('radacct kosong', $output);
+        $this->assertStringContainsString('radpostauth mencatat 1 login', $output);
+        $this->assertStringContainsString('Accounting-Request tidak', $output);
+        $this->assertStringNotContainsString('Semua pemeriksaan lolos', $output);
+    }
+
+    public function test_an_empty_but_unused_radius_still_passes_every_check(): void
+    {
+        $this->seedRadiusGroup('mahasiswa');
+        $this->registerNas(self::ROUTER);
+
+        $this->artisan('radius:doctor')
+            ->expectsOutputToContain('belum dipakai')
+            ->expectsOutputToContain('Semua pemeriksaan lolos')
+            ->assertExitCode(0);
+    }
+
+    public function test_stale_sessions_are_reported_as_a_note_before_the_limit_is_enabled(): void
+    {
+        $this->seedRadiusGroup('mahasiswa');
+        $this->registerNas(self::ROUTER);
+        $this->seedRadiusSession('2101001', startedMinutesAgo: 240, silentMinutesAgo: 180);
+
+        $exit = Artisan::call('radius:doctor');
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('tidak melapor', $output);
+        $this->assertStringContainsString('Acct-Interim-Interval', $output);
+        $this->assertStringNotContainsString('Semua pemeriksaan lolos', $output);
     }
 
     public function test_a_missing_table_stops_the_gate_before_anything_is_written(): void
