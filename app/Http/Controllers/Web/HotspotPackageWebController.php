@@ -32,9 +32,17 @@ use Inertia\Inertia;
  * ditelusuri riwayatnya), jadi tabel kedua hanya akan menambah satu sumber
  * kebenaran lagi beserta kewajiban merekonsiliasinya.
  *
- * Kelas ini tidak pernah menyentuh radgroupcheck: grant CIMS di tabel itu hanya
- * SELECT, dan syarat login (Auth-Type, Simultaneous-Use) bukan hal yang pantas
- * berubah karena seseorang menyimpan formulir kecepatan.
+ * Dari radgroupcheck, kelas ini hanya menyentuh Simultaneous-Use
+ * (RadiusService::MANAGED_GROUP_CHECK). Tabel itu berisi SYARAT LOGIN, bukan
+ * sekadar tempat atribut lain: salah menuliskan satu baris di sana menolak seluruh
+ * anggota paket sekaligus, jadi Auth-Type, Expiration dan Login-Time tetap
+ * ditampilkan tanpa pernah ditulis.
+ *
+ * Simultaneous-Use dikecualikan karena ia satu-satunya cara membatasi satu akun ke
+ * satu sesi di SELURUH router — shared-users pada user-profile RouterOS hanya
+ * berlaku di router yang memasangnya — dan karena lupa memasangnya tidak
+ * menimbulkan error apa pun. Yang muncul cuma akun yang dipakai bersama-sama tanpa
+ * ada yang tahu, dan keadaan itu tidak akan pernah melaporkan dirinya sendiri.
  */
 class HotspotPackageWebController extends Controller
 {
@@ -57,8 +65,7 @@ class HotspotPackageWebController extends Controller
     public function __construct(
         protected RadiusService $radius,
         protected MikrotikService $mikrotik,
-    ) {
-    }
+    ) {}
 
     /**
      * Daftar paket beserta jumlah pemakainya.
@@ -66,6 +73,11 @@ class HotspotPackageWebController extends Controller
      * Daftar user-profile router dikirim sebagai deferred prop terpisah: ia hanya
      * dipakai untuk membandingkan nilai Mikrotik-Group, dan router yang sedang mati
      * tidak boleh membuat halaman paket ikut gagal dimuat.
+     *
+     * `sharing` juga deferred, dan bukan karena lambat: ia membaca radacct yang di
+     * server sungguhan berisi ratusan ribu baris. Isinya dipakai memperingatkan
+     * operator TEPAT saat ia menyalakan batas sesi — sesi yatim yang belum
+     * dibereskan akan menolak login mahasiswa yang tidak melakukan apa pun.
      */
     public function index(Request $request)
     {
@@ -75,12 +87,14 @@ class HotspotPackageWebController extends Controller
             'packages' => $this->radius->packages(),
             'defaultGroup' => $this->radius->defaultGroup() ?: null,
             'managedAttributes' => RadiusService::MANAGED_GROUP_REPLY,
+            'managedConditions' => RadiusService::MANAGED_GROUP_CHECK,
             'radiusConfigured' => $this->radius->configured(),
             'routerHost' => $host,
             'routers' => $this->mikrotikRouters(),
             'canManage' => (bool) $request->user()?->can('manage devices'),
 
             'connection' => Inertia::defer(fn () => $this->radius->health()),
+            'sharing' => Inertia::defer(fn () => $this->radius->sharingReadiness()),
 
             // Grup 'router' dipisah supaya menunggu router tidak menahan status
             // RADIUS — yang satu menentukan halaman ini bisa menyimpan atau tidak,
@@ -110,9 +124,11 @@ class HotspotPackageWebController extends Controller
             ]);
         }
 
+        $limitChanged = $this->applySharingLimit($data['name'], $data['sharing_limit'] ?? null);
+
         $this->radius->savePackage($data['name'], $this->attributesFrom($data));
 
-        return back()->with('success', $this->savedMessage($data['name'], $existing['members'] ?? 0));
+        return back()->with('success', $this->savedMessage($data['name'], $existing['members'] ?? 0, $limitChanged));
     }
 
     /**
@@ -127,9 +143,57 @@ class HotspotPackageWebController extends Controller
     {
         $data = $this->validatePackage($request, $group);
 
+        $limitChanged = $this->applySharingLimit($group, $data['sharing_limit'] ?? null);
+
         $this->radius->savePackage($group, $this->attributesFrom($data));
 
-        return back()->with('success', $this->savedMessage($group, $this->radius->packageMembers($group)));
+        return back()->with('success', $this->savedMessage(
+            $group,
+            $this->radius->packageMembers($group),
+            $limitChanged,
+        ));
+    }
+
+    /**
+     * Batas sesi bersamaan ditulis lebih dulu, dan urutannya sengaja begitu.
+     *
+     * Dari dua tulisan yang dilakukan formulir ini, hanya yang ini bisa gagal karena
+     * izin: radgroupreply sudah lama ditulis CIMS, radgroupcheck baru. Menempatkan
+     * yang bisa gagal di depan membuat kegagalannya berhenti sebelum ada apa pun
+     * tersimpan — bukan meninggalkan paket yang kecepatannya sudah berubah sementara
+     * batas sesinya tidak, keadaan yang tidak terbaca dari layar mana pun.
+     *
+     * saveSharingLimit() sendiri tidak menulis kalau nilainya tidak berubah, jadi
+     * server yang grant radgroupcheck-nya masih SELECT tetap bisa menyimpan
+     * kecepatan seperti biasa. Yang tersisa cuma kegagalan saat operator benar-benar
+     * mengubah batasnya, dan di situ pesan MySQL diterjemahkan menjadi GRANT yang
+     * persis perlu dijalankan — tanpa itu yang terlihat hanya SQLSTATE di bawah
+     * kolom angka, tanpa petunjuk bahwa yang kurang ada di server RADIUS.
+     *
+     * @return bool true bila barisnya benar-benar berubah
+     */
+    protected function applySharingLimit(string $group, mixed $limit): bool
+    {
+        $value = filled($limit) ? (int) $limit : null;
+
+        try {
+            return $this->radius->saveSharingLimit($group, $value);
+        } catch (\Throwable $e) {
+            if (! str_contains(strtolower($e->getMessage()), 'command denied')) {
+                throw $e;
+            }
+
+            $connection = $this->radius->connectionName();
+            $database = (string) config("database.connections.{$connection}.database", 'radius');
+            $user = (string) config("database.connections.{$connection}.username", 'cims_radius');
+
+            throw ValidationException::withMessages([
+                'sharing_limit' => 'Batas sesi belum bisa disimpan: user database CIMS hanya boleh '
+                    .'membaca tabel radgroupcheck. Jalankan di server RADIUS: GRANT SELECT, INSERT, '
+                    ."UPDATE, DELETE ON `{$database}`.radgroupcheck TO '{$user}'@'<ip-server-cims>'; "
+                    .'lalu FLUSH PRIVILEGES; — sisa isi paket tidak ada yang berubah.',
+            ]);
+        }
     }
 
     /**
@@ -152,15 +216,28 @@ class HotspotPackageWebController extends Controller
 
         $deleted = $this->radius->deletePackage($group);
 
-        if ($deleted['reply'] === 0 && $deleted['check'] === 0) {
-            return back()->with('error', "Paket '{$group}' tidak punya baris policy untuk dihapus.");
+        if ($deleted['reply'] === 0 && $deleted['limit'] === 0) {
+            $message = "Paket '{$group}' tidak punya baris policy untuk dihapus.";
+
+            if ($deleted['check'] > 0) {
+                $message .= " Yang ada {$deleted['check']} baris syarat login di radgroupcheck, dan itu "
+                    .'di luar jangkauan CIMS — hapus dari server RADIUS bila memang tidak dipakai lagi.';
+            }
+
+            return back()->with('error', $message);
         }
 
         $message = "Paket '{$group}' dihapus ({$deleted['reply']} atribut).";
 
+        if ($deleted['limit'] > 0) {
+            $message .= ' Batas sesi bersamaannya ikut dilepas — paket ini tidak lagi'
+                .' membatasi satu akun ke satu sesi.';
+        }
+
         if ($deleted['check'] > 0) {
-            $message .= " {$deleted['check']} baris di radgroupcheck tidak ikut terhapus — "
-                .'CIMS hanya boleh membacanya. Hapus dari server RADIUS bila memang tidak dipakai lagi.';
+            $message .= " {$deleted['check']} baris syarat login lain di radgroupcheck tidak ikut terhapus:"
+                .' baris seperti itu bisa milik konfigurasi lain di database RADIUS yang sama.'
+                .' Hapus dari server RADIUS bila memang tidak dipakai lagi.';
         }
 
         return back()->with('success', $message);
@@ -189,6 +266,12 @@ class HotspotPackageWebController extends Controller
 
             'mikrotik_group' => ['nullable', 'string', 'max:64'],
 
+            // Simultaneous-Use. Batas atasnya 10, bukan karena RADIUS punya batas,
+            // tapi karena angka di atas itu tidak lagi membatasi apa pun — dan salah
+            // ketik nol tambahan pada kolom ini tidak akan pernah terlihat sebagai
+            // error, cuma sebagai akun bersama yang lolos.
+            'sharing_limit' => ['nullable', 'integer', 'min:1', 'max:10'],
+
             // Mode lanjut: nilai Mikrotik-Rate-Limit ditulis apa adanya (burst,
             // threshold, priority). Kalau diisi, dua angka Mbps di atas diabaikan.
             'rate_limit_raw' => ['nullable', 'string', 'max:191'],
@@ -206,6 +289,7 @@ class HotspotPackageWebController extends Controller
             'idle_timeout' => 'batas diam',
             'interim_interval' => 'interval laporan',
             'mikrotik_group' => 'user-profile router',
+            'sharing_limit' => 'batas sesi bersamaan',
             'rate_limit_raw' => 'rate limit lanjutan',
         ]);
 
@@ -280,8 +364,13 @@ class HotspotPackageWebController extends Controller
      * disangka: rlm_sql membaca policy setiap Access-Request, jadi tidak ada
      * FreeRADIUS yang perlu direstart dan tidak ada voucher yang perlu dipush
      * ulang — tapi sesi yang sedang berjalan tetap memakai batas lamanya.
+     *
+     * Kalimat tentang blok session{} hanya muncul ketika batas sesi benar-benar
+     * berubah. Itu satu-satunya syarat yang tidak bisa diperiksa lewat SQL —
+     * barisnya ada di radgroupcheck, rapi, dan tetap tidak berpengaruh apa pun
+     * kalau modul sql belum dipanggil di blok itu.
      */
-    protected function savedMessage(string $group, int $members): string
+    protected function savedMessage(string $group, int $members, bool $limitChanged = false): string
     {
         $message = "Paket '{$group}' disimpan.";
 
@@ -291,6 +380,12 @@ class HotspotPackageWebController extends Controller
         } else {
             $message .= ' Belum ada voucher yang memakainya; pilih paket ini di kolom Paket'
                 .' pada halaman Voucher WiFi Mahasiswa.';
+        }
+
+        if ($limitChanged) {
+            $message .= ' Batas sesi bersamaan ikut ditulis ke radgroupcheck — pastikan blok session{}'
+                .' di sites-enabled/default sudah memuat sql, karena tanpa itu FreeRADIUS tidak pernah'
+                .' menghitung sesi yang sedang berjalan.';
         }
 
         return $message;

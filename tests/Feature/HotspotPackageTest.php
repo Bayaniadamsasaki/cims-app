@@ -15,8 +15,9 @@ use Tests\TestCase;
  * Halaman Paket Hotspot: isi dari group RADIUS yang dipakai voucher mahasiswa.
  *
  * Halaman voucher menentukan siapa memakai paket mana (radusergroup); halaman
- * ini menentukan apa isi paketnya (radgroupreply). Yang dijaga test ini adalah
- * empat hal yang salahnya tidak pernah muncul sebagai error:
+ * ini menentukan apa isi paketnya (radgroupreply, plus satu baris di
+ * radgroupcheck). Yang dijaga test ini adalah lima hal yang salahnya tidak pernah
+ * muncul sebagai error:
  *
  *   1. Urutan rx/tx pada Mikrotik-Rate-Limit. Tertukar berarti unduhan
  *      mahasiswa dibatasi angka unggah, dan tidak ada yang melaporkannya.
@@ -26,6 +27,11 @@ use Tests\TestCase;
  *      disetel dengan tangan di server RADIUS harus selamat.
  *   4. Menghapus paket yang masih dipakai justru MELEBARKAN akses (login tanpa
  *      batas), jadi penolakannya harus ada dan harus terbukti.
+ *   5. Simultaneous-Use adalah satu-satunya baris radgroupcheck yang ditulis
+ *      halaman ini, dan ia berbeda jenis dari semua yang lain di sini: yang
+ *      lain mengubah seberapa cepat, yang ini MENOLAK login. Karena itu op-nya
+ *      harus ':=', tetangganya di tabel yang sama harus selamat, dan nilai yang
+ *      tidak berubah tidak boleh menghasilkan tulisan apa pun.
  */
 class HotspotPackageTest extends TestCase
 {
@@ -297,8 +303,10 @@ class HotspotPackageTest extends TestCase
      * bisa terjadi tanpa sengaja, menghapus paket tidak, dan separuh policy yang
      * tertinggal justru membuat group-nya tetap terlihat "punya isi".
      *
-     * radgroupcheck tidak ikut terhapus — grant CIMS di tabel itu hanya SELECT —
-     * jadi sisanya harus dilaporkan, bukan didiamkan.
+     * Yang tidak ikut terhapus adalah syarat login di luar Simultaneous-Use.
+     * Auth-Type di bawah bisa milik konfigurasi lain di database RADIUS yang sama
+     * — CIMS tidak berwenang menyimpulkan itu sampah — jadi sisanya dilaporkan,
+     * bukan didiamkan dan bukan dihapus.
      */
     public function test_deleting_an_unused_package_clears_radgroupreply_and_reports_what_it_cannot_touch(): void
     {
@@ -319,6 +327,210 @@ class HotspotPackageTest extends TestCase
         $this->assertSame([], $this->policyOf(self::GROUP));
         $this->assertSame(1, $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->count());
         $this->assertSame('1M/1M', $this->policyOf('paket-lain')['Mikrotik-Rate-Limit']);
+    }
+
+    /**
+     * Satu baris, op ':=', dan tidak ada yang lain.
+     *
+     * '=' cuma menambahkan bila atributnya belum ada, jadi baris check dengan '='
+     * bisa kalah dan diam-diam tidak berlaku. Pada atribut yang tugasnya MENOLAK
+     * login, "diam-diam tidak berlaku" berarti akun bersama tetap lolos sementara
+     * halaman ini menampilkan angka 1 — kegagalan yang justru terlihat berhasil.
+     *
+     * Pesannya ikut diperiksa: blok session{} adalah satu-satunya syarat di sini
+     * yang tidak bisa dilihat dari SQL, jadi barisnya boleh saja tersimpan rapi
+     * tanpa berpengaruh apa pun. Kalau kalimat itu hilang, operator tidak punya
+     * cara lain mengetahuinya.
+     */
+    public function test_a_sharing_limit_is_written_as_one_replacing_row_in_radgroupcheck(): void
+    {
+        $this->actingAs($this->operator())
+            ->post(route('hotspot.packages.store'), $this->payload(['sharing_limit' => 1]))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'session{}'));
+
+        $rows = $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->get();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Simultaneous-Use', $rows->first()->attribute);
+        $this->assertSame(':=', trim((string) $rows->first()->op));
+        $this->assertSame('1', (string) $rows->first()->value);
+
+        // Dua tabel, satu formulir: kecepatannya tetap tersimpan seperti biasa.
+        $this->assertSame('2M/8M', $this->policyOf(self::GROUP)['Mikrotik-Rate-Limit']);
+    }
+
+    /** Kosong berarti barisnya tidak ada. Simultaneous-Use := 0 menolak semua login. */
+    public function test_clearing_the_sharing_limit_deletes_the_row(): void
+    {
+        $operator = $this->operator();
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.store'), $this->payload(['sharing_limit' => 2]))
+            ->assertSessionHas('success');
+
+        $this->assertSame('2', $this->limitOf(self::GROUP));
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.update', self::GROUP), $this->payload(['sharing_limit' => null]))
+            ->assertSessionHas('success');
+
+        $this->assertNull($this->limitOf(self::GROUP));
+        $this->assertSame(0, $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->count());
+    }
+
+    /**
+     * radgroupcheck dipakai bersama-sama, dan tidak semua isinya milik CIMS.
+     *
+     * Menulis satu atribut tidak boleh menyapu tetangganya: Auth-Type dan
+     * Expiration di group yang sama bisa datang dari konfigurasi lain di database
+     * RADIUS yang sama, dan batas group lain sama sekali bukan urusan simpan ini.
+     */
+    public function test_saving_a_sharing_limit_leaves_other_conditions_and_other_groups_alone(): void
+    {
+        $this->radiusDb()->table('radgroupcheck')->insert([
+            ['groupname' => self::GROUP, 'attribute' => 'Auth-Type', 'op' => ':=', 'value' => 'Accept'],
+            ['groupname' => self::GROUP, 'attribute' => 'Expiration', 'op' => ':=', 'value' => '31 Dec 2030'],
+            ['groupname' => 'paket-lain', 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '5'],
+        ]);
+
+        $this->actingAs($this->operator())
+            ->post(route('hotspot.packages.update', self::GROUP), $this->payload(['sharing_limit' => 1]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('1', $this->limitOf(self::GROUP));
+        $this->assertSame('5', $this->limitOf('paket-lain'), 'Batas group lain tidak pernah ikut ditulis.');
+
+        $conditions = $this->radiusDb()->table('radgroupcheck')
+            ->where('groupname', self::GROUP)
+            ->pluck('value', 'attribute');
+
+        $this->assertSame('Accept', $conditions['Auth-Type']);
+        $this->assertSame('31 Dec 2030', $conditions['Expiration']);
+    }
+
+    /**
+     * Nilai yang tidak berubah tidak menghasilkan tulisan apa pun.
+     *
+     * Bukan penghematan query. Di server yang grant radgroupcheck-nya masih
+     * SELECT, inilah yang membuat mengubah kecepatan tetap bisa dilakukan — tanpa
+     * penjagaan ini setiap simpan menabrak izin, dan yang gagal disimpan bukan
+     * cuma batas sesinya, tapi seluruh formulirnya.
+     *
+     * Dibuktikan lewat id: hapus-lalu-tulis akan memberi baris baru id baru.
+     */
+    public function test_saving_an_unchanged_sharing_limit_does_not_rewrite_the_row(): void
+    {
+        $this->radiusDb()->table('radgroupcheck')->insert([
+            'groupname' => self::GROUP, 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '1',
+        ]);
+
+        $before = $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->value('id');
+
+        $this->actingAs($this->operator())
+            ->post(route('hotspot.packages.update', self::GROUP), $this->payload(['sharing_limit' => '1']))
+            ->assertSessionHas('success', fn (string $message) => ! str_contains($message, 'session{}'));
+
+        $this->assertSame(
+            $before,
+            $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->value('id'),
+        );
+    }
+
+    /**
+     * Batas di luar jangkauan ditolak, dan ditolak sebelum ada yang tersimpan.
+     *
+     * 0 menolak seluruh anggota paket; 20 tidak membatasi apa pun. Keduanya salah
+     * ketik yang tidak akan pernah muncul sebagai error di sisi RADIUS, jadi yang
+     * menolaknya harus di sini.
+     */
+    public function test_a_sharing_limit_outside_the_allowed_range_is_rejected_before_anything_is_saved(): void
+    {
+        $operator = $this->operator();
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.store'), $this->payload(['sharing_limit' => 20]))
+            ->assertSessionHasErrors('sharing_limit');
+
+        $this->actingAs($operator)
+            ->post(route('hotspot.packages.store'), $this->payload(['sharing_limit' => 0]))
+            ->assertSessionHasErrors('sharing_limit');
+
+        $this->assertSame(0, $this->radiusDb()->table('radgroupcheck')->count());
+        $this->assertSame([], $this->policyOf(self::GROUP), 'Kecepatannya pun tidak boleh ikut tersimpan.');
+    }
+
+    /**
+     * Angkanya diangkat ke kolomnya sendiri, bukan ditinggal di daftar syarat login.
+     *
+     * Kalau ia tetap di daftar itu, formulir tidak punya nilai awal: membuka lalu
+     * menyimpan paket akan menghapus batas yang sudah berlaku tanpa ada yang
+     * mengubahnya.
+     */
+    public function test_the_package_list_lifts_the_sharing_limit_out_of_the_read_only_conditions(): void
+    {
+        $this->seedRadiusGroup(self::GROUP, '2M/8M');
+
+        $this->radiusDb()->table('radgroupcheck')->insert([
+            ['groupname' => self::GROUP, 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '2'],
+            ['groupname' => self::GROUP, 'attribute' => 'Auth-Type', 'op' => ':=', 'value' => 'Accept'],
+        ]);
+
+        $this->actingAs($this->operator())
+            ->get(route('hotspot.packages.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('packages.0.sharing_limit', 2)
+                ->has('packages.0.check', 1)
+                ->where('packages.0.check.0.attribute', 'Auth-Type')
+                ->has('managedConditions')
+                ->etc());
+    }
+
+    /**
+     * Nilai yang tidak terbaca sebagai angka tidak boleh menyamar jadi angka.
+     *
+     * Yang salah bukan cuma tampilannya: kolom formulir yang menampilkan "2"
+     * padahal isi sebenarnya '2x' akan menyimpan 2 tanpa ada yang memutuskannya.
+     * Jadi nilai seperti itu tetap tinggal di daftar syarat login apa adanya, dan
+     * kolom batasnya kosong — di situ operator masih melihat nilai aslinya sebelum
+     * memilih pengganti.
+     */
+    public function test_an_unreadable_sharing_limit_stays_a_condition_and_is_not_read_as_a_number(): void
+    {
+        $this->radiusDb()->table('radgroupcheck')->insert([
+            'groupname' => self::GROUP, 'attribute' => 'Simultaneous-Use', 'op' => '==', 'value' => '2x',
+        ]);
+
+        $this->actingAs($this->operator())
+            ->get(route('hotspot.packages.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('packages.0.name', self::GROUP)
+                ->where('packages.0.sharing_limit', null)
+                ->where('packages.0.check.0.value', '2x')
+                ->etc());
+    }
+
+    /**
+     * Paket yang dihapus harus ikut melepas batasnya.
+     *
+     * Kalau barisnya tertinggal, group itu masih terhitung punya policy: ia tetap
+     * muncul di daftar sebagai paket tanpa kecepatan, dan anggotanya tetap dibatasi
+     * satu sesi oleh baris yang menurut layar sudah tidak ada.
+     */
+    public function test_deleting_a_package_also_releases_its_sharing_limit(): void
+    {
+        $this->seedRadiusGroup(self::GROUP, '2M/8M');
+
+        $this->radiusDb()->table('radgroupcheck')->insert([
+            'groupname' => self::GROUP, 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '1',
+        ]);
+
+        $this->actingAs($this->operator())
+            ->delete(route('hotspot.packages.destroy', self::GROUP))
+            ->assertSessionHas('success', fn (string $message) => str_contains($message, 'sesi bersamaan'));
+
+        $this->assertSame(0, $this->radiusDb()->table('radgroupcheck')->where('groupname', self::GROUP)->count());
+        $this->assertSame([], $this->policyOf(self::GROUP));
     }
 
     /**
@@ -444,6 +656,7 @@ class HotspotPackageTest extends TestCase
             'idle_timeout' => null,
             'interim_interval' => null,
             'mikrotik_group' => null,
+            'sharing_limit' => null,
             'rate_limit_raw' => null,
         ];
     }
@@ -460,6 +673,17 @@ class HotspotPackageTest extends TestCase
             ->pluck('value', 'attribute')
             ->map(fn ($value) => (string) $value)
             ->all();
+    }
+
+    /** Nilai Simultaneous-Use satu group, atau null bila barisnya memang tidak ada. */
+    private function limitOf(string $group): ?string
+    {
+        $value = $this->radiusDb()->table('radgroupcheck')
+            ->where('groupname', $group)
+            ->where('attribute', 'Simultaneous-Use')
+            ->value('value');
+
+        return $value === null ? null : (string) $value;
     }
 
     /** Jumlah baris satu atribut — yang membuktikan tidak ada nilai menumpuk. */

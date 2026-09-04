@@ -48,8 +48,14 @@ class RadiusDoctorCommand extends Command
     /** Hanya dibaca untuk laporan; tidak adanya bukan penghalang. */
     protected const OPTIONAL = ['radacct', 'radpostauth'];
 
-    /** Tabel yang butuh izin tulis dari CIMS; sisanya cukup SELECT. */
-    protected const WRITE_TABLES = ['radcheck', 'radreply', 'radusergroup'];
+    /**
+     * Tabel yang butuh izin tulis dari CIMS; sisanya cukup SELECT.
+     *
+     * radgroupcheck ada di daftar ini karena satu atribut saja: Simultaneous-Use,
+     * yang ditulis halaman Paket Hotspot. Sisa isi tabel itu tetap tidak pernah
+     * disentuh — lihat RadiusService::MANAGED_GROUP_CHECK.
+     */
+    protected const WRITE_TABLES = ['radcheck', 'radreply', 'radusergroup', 'radgroupreply', 'radgroupcheck'];
 
     protected bool $failed = false;
 
@@ -259,7 +265,7 @@ class RadiusDoctorCommand extends Command
     }
 
     /**
-     * Izin seminimal mungkin. CIMS menulis tiga tabel dan membaca sisanya; tanpa
+     * Izin seminimal mungkin. CIMS menulis lima tabel dan membaca sisanya; tanpa
      * CREATE/ALTER/DROP, MariaDB sendiri yang menjamin skema RADIUS tidak berubah
      * — bukan kesepakatan di kode. `GRANT ALL ON radius.*` justru memberikannya.
      */
@@ -267,9 +273,9 @@ class RadiusDoctorCommand extends Command
     {
         $this->line("   CREATE USER '{$user}'@'<ip-server-cims>' IDENTIFIED BY '<password>';");
         $this->line('   GRANT SELECT, INSERT, UPDATE, DELETE ON `'.$database.'`.radcheck');
-        $this->line("     TO '{$user}'@'<ip-server-cims>';   -- ulangi untuk radreply & radusergroup");
-        $this->line('   GRANT SELECT ON `'.$database.'`.radgroupcheck TO ...  -- juga radgroupreply,');
-        $this->line('     radacct, radpostauth, nas');
+        $this->line("     TO '{$user}'@'<ip-server-cims>';   -- ulangi untuk radreply, radusergroup,");
+        $this->line('     radgroupreply & radgroupcheck');
+        $this->line('   GRANT SELECT ON `'.$database.'`.radacct TO ...  -- juga radpostauth, nas');
         $this->line('   FLUSH PRIVILEGES;');
     }
 
@@ -855,8 +861,12 @@ class RadiusDoctorCommand extends Command
      * berarti satu NIM boleh login di berapa pun perangkat sekaligus — keadaan yang
      * tidak memunculkan error apa pun dan hanya terlihat kalau ditanyakan.
      *
-     * CIMS tidak menuliskannya: grant di radgroupcheck memang hanya SELECT. Yang
-     * bisa dilakukan perintah ini melaporkan keadaannya beserta cara memasangnya.
+     * Yang di radgroupcheck sekarang bisa diatur dari halaman Paket Hotspot, dan itu
+     * jalan yang disarankan: halaman itu menulis op ':=' (bukan '=', yang tidak
+     * berlaku kalau atributnya sudah ada), dan menampilkan jumlah sesi basi di layar
+     * yang sama — angka yang menentukan apakah batasnya akan menolak mahasiswa yang
+     * tidak melakukan apa pun. SQL di bawah tetap dicetak untuk server yang grant
+     * radgroupcheck-nya masih SELECT.
      *
      * Ketidakhadirannya dilaporkan sebagai keterangan, bukan catatan: membatasi
      * atau tidak membatasi akun bersama adalah keputusan kampus, bukan cacat
@@ -888,16 +898,23 @@ class RadiusDoctorCommand extends Command
 
         if ($found === 0) {
             $this->line('  Tidak ada Simultaneous-Use di radgroupcheck maupun radcheck — satu NIM boleh '
-                .'dipakai di berapa pun perangkat sekaligus. Untuk membatasi satu akun satu sesi: '
+                .'dipakai di berapa pun perangkat sekaligus. Untuk membatasi satu akun satu sesi: isi '
+                .'"Batas sesi bersamaan" di halaman Paket Hotspot, atau langsung di server RADIUS — '
                 .'INSERT INTO radgroupcheck (groupname, attribute, op, value) VALUES '
                 .'(\''.(trim((string) config('services.hotspot.radius.default_group')) ?: 'mahasiswa')
-                .'\', \'Simultaneous-Use\', \':=\', \'1\'); lalu aktifkan sql di blok session{} '
-                .'pada sites-enabled/default.');
+                .'\', \'Simultaneous-Use\', \':=\', \'1\'); Keduanya baru berpengaruh setelah sql '
+                .'diaktifkan di blok session{} pada sites-enabled/default.');
 
             return;
         }
 
         $this->table(['Batas sesi bersamaan — tabel', 'Berlaku untuk', 'Nilai'], $rows);
+
+        // Barisnya ada, rapi, dan tetap tidak berpengaruh apa pun kalau modul sql
+        // belum dipanggil di blok session{}. Itu satu-satunya syarat di sini yang
+        // tidak bisa diperiksa lewat SQL, jadi ia dicetak — bukan disimpulkan.
+        $this->line('  Nilai di atas hanya ditegakkan bila sites-enabled/default memuat sql di dalam');
+        $this->line('  blok session{}: grep -A4 "^\s*session {" /etc/freeradius/3.0/sites-enabled/default');
     }
 
     /**

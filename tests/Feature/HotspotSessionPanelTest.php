@@ -232,6 +232,76 @@ class HotspotSessionPanelTest extends TestCase
     }
 
     /**
+     * Angka yang harus ada di layar TEPAT saat batas sesi dinyalakan.
+     *
+     * Simultaneous-Use tidak menghitung perangkat yang online, ia menghitung baris
+     * radacct yang belum ditutup — jadi setiap sesi yatim yang masih menganggur di
+     * sana akan berubah menjadi penolakan login begitu batasnya dipasang, terhadap
+     * mahasiswa yang tidak melakukan apa pun. Karena itu angkanya dibaca sebelum
+     * batasnya berlaku, bukan sesudah ada yang terkunci di luar.
+     *
+     * Batas ambilnya sengaja kecil di sisi service (activeSessions(1)): yang dipakai
+     * halaman paket cuma hitungannya, dan hitungan itu tidak boleh ikut terpotong.
+     */
+    public function test_sharing_readiness_counts_what_makes_the_limit_risky(): void
+    {
+        $this->seedRadiusSession('2101001', silentMinutesAgo: 2);
+        $this->seedRadiusSession('2101001', silentMinutesAgo: 3, overrides: ['nasipaddress' => self::OTHER_NAS]);
+        $this->seedRadiusSession('2101002', startedMinutesAgo: 120, silentMinutesAgo: 45);
+        $this->seedRadiusSession('2101003', startedMinutesAgo: 90, silentMinutesAgo: null);
+        $this->seedRadiusSession('2101004', startedMinutesAgo: 300, silentMinutesAgo: 240, closed: true);
+
+        // Batas milik satu NIM di radcheck. Ia berlaku terlepas dari angka paket,
+        // jadi laporan halaman paket tidak berlaku untuk NIM-NIM ini — barisnya
+        // dihitung distinct karena satu NIM bisa punya lebih dari satu baris.
+        $this->radiusDb()->table('radcheck')->insert([
+            ['username' => '2101007', 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '3'],
+            ['username' => '2101007', 'attribute' => 'Expiration', 'op' => ':=', 'value' => '31 Dec 2030'],
+            ['username' => '2101008', 'attribute' => 'Simultaneous-Use', 'op' => ':=', 'value' => '2'],
+        ]);
+
+        $readiness = app(RadiusService::class)->sharingReadiness();
+
+        $this->assertNull($readiness['error']);
+        $this->assertTrue($readiness['accounting']);
+        $this->assertSame(4, $readiness['open'], 'Sesi yang sudah ditutup bukan risiko.');
+        $this->assertSame(2, $readiness['stale']);
+        $this->assertSame(RadiusService::STALE_AFTER_MINUTES, $readiness['stale_after_minutes']);
+        $this->assertSame(1, $readiness['shared']);
+        $this->assertSame(2, $readiness['overrides']);
+    }
+
+    /**
+     * radacct kosong bukan kabar baik.
+     *
+     * Tanpa accounting yang masuk, Simultaneous-Use tidak akan menolak siapa pun —
+     * jadi keadaan paling berbahaya di halaman paket justru yang terlihat paling
+     * bersih: nol sesi terbuka, nol sesi basi, dan batas yang tidak berlaku.
+     */
+    public function test_sharing_readiness_reports_an_empty_radacct_as_accounting_off(): void
+    {
+        $readiness = app(RadiusService::class)->sharingReadiness();
+
+        $this->assertNull($readiness['error']);
+        $this->assertFalse($readiness['accounting']);
+        $this->assertSame(0, $readiness['open']);
+        $this->assertSame(0, $readiness['stale']);
+        $this->assertSame(0, $readiness['overrides']);
+    }
+
+    /** Dipakai sebagai prop halaman: RADIUS mati melaporkan diri, bukan melempar. */
+    public function test_sharing_readiness_reports_a_broken_connection_without_throwing(): void
+    {
+        $this->breakRadiusConnection();
+
+        $readiness = app(RadiusService::class)->sharingReadiness();
+
+        $this->assertNotNull($readiness['error']);
+        $this->assertFalse($readiness['accounting']);
+        $this->assertSame(0, $readiness['open']);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $active
      */
     private function mockRouter(array $active): void

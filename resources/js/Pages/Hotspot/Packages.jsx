@@ -15,8 +15,20 @@ const EMPTY_FORM = {
     idle_timeout: '',
     interim_interval: '',
     mikrotik_group: '',
+    sharing_limit: '',
     rate_limit_raw: '',
 };
+
+/**
+ * Pilihan batas sesi bersamaan.
+ *
+ * Dibuat pilihan, bukan kolom angka bebas, karena keputusannya memang cuma
+ * "boleh berapa perangkat" — dan salah ketik nol tambahan pada kolom seperti ini
+ * tidak pernah terlihat sebagai error, hanya sebagai akun bersama yang lolos.
+ * Nilai di luar daftar (mis. dipasang lewat SQL) tetap ditampilkan apa adanya
+ * supaya membuka formulir tidak diam-diam menurunkannya.
+ */
+const SHARING_CHOICES = [1, 2, 3, 4, 5];
 
 /**
  * Detik (satuan RADIUS) → kalimat pendek. Operator berpikir dalam menit dan jam,
@@ -73,16 +85,23 @@ function speedText(pkg) {
  *
  * Penyimpanannya radgroupreply itu sendiri; CIMS tidak menyimpan salinan. Yang
  * tampil di sini apa adanya isi server RADIUS saat halaman dibuka.
+ *
+ * Satu kolom di halaman ini tidak menulis ke radgroupreply, melainkan ke
+ * radgroupcheck: batas sesi bersamaan (Simultaneous-Use). Ia dikelompokkan
+ * terpisah karena akibat salahnya juga berbeda — atribut reply yang salah membuat
+ * batas kecepatannya keliru, sedangkan syarat login yang salah MENOLAK login.
  */
 export default function Packages({
     packages = [],
     defaultGroup = null,
     managedAttributes = [],
+    managedConditions = [],
     radiusConfigured = true,
     routerHost,
     routers = [],
     canManage = false,
     connection,
+    sharing,
     routerProfiles,
 }) {
     const { confirmAction } = useConfirmation();
@@ -135,6 +154,7 @@ export default function Packages({
             idle_timeout: pkg.idle_timeout ? Math.round(pkg.idle_timeout / 60) : '',
             interim_interval: pkg.interim_interval ? Math.round(pkg.interim_interval / 60) : '',
             mikrotik_group: pkg.mikrotik_group ?? '',
+            sharing_limit: pkg.sharing_limit ?? '',
             rate_limit_raw: raw,
         });
         setShowForm(true);
@@ -162,6 +182,9 @@ export default function Packages({
             title: 'Hapus Paket',
             message:
                 `Hapus policy paket "${pkg.name}"? Semua batas kecepatan dan batas sesinya hilang. ` +
+                (pkg.sharing_limit > 0
+                    ? 'Batas sesi bersamaannya ikut dilepas, jadi satu akun boleh dipakai di berapa pun perangkat. '
+                    : '') +
                 'Voucher tidak ikut terhapus — kalau masih ada yang memakai paket ini, mereka justru akan ' +
                 'login tanpa batas apa pun, jadi pastikan tidak ada lagi anggotanya.',
             confirmLabel: 'Hapus Paket',
@@ -174,6 +197,26 @@ export default function Packages({
     const previewRate = advanced
         ? form.data.rate_limit_raw || '(kosong)'
         : `${rateToken(form.data.upload)}/${rateToken(form.data.download)}`;
+
+    // Angka yang sudah terpasang tapi di luar daftar pilihan — mis. Simultaneous-Use
+    // 8 yang dipasang seseorang lewat SQL — tetap ikut ditawarkan. Tanpa ini, membuka
+    // formulir lalu menyimpannya diam-diam menurunkan batas yang sudah berlaku.
+    const sharingOn = form.data.sharing_limit !== '' && form.data.sharing_limit !== null;
+    const sharingOptions = [...new Set([...SHARING_CHOICES, Number(form.data.sharing_limit)])]
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .sort((a, b) => a - b);
+
+    // Simultaneous-Use yang tidak terbaca sebagai angka — mis. '2x' atau '1 '
+    // dengan op '==' — tetap tinggal di daftar syarat login, dan kolom di atas
+    // tidak bisa menampilkannya sebagai pilihan. Yang bisa dilakukan formulir ini
+    // cuma mengatakan bahwa menyimpan akan menggantinya: dibiarkan diam, nilai
+    // yang dipasang seseorang dengan sengaja hilang tanpa ada yang memilih itu,
+    // dan yang hilang di tabel ini bukan batas kecepatan melainkan syarat login.
+    const unreadableSharing = editing
+        ? (packages.find((pkg) => pkg.name === editing)?.check ?? []).find(
+              (row) => row.attribute === 'Simultaneous-Use',
+          ) ?? null
+        : null;
 
     return (
         <CimsLayout
@@ -366,8 +409,21 @@ export default function Packages({
                     ) : (
                         <span>—</span>
                     )}{' '}
-                    di <code>radgroupreply</code>. Atribut lain di group yang sama ditampilkan sebagai keterangan dan tidak
-                    pernah diubah, dan <code>radgroupcheck</code> hanya dibaca — izin CIMS di tabel itu memang cuma SELECT.
+                    di <code>radgroupreply</code>
+                    {managedConditions.length > 0 && (
+                        <>
+                            , ditambah{' '}
+                            {managedConditions.map((attribute) => (
+                                <code key={attribute} className="mr-1.5">
+                                    {attribute}
+                                </code>
+                            ))}
+                            di <code>radgroupcheck</code>
+                        </>
+                    )}
+                    . Atribut lain di group yang sama ditampilkan sebagai keterangan dan tidak pernah diubah — termasuk
+                    syarat login lain seperti <code>Auth-Type</code>, <code>Expiration</code>, dan <code>Login-Time</code>,
+                    karena satu baris yang salah di <code>radgroupcheck</code> menolak seluruh anggota paket sekaligus.
                 </p>
             </div>
 
@@ -609,6 +665,143 @@ export default function Packages({
                                     </div>
                                 )}
 
+                            {/* Syarat login dipisahkan dari atribut kecepatan dengan
+                                sengaja. Yang di atas menentukan seberapa cepat; yang di
+                                sini menentukan boleh masuk atau tidak — tabelnya berbeda
+                                (radgroupcheck, bukan radgroupreply) dan akibat salahnya
+                                juga berbeda: bukan batas yang keliru, melainkan login
+                                yang ditolak. */}
+                            <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                    <div>
+                                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                                            Syarat login
+                                        </h4>
+                                        <p className="text-[11px] leading-tight text-slate-500">
+                                            Tersimpan di <code>radgroupcheck</code> — menentukan boleh masuk atau tidak, bukan
+                                            seberapa cepat.
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 font-mono text-[11px] text-slate-700 ring-1 ring-slate-200">
+                                        {sharingOn
+                                            ? `Simultaneous-Use := ${form.data.sharing_limit}`
+                                            : 'tanpa Simultaneous-Use'}
+                                    </span>
+                                </div>
+
+                                <div className="mt-3 sm:max-w-sm">
+                                    <label
+                                        htmlFor="sharing-limit"
+                                        className="mb-1 block text-xs font-semibold text-slate-600"
+                                    >
+                                        Sesi bersamaan per akun
+                                    </label>
+                                    <select
+                                        id="sharing-limit"
+                                        value={form.data.sharing_limit}
+                                        onChange={(e) => form.setData('sharing_limit', e.target.value)}
+                                        className={INPUT_CLASS}
+                                    >
+                                        <option value="">Tanpa batas — satu NIM boleh di berapa pun perangkat</option>
+                                        {sharingOptions.map((n) => (
+                                            <option key={n} value={n}>
+                                                {n === 1 ? '1 perangkat (disarankan)' : `${n} perangkat sekaligus`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="mt-1 block text-[11px] leading-tight text-slate-400">
+                                        Berlaku di <strong>semua router</strong> sekaligus, karena yang menghitung FreeRADIUS —
+                                        bukan router. <code>shared-users</code> pada user-profile router hanya berlaku di router
+                                        yang memasangnya, jadi dua router berarti dua sesi.
+                                    </span>
+                                    {form.errors.sharing_limit && (
+                                        <span className="mt-1 block text-xs text-rose-700">{form.errors.sharing_limit}</span>
+                                    )}
+                                </div>
+
+                                {/* Satu-satunya keadaan di halaman ini yang bisa menghapus
+                                    sesuatu tanpa ada yang memilih menghapusnya: barisnya ada,
+                                    tapi nilainya tidak terbaca sebagai angka sehingga kolom di
+                                    atas menampilkan "Tanpa batas". Diperingatkan di tempat
+                                    keputusannya diambil, bukan di pesan sesudah tersimpan. */}
+                                {unreadableSharing && (
+                                    <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900 ring-1 ring-amber-200">
+                                        Paket ini sudah punya baris{' '}
+                                        <code>
+                                            Simultaneous-Use {unreadableSharing.op} {unreadableSharing.value}
+                                        </code>{' '}
+                                        di <code>radgroupcheck</code>, dan bentuknya tidak terbaca sebagai jumlah perangkat —
+                                        karena itu kolom di atas tidak menampilkannya. <strong>Menyimpan akan menggantinya</strong>{' '}
+                                        dengan pilihan di atas, termasuk menghapusnya bila dibiarkan “Tanpa batas”. Batalkan dan
+                                        perbaiki dari server RADIUS bila nilai itu memang disengaja.
+                                    </p>
+                                )}
+
+                                {/* Peringatan muncul hanya ketika batasnya benar-benar dipasang:
+                                    di situlah sesi yatim berubah dari catatan menjadi mahasiswa
+                                    yang ditolak. Angkanya dibaca langsung dari radacct. */}
+                                {sharingOn && (
+                                    <div className="mt-3 space-y-2 border-t border-slate-200 pt-3 text-[11px] leading-relaxed">
+                                        {sharing === undefined ? (
+                                            <p className="text-slate-500">Menghitung sesi yang sedang terbuka di radacct…</p>
+                                        ) : sharing?.error ? (
+                                            <p className="text-rose-700">
+                                                radacct belum bisa dibaca ({sharing.error}), jadi jumlah sesi yang akan tertolak
+                                                oleh batas ini belum bisa dipastikan.
+                                            </p>
+                                        ) : (
+                                            <>
+                                                {sharing.stale > 0 ? (
+                                                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900 ring-1 ring-amber-200">
+                                                        <strong>{sharing.stale} sesi</strong> sudah lebih dari{' '}
+                                                        {sharing.stale_after_minutes} menit tidak melapor, tapi tetap terhitung
+                                                        terbuka (dari {sharing.open} sesi terbuka). Begitu batas ini berlaku,
+                                                        pemilik baris itu <strong>ditolak login</strong> — bukan karena berbagi
+                                                        akun, melainkan karena barisnya tidak pernah ditutup. Isi dulu{' '}
+                                                        <em>Interval laporan pemakaian</em> di atas dan tutup sesi yatim di server
+                                                        RADIUS, lalu periksa dengan <code>php artisan radius:doctor</code>.
+                                                    </p>
+                                                ) : sharing.accounting ? (
+                                                    <p className="text-emerald-700">
+                                                        {sharing.open} sesi terbuka di radacct, tidak ada yang basi — batas ini
+                                                        aman dinyalakan sekarang.
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-slate-500">
+                                                        <code>radacct</code> masih kosong: belum ada Accounting-Request yang masuk.
+                                                        Selama itu tidak berubah, batas ini tidak akan pernah menghitung apa pun —
+                                                        rasa amannya palsu.
+                                                    </p>
+                                                )}
+
+                                                {sharing.shared > 0 && (
+                                                    <p className="text-slate-600">
+                                                        <strong>{sharing.shared} NIM</strong> saat ini punya lebih dari satu sesi
+                                                        terbuka. Merekalah yang pertama merasakan batas ini — pastikan itu memang
+                                                        yang dituju, bukan sesi basi yang belum tertutup.
+                                                    </p>
+                                                )}
+
+                                                {sharing.overrides > 0 && (
+                                                    <p className="text-slate-600">
+                                                        <strong>{sharing.overrides} NIM</strong> punya Simultaneous-Use sendiri di{' '}
+                                                        <code>radcheck</code>. Batas per-NIM itu tetap dipakai FreeRADIUS, jadi
+                                                        angka di halaman ini tidak mewakili mereka.
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+
+                                        <p className="text-slate-500">
+                                            Baris ini baru ditegakkan setelah <code>sites-enabled/default</code> memuat{' '}
+                                            <code>sql</code> di dalam blok <code>{'session { }'}</code> — di FreeRADIUS stok
+                                            keduanya masih dikomentari, dan tanpa itu barisnya tersimpan rapi tanpa pengaruh apa
+                                            pun.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="sm:col-span-2 mt-1 flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
                                 <button
                                     type="button"
@@ -670,6 +863,17 @@ function PackageCard({ pkg, isDefault, canManage, routerProfileNames, onEdit, on
                         {!pkg.has_policy && (
                             <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                                 Belum ada batas
+                            </span>
+                        )}
+                        {/* Ditonjolkan karena ia satu-satunya penjagaan di kartu ini yang
+                            bekerja dengan MENOLAK, dan karena tidak adanya batas ini
+                            tidak pernah terlihat dari mana pun. */}
+                        {pkg.sharing_limit > 0 && (
+                            <span
+                                className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                                title={`Simultaneous-Use := ${pkg.sharing_limit} di radgroupcheck — berlaku di semua router`}
+                            >
+                                Maks {pkg.sharing_limit} sesi
                             </span>
                         )}
                     </div>
@@ -746,7 +950,8 @@ function PackageCard({ pkg, isDefault, canManage, routerProfileNames, onEdit, on
                     )}
                     {pkg.check.length > 0 && (
                         <p className={pkg.extra.length > 0 ? 'mt-1.5' : undefined}>
-                            <span className="font-semibold text-slate-600">Syarat login</span> (radgroupcheck, hanya dibaca):{' '}
+                            <span className="font-semibold text-slate-600">Syarat login lain</span> (radgroupcheck, di luar
+                            jangkauan formulir):{' '}
                             {pkg.check.map((row) => (
                                 <code key={`${row.attribute}${row.value}`} className="mr-2 font-mono">
                                     {row.attribute} {row.op} {row.value}

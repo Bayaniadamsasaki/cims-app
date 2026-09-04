@@ -64,6 +64,21 @@ class RadiusService
     ];
 
     /**
+     * Atribut radgroupcheck yang dikelola halaman Paket Hotspot.
+     *
+     * Satu-satunya, dan sengaja satu-satunya. radgroupcheck bukan sekadar tempat
+     * atribut lain: isinya SYARAT LOGIN, dan salah menuliskannya menolak seluruh
+     * anggota paket sekaligus. Auth-Type, Expiration, Login-Time dan sisanya tetap
+     * di luar jangkauan formulir — ditampilkan, tidak pernah ditulis.
+     *
+     * Simultaneous-Use masuk karena ia satu-satunya cara membatasi satu akun ke
+     * satu sesi di SELURUH router. shared-users pada user-profile RouterOS hanya
+     * berlaku di router yang memasangnya, jadi dua router berarti dua sesi — dan
+     * itu justru bentuk berbagi akun yang paling sulit terlihat.
+     */
+    public const MANAGED_GROUP_CHECK = ['Simultaneous-Use'];
+
+    /**
      * Ambang "sesi basi" dalam menit.
      *
      * Sesi yang laporan terakhirnya lebih tua dari ini hampir pasti sudah mati
@@ -748,8 +763,16 @@ class RadiusService
      *
      * `extra` dan `check` sengaja dipisahkan dari atribut terkelola. Keduanya nyata
      * berlaku di RADIUS — operator harus melihatnya — tapi keduanya juga di luar
-     * jangkauan formulir ini: `extra` karena bukan milik CIMS, `check` karena grant
-     * CIMS di radgroupcheck hanya SELECT.
+     * jangkauan formulir ini: `extra` karena bukan milik CIMS, `check` karena syarat
+     * login bukan hal yang pantas berubah karena seseorang menyimpan formulir
+     * kecepatan.
+     *
+     * Satu pengecualian: Simultaneous-Use bernilai angka diangkat menjadi
+     * `sharing_limit` dan tidak lagi ikut di `check`, karena ia memang bisa disunting
+     * di halaman ini. Nilai yang bukan angka positif tetap tinggal di `check` —
+     * FreeRADIUS pun tidak bisa menghitung apa pun dari nilai seperti itu, jadi
+     * menampilkannya sebagai batas hanya akan melaporkan pembatasan yang tidak
+     * pernah berlaku.
      *
      * @param  Collection<int,object>  $reply
      * @param  Collection<int,object>  $check
@@ -778,6 +801,26 @@ class RadiusService
             ];
         }
 
+        $limit = null;
+        $conditions = [];
+
+        foreach ($check as $row) {
+            $attribute = trim((string) $row->attribute);
+            $value = trim((string) $row->value);
+
+            if ($attribute === 'Simultaneous-Use' && $limit === null && ctype_digit($value) && (int) $value > 0) {
+                $limit = (int) $value;
+
+                continue;
+            }
+
+            $conditions[] = [
+                'attribute' => $attribute,
+                'op' => trim((string) $row->op),
+                'value' => (string) $row->value,
+            ];
+        }
+
         $rate = $managed['Mikrotik-Rate-Limit'] ?? null;
         $mikrotikGroup = trim((string) ($managed['Mikrotik-Group'] ?? ''));
 
@@ -789,12 +832,9 @@ class RadiusService
             'idle_timeout' => $this->seconds($managed['Idle-Timeout'] ?? null),
             'interim_interval' => $this->seconds($managed['Acct-Interim-Interval'] ?? null),
             'mikrotik_group' => $mikrotikGroup !== '' ? $mikrotikGroup : null,
+            'sharing_limit' => $limit,
             'extra' => $extra,
-            'check' => $check->map(fn ($row) => [
-                'attribute' => trim((string) $row->attribute),
-                'op' => trim((string) $row->op),
-                'value' => (string) $row->value,
-            ])->values()->all(),
+            'check' => $conditions,
             'members' => $members,
             'has_policy' => $reply->isNotEmpty() || $check->isNotEmpty(),
         ];
@@ -866,6 +906,156 @@ class RadiusService
     }
 
     /**
+     * Batas sesi bersamaan satu paket, atau null bila tidak dibatasi.
+     *
+     * Yang dibaca radgroupcheck, bukan radcheck: yang di sini berlaku untuk seluruh
+     * anggota paket, yang di radcheck cuma untuk satu NIM dan justru pengecualian
+     * terhadap angka ini.
+     */
+    public function sharingLimit(string $groupname): ?int
+    {
+        $value = trim((string) $this->connection()->table('radgroupcheck')
+            ->where('groupname', trim($groupname))
+            ->where('attribute', 'Simultaneous-Use')
+            ->value('value'));
+
+        return ctype_digit($value) && (int) $value > 0 ? (int) $value : null;
+    }
+
+    /**
+     * Setel batas sesi bersamaan satu paket; null berarti tanpa batas.
+     *
+     * Tidak menulis apa pun bila keadaannya sudah sama, dan itu bukan penghematan
+     * query. radgroupcheck adalah satu-satunya tabel yang izin CIMS-nya masih bisa
+     * SELECT saja di server yang sudah berjalan — dulu memang begitu yang
+     * diberikan. Menyimpan formulir kecepatan tidak boleh gagal gara-gara kolom
+     * yang operator sama sekali tidak sentuh ikut ditulis ulang.
+     *
+     * Yang dihapus hanya MANAGED_GROUP_CHECK. Auth-Type, Expiration, dan syarat
+     * login lain di group yang sama tidak pernah tersentuh: masing-masing bisa
+     * menolak seluruh anggota paket, dan tidak ada yang meminta itu terjadi karena
+     * seseorang mengubah batas perangkat.
+     *
+     * Satu transaksi, walau paling banyak dua pernyataan: di antara DELETE dan
+     * INSERT ada satu saat group ini tidak punya batas sama sekali, dan pada saat
+     * itulah Access-Request yang kebetulan masuk akan diterima tanpa batas.
+     *
+     * @return bool true bila ada yang benar-benar berubah di RADIUS
+     */
+    public function saveSharingLimit(string $groupname, ?int $limit): bool
+    {
+        $groupname = trim($groupname);
+        $db = $this->connection();
+
+        $current = $db->table('radgroupcheck')
+            ->where('groupname', $groupname)
+            ->whereIn('attribute', self::MANAGED_GROUP_CHECK)
+            ->get(['op', 'value']);
+
+        if ($this->sameLimit($current, $limit)) {
+            return false;
+        }
+
+        $db->transaction(function () use ($db, $groupname, $limit) {
+            $db->table('radgroupcheck')
+                ->where('groupname', $groupname)
+                ->whereIn('attribute', self::MANAGED_GROUP_CHECK)
+                ->delete();
+
+            if ($limit !== null) {
+                $db->table('radgroupcheck')->insert([
+                    'groupname' => $groupname,
+                    'attribute' => 'Simultaneous-Use',
+                    'op' => ':=',
+                    'value' => (string) $limit,
+                ]);
+            }
+        });
+
+        return true;
+    }
+
+    /**
+     * Apakah baris yang ada sudah menyatakan batas ini — persis, bukan sekadar
+     * nilainya.
+     *
+     * Dua baris kembar dan operator '=' juga berarti belum sama. Pada check item,
+     * '=' cuma menambahkan bila atributnya belum ada, jadi baris seperti itu bisa
+     * kalah dan pembatasannya tidak pernah berlaku; menyimpan ulang merapikannya
+     * menjadi satu baris ':='.
+     *
+     * @param  Collection<int,object>  $rows
+     */
+    protected function sameLimit(Collection $rows, ?int $limit): bool
+    {
+        if ($limit === null) {
+            return $rows->isEmpty();
+        }
+
+        return $rows->count() === 1
+            && trim((string) $rows->first()->op) === ':='
+            && trim((string) $rows->first()->value) === (string) $limit;
+    }
+
+    /**
+     * Apa yang menentukan aman-tidaknya membatasi sesi bersamaan.
+     *
+     * Simultaneous-Use tidak menghitung perangkat yang benar-benar online. Ia
+     * menghitung BARIS radacct yang belum ditutup, dan selisih antara keduanya —
+     * sesi yatim: HP mati, router reboot, Accounting-Stop hilang di jalan — jatuh
+     * sebagai penolakan login kepada mahasiswa yang tidak melakukan apa pun. Tanpa
+     * satu pun pesan error di sisi operator, karena dari sudut pandang FreeRADIUS
+     * pembatasannya bekerja dengan benar.
+     *
+     * Karena itu angka-angka ini harus ada di layar tempat batasnya dinyalakan,
+     * bukan hanya di radius:doctor. `accounting` false berarti arah bahayanya justru
+     * berlawanan: tidak ada yang tercatat, jadi batasnya tidak akan menolak siapa
+     * pun dan rasa aman yang didapat operator palsu.
+     *
+     * `overrides` adalah baris Simultaneous-Use di radcheck — batas milik satu NIM,
+     * yang berlaku terlepas dari angka paket dan karena itu bisa membuat laporan
+     * halaman ini tidak berlaku untuk sebagian mahasiswa.
+     *
+     * Tidak pernah melempar exception: dipakai sebagai prop halaman.
+     *
+     * @return array{error:?string,accounting:bool,open:int,stale:int,stale_after_minutes:int,shared:int,overrides:int}
+     */
+    public function sharingReadiness(): array
+    {
+        $sessions = $this->activeSessions(1);
+
+        $readiness = [
+            'error' => $sessions['error'],
+            'accounting' => false,
+            'open' => (int) $sessions['total'],
+            'stale' => (int) $sessions['stale'],
+            'stale_after_minutes' => self::STALE_AFTER_MINUTES,
+            'shared' => count($sessions['shared']),
+            'overrides' => 0,
+        ];
+
+        if (filled($readiness['error'])) {
+            return $readiness;
+        }
+
+        try {
+            $db = $this->connection();
+
+            $readiness['accounting'] = (int) $db->table('radacct')->count() > 0;
+            $readiness['overrides'] = (int) $db->table('radcheck')
+                ->where('attribute', 'Simultaneous-Use')
+                ->distinct()
+                ->count('username');
+        } catch (\Throwable $e) {
+            Log::warning('RADIUS sharing readiness failed: '.$e->getMessage());
+
+            $readiness['error'] = $e->getMessage();
+        }
+
+        return $readiness;
+    }
+
+    /**
      * Hapus policy satu paket.
      *
      * Di sini SELURUH baris radgroupreply group itu dihapus — termasuk yang di luar
@@ -875,11 +1065,17 @@ class RadiusService
      * paketnya sudah dianggap tidak ada.
      *
      * Keanggotaan (radusergroup) tidak disentuh: itu milik voucher, dan pemanggil
-     * yang menolak penghapusan selama masih ada pemakainya. radgroupcheck juga
-     * tidak — grant CIMS di tabel itu hanya SELECT — jadi sisanya dihitung dan
-     * dilaporkan supaya halaman bisa menyebut apa yang masih tertinggal.
+     * yang menolak penghapusan selama masih ada pemakainya.
      *
-     * @return array{reply:int,check:int}
+     * Di radgroupcheck yang dihapus justru hanya MANAGED_GROUP_CHECK — kebalikan
+     * dari radgroupreply, dan juga disengaja. Batas perangkat ditulis halaman ini,
+     * jadi ia ikut pergi bersama paketnya; Auth-Type dan syarat login lain bisa
+     * milik konfigurasi lain di database yang sama, dan menghapusnya karena
+     * seseorang membereskan daftar paket adalah cara memutus layanan yang tidak
+     * pernah diminta. Sisanya dihitung dan dilaporkan supaya halaman bisa menyebut
+     * apa yang masih tertinggal.
+     *
+     * @return array{reply:int,check:int,limit:int}
      */
     public function deletePackage(string $groupname): array
     {
@@ -888,7 +1084,10 @@ class RadiusService
 
         return [
             'reply' => (int) $db->table('radgroupreply')->where('groupname', $groupname)->delete(),
-            'check' => (int) $db->table('radgroupcheck')->where('groupname', $groupname)->count(),
+            'limit' => (int) $db->table('radgroupcheck')->where('groupname', $groupname)
+                ->whereIn('attribute', self::MANAGED_GROUP_CHECK)->delete(),
+            'check' => (int) $db->table('radgroupcheck')->where('groupname', $groupname)
+                ->whereNotIn('attribute', self::MANAGED_GROUP_CHECK)->count(),
         ];
     }
 }
