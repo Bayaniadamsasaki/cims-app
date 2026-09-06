@@ -1,4 +1,5 @@
 import { router, useForm } from "@inertiajs/react";
+import Modal from "@/Components/Modal";
 import { inputClass, labelClass } from "../constants";
 
 /**
@@ -28,24 +29,31 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
         router.delete(route("speedtest-reports.testers.destroy", tester.id), { preserveScroll: true });
     };
 
+    /*
+     * Dialog ini terbuka di atas form laporan. Headless UI menumpuk dialog
+     * bersarang mengikuti urutan mount, jadi tidak perlu z-index khusus.
+     */
     return (
-        <div className="fixed inset-0 z-[55] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="my-8 w-full max-w-lg rounded-2xl border border-brand-border bg-brand-card p-6">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900">Kelola Penguji</h3>
-                        <p className="mt-0.5 text-xs text-brand-textSecondary">
-                            Nama yang ditambahkan di sini langsung tersedia pada dropdown Penguji.
-                        </p>
-                    </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-slate-900" aria-label="Tutup pengelolaan penguji">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+        <Modal
+            show
+            onClose={onClose}
+            maxWidth="lg"
+            title="Kelola Penguji"
+            description="Nama yang ditambahkan di sini langsung tersedia pada dropdown Penguji."
+            footer={
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-xl border border-brand-border px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                    >
+                        Selesai
                     </button>
                 </div>
-
-                <form onSubmit={submit} className="mt-5">
+            }
+        >
+            <div className="px-5 py-5 sm:px-6">
+                <form onSubmit={submit}>
                     <label className={labelClass} htmlFor="tester-name">Nama Penguji Baru</label>
                     <div className="flex gap-2">
                         <input
@@ -97,16 +105,7 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                     ))}
                 </ul>
 
-                <div className="mt-5 flex justify-end border-t border-brand-border pt-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-xl border border-brand-border px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900"
-                    >
-                        Selesai
-                    </button>
-                </div>
             </div>
-        </div>
+        </Modal>
     );
 }

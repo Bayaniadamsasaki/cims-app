@@ -1,5 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { useEffect, useState } from "react";
+import Modal from "@/Components/Modal";
 import { STATUS_META, inputClass, labelClass } from "../constants";
 
 const emptyValues = {
@@ -78,25 +79,35 @@ export default function ReportFormModal({ mode = "create", report = null, tester
     const previewName = data.screenshot?.name ?? (existingUrl ? report.screenshot_name : null);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-2xl border border-brand-border bg-brand-card p-6">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900">
-                            {isEdit ? "Edit Laporan Speedtest" : "Tambah Laporan Speedtest"}
-                        </h3>
-                        <p className="mt-0.5 text-xs text-brand-textSecondary">
-                            Nomor laporan dibuat otomatis oleh sistem, tidak perlu diisi manual.
-                        </p>
-                    </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-slate-900" aria-label="Tutup form">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+        <Modal
+            show
+            onClose={onClose}
+            maxWidth="3xl"
+            title={isEdit ? "Edit Laporan Speedtest" : "Tambah Laporan Speedtest"}
+            description="Nomor laporan dibuat otomatis oleh sistem, tidak perlu diisi manual."
+            footer={
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        form="speedtest-report-form"
+                        disabled={processing}
+                        className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                    >
+                        {processing ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Laporan"}
                     </button>
                 </div>
-
-                <form onSubmit={submit} className="mt-5 space-y-4">
+            }
+        >
+                {/* Baris tombol ada di footer sticky di luar <form>, jadi tombol simpan
+                    ditautkan lewat atribut `form`. */}
+                <form id="speedtest-report-form" onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-6">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <Field label="Tanggal Action" error={errors.tested_at} htmlFor="tested_at">
                             <input
@@ -294,21 +305,8 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 border-t border-brand-border pt-4">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900">
-                            Batal
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60"
-                        >
-                            {processing ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Laporan"}
-                        </button>
-                    </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 }
 

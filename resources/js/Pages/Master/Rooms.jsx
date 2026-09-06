@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -286,126 +287,122 @@ export default function Rooms({ rooms = [], buildings = [], filters = {} }) {
                     </div>
             </div>
             {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-brand-card border border-brand-border p-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
-                            <h3 className="text-lg font-bold text-slate-900">
-                                {editingRoom ? 'Modify Room Info' : 'Register New Room'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-slate-900 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Dropdown bertingkat: lantai baru bisa dipilih setelah gedungnya jelas */}
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
-                                <select
-                                    required
-                                    value={data.building_id}
-                                    onChange={(e) => handleBuildingChange(e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                >
-                                    <option value="" disabled>Select Building</option>
-                                    {buildings.map((building) => (
-                                        <option key={building.id} value={building.id}>
-                                            {building.name} ({building.code})
-                                        </option>
-                                    ))}
-                                </select>
-                                {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor*</label>
-                                <select
-                                    required
-                                    value={data.floor_id}
-                                    disabled={!data.building_id}
-                                    onChange={(e) => handleFloorChange(e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <option value="" disabled>
-                                        {data.building_id ? 'Select Floor' : 'Pilih gedung dahulu'}
-                                    </option>
-                                    {modalFloors.map((floor) => (
-                                        <option key={floor.id} value={floor.id}>
-                                            {floor.name} (Level {floor.level})
-                                        </option>
-                                    ))}
-                                </select>
-                                {data.building_id && modalFloors.length === 0 && (
-                                    <span className="text-xs text-amber-700 mt-1 block">
-                                        Gedung ini belum punya lantai. Tambahkan lantainya dahulu di menu Lantai.
-                                    </span>
-                                )}
-                                {errors.floor_id && <span className="text-xs text-red-700 mt-1 block">{errors.floor_id}</span>}
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Room Code*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. LAB-201"
-                                    value={data.code}
-                                    onChange={(e) => setData('code', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.code && <span className="text-xs text-red-700 mt-1 block">{errors.code}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Room Name*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. Laboratorium Jaringan"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
-                                <textarea
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    rows="3"
-                                    placeholder="Describe the usage or equipment in the room..."
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                ></textarea>
-                                {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150"
-                                >
-                                    {editingRoom ? 'Save Changes' : 'Register Room'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                show={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                maxWidth="md"
+                title={editingRoom ? 'Modify Room Info' : 'Register New Room'}
+                footer={
+                    <div className="flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            form="room-form"
+                            disabled={processing}
+                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            {editingRoom ? 'Save Changes' : 'Register Room'}
+                        </button>
                     </div>
-                </div>
-            )}
+                }
+            >
+                {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                    ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                <form id="room-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                    {/* Dropdown bertingkat: lantai baru bisa dipilih setelah gedungnya jelas */}
+                    <div>
+                        <label htmlFor="room-building" className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
+                        <select
+                            id="room-building"
+                            required
+                            value={data.building_id}
+                            onChange={(e) => handleBuildingChange(e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        >
+                            <option value="" disabled>Select Building</option>
+                            {buildings.map((building) => (
+                                <option key={building.id} value={building.id}>
+                                    {building.name} ({building.code})
+                                </option>
+                            ))}
+                        </select>
+                        {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="room-floor" className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor*</label>
+                        <select
+                            id="room-floor"
+                            required
+                            value={data.floor_id}
+                            disabled={!data.building_id}
+                            onChange={(e) => handleFloorChange(e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <option value="" disabled>
+                                {data.building_id ? 'Select Floor' : 'Pilih gedung dahulu'}
+                            </option>
+                            {modalFloors.map((floor) => (
+                                <option key={floor.id} value={floor.id}>
+                                    {floor.name} (Level {floor.level})
+                                </option>
+                            ))}
+                        </select>
+                        {data.building_id && modalFloors.length === 0 && (
+                            <span className="text-xs text-amber-700 mt-1 block">
+                                Gedung ini belum punya lantai. Tambahkan lantainya dahulu di menu Lantai.
+                            </span>
+                        )}
+                        {errors.floor_id && <span className="text-xs text-red-700 mt-1 block">{errors.floor_id}</span>}
+                    </div>
+                    <div>
+                        <label htmlFor="room-code" className="block text-xs font-semibold text-brand-textSecondary mb-1">Room Code*</label>
+                        <input
+                            id="room-code"
+                            type="text"
+                            required
+                            placeholder="e.g. LAB-201"
+                            value={data.code}
+                            onChange={(e) => setData('code', e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        />
+                        {errors.code && <span className="text-xs text-red-700 mt-1 block">{errors.code}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="room-name" className="block text-xs font-semibold text-brand-textSecondary mb-1">Room Name*</label>
+                        <input
+                            id="room-name"
+                            type="text"
+                            required
+                            placeholder="e.g. Laboratorium Jaringan"
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        />
+                        {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="room-description" className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
+                        <textarea
+                            id="room-description"
+                            value={data.description}
+                            onChange={(e) => setData('description', e.target.value)}
+                            rows="3"
+                            placeholder="Describe the usage or equipment in the room..."
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        ></textarea>
+                        {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
+                    </div>
+                </form>
+            </Modal>
         </CimsLayout>
     );
 }

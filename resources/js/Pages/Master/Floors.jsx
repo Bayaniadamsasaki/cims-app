@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -132,8 +133,9 @@ export default function Floors({ floors = [], buildings = [], usedLevels = {}, f
 
                     {/* Filter Gedung */}
                     <div className="mb-6 rounded-2xl bg-brand-card border border-brand-border p-4">
-                        <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Filter Gedung</label>
+                        <label htmlFor="floor-building-filter" className="block text-xs font-semibold text-brand-textSecondary mb-1">Filter Gedung</label>
                         <select
+                            id="floor-building-filter"
                             value={buildingFilter}
                             onChange={(e) => handleFilterChange(e.target.value)}
                             className="w-full sm:w-80 rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
@@ -222,112 +224,107 @@ export default function Floors({ floors = [], buildings = [], usedLevels = {}, f
             </div>
 
             {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-brand-card border border-brand-border p-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
-                            <h3 className="text-lg font-bold text-slate-900">
-                                {editingFloor ? 'Modify Floor Info' : 'Register New Floor'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-slate-900 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
-                                <select
-                                    required
-                                    value={data.building_id}
-                                    onChange={(e) => editingFloor
-                                        ? setData('building_id', e.target.value)
-                                        : applyBuildingSelection(e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                >
-                                    <option value="" disabled>Select Building</option>
-                                    {buildings.map((building) => (
-                                        <option key={building.id} value={building.id}>
-                                            {building.name} ({building.code})
-                                        </option>
-                                    ))}
-                                </select>
-                                {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Level (Numeric)*</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        placeholder="e.g. 1"
-                                        value={data.level}
-                                        onChange={(e) => setData('level', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.level && <span className="text-xs text-red-700 mt-1 block">{errors.level}</span>}
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor Name*</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="e.g. Lantai 1"
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                    />
-                                    {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
-                                </div>
-                            </div>
-
-                            {selectedBuilding && (
-                                <p className="text-[11px] text-brand-textMuted">
-                                    Level yang sudah terpakai di {selectedBuilding.name}:{' '}
-                                    <span className="font-semibold text-brand-textSecondary">
-                                        {(usedLevels[String(selectedBuilding.id)] || []).join(', ') || 'belum ada'}
-                                    </span>
-                                    . Satu level hanya boleh sekali per gedung.
-                                </p>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
-                                <textarea
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    rows="3"
-                                    placeholder="Describe the usage or location details..."
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                ></textarea>
-                                {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150"
-                                >
-                                    {editingFloor ? 'Save Changes' : 'Register Floor'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                show={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                maxWidth="md"
+                title={editingFloor ? 'Modify Floor Info' : 'Register New Floor'}
+                footer={
+                    <div className="flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            form="floor-form"
+                            disabled={processing}
+                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            {editingFloor ? 'Save Changes' : 'Register Floor'}
+                        </button>
                     </div>
-                </div>
-            )}
+                }
+            >
+                {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                    ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                <form id="floor-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                    <div>
+                        <label htmlFor="floor-building" className="block text-xs font-semibold text-brand-textSecondary mb-1">Building*</label>
+                        <select
+                            id="floor-building"
+                            required
+                            value={data.building_id}
+                            onChange={(e) => editingFloor
+                                ? setData('building_id', e.target.value)
+                                : applyBuildingSelection(e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        >
+                            <option value="" disabled>Select Building</option>
+                            {buildings.map((building) => (
+                                <option key={building.id} value={building.id}>
+                                    {building.name} ({building.code})
+                                </option>
+                            ))}
+                        </select>
+                        {errors.building_id && <span className="text-xs text-red-700 mt-1 block">{errors.building_id}</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="floor-level" className="block text-xs font-semibold text-brand-textSecondary mb-1">Level (Numeric)*</label>
+                            <input
+                                id="floor-level"
+                                type="number"
+                                required
+                                placeholder="e.g. 1"
+                                value={data.level}
+                                onChange={(e) => setData('level', e.target.value)}
+                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                            />
+                            {errors.level && <span className="text-xs text-red-700 mt-1 block">{errors.level}</span>}
+                        </div>
+                        <div>
+                            <label htmlFor="floor-name" className="block text-xs font-semibold text-brand-textSecondary mb-1">Floor Name*</label>
+                            <input
+                                id="floor-name"
+                                type="text"
+                                required
+                                placeholder="e.g. Lantai 1"
+                                value={data.name}
+                                onChange={(e) => setData('name', e.target.value)}
+                                className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                            />
+                            {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                        </div>
+                    </div>
+
+                    {selectedBuilding && (
+                        <p className="text-[11px] text-brand-textMuted">
+                            Level yang sudah terpakai di {selectedBuilding.name}:{' '}
+                            <span className="font-semibold text-brand-textSecondary">
+                                {(usedLevels[String(selectedBuilding.id)] || []).join(', ') || 'belum ada'}
+                            </span>
+                            . Satu level hanya boleh sekali per gedung.
+                        </p>
+                    )}
+
+                    <div>
+                        <label htmlFor="floor-description" className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
+                        <textarea
+                            id="floor-description"
+                            value={data.description}
+                            onChange={(e) => setData('description', e.target.value)}
+                            rows="3"
+                            placeholder="Describe the usage or location details..."
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        ></textarea>
+                        {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
+                    </div>
+                </form>
+            </Modal>
         </CimsLayout>
     );
 }

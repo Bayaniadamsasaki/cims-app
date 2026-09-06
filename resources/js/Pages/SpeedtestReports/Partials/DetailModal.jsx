@@ -1,3 +1,4 @@
+import Modal from "@/Components/Modal";
 import { ACTION_META, STATUS_META, fmt } from "../constants";
 
 /** Detail lengkap satu laporan speedtest. */
@@ -6,24 +7,33 @@ export default function DetailModal({ report, onClose, onEdit, onPreview }) {
     const action = ACTION_META[report.action] ?? {};
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="my-8 w-full max-w-2xl rounded-2xl border border-brand-border bg-brand-card p-6">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900">Detail Laporan Speedtest</h3>
-                        <p className="mt-0.5 text-xs text-brand-textSecondary">
-                            {report.location} &middot; {report.ssid} &middot; {report.tested_at_display}
-                        </p>
-                    </div>
-                    <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-brand-textSecondary transition hover:text-slate-900" aria-label="Tutup detail">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+        <Modal
+            show
+            onClose={onClose}
+            title="Detail Laporan Speedtest"
+            description={`${report.location} · ${report.ssid} · ${report.tested_at_display}`}
+            footer={
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-lg px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                    >
+                        Tutup
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onEdit(report)}
+                        className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                    >
+                        Edit Laporan
                     </button>
                 </div>
-
+            }
+        >
+            <div className="px-5 py-5 sm:px-6">
                 {/* Metrik utama */}
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <Metric label="Download" value={fmt(report.download_mbps)} unit="Mbps" />
                     <Metric label="Upload" value={fmt(report.upload_mbps)} unit="Mbps" />
                     <Metric label="Ping" value={fmt(report.ping_ms)} unit="ms" />
@@ -92,20 +102,8 @@ export default function DetailModal({ report, onClose, onEdit, onPreview }) {
                     )}
                 </div>
 
-                <div className="mt-5 flex items-center justify-end gap-2 border-t border-brand-border pt-4">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-brand-textSecondary transition hover:text-slate-900">
-                        Tutup
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onEdit(report)}
-                        className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover"
-                    >
-                        Edit Laporan
-                    </button>
-                </div>
             </div>
-        </div>
+        </Modal>
     );
 }
 

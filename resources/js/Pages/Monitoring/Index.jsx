@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
  * - `unknown`     belum pernah dipindai — bukan berarti perangkat sehat.
  */
 const MONITORING_STATUS = {
-    online: { label: "Online", dot: "bg-emerald-500 animate-pulse", chip: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    online: { label: "Online", dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200" },
     degraded: { label: "Degraded", dot: "bg-amber-500", chip: "bg-amber-50 text-amber-700 border-amber-200" },
     unreachable: { label: "Unreachable", dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200" },
     error: { label: "Monitoring Error", dot: "bg-rose-600", chip: "bg-rose-50 text-rose-700 border-rose-200" },
@@ -204,7 +204,9 @@ export default function Index({ devices = [], summary = {}, alerts = [], latestS
                         >
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-start gap-2">
-                                    <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-600" />
+                                    {/* Denyut dipertahankan di sini: pemindaian punya awal dan akhir,
+                                        jadi gerak menandai kerja yang sedang berjalan — bukan keadaan normal. */}
+                                    <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-blue-600 motion-reduce:animate-none" />
                                     <p className="max-w-2xl text-xs text-blue-900">
                                         <strong className="font-semibold">
                                             Pemindaian sedang berjalan di antrean.

@@ -533,7 +533,6 @@ export default function TopologyMap({ topologyData: initialData }) {
                                                 }
                                                 strokeWidth={isSelected ? 4 : isInferred ? 1.75 : 2.5}
                                                 strokeDasharray={isInferred ? "6 5" : isSelected ? "8 4" : "none"}
-                                                className={isSelected ? "animate-pulse" : ""}
                                             />
 
                                             {/* Interface Badge along the Link (Only if explicit interface) */}

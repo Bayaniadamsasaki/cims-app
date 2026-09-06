@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -164,111 +165,107 @@ export default function UsersIndex({ users = [], roles = [], filters = {} }) {
             </div>
 
             {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6 shadow-xl">
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
-                            <h3 className="text-lg font-bold text-slate-900">
-                                {editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-700 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: Administrator"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Alamat Email*</label>
-                                <input
-                                    type="email"
-                                    required
-                                    placeholder="Contoh: admin@ubg.ac.id"
-                                    value={data.email}
-                                    onChange={(e) => setData('email', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.email && <span className="text-xs text-red-700 mt-1 block">{errors.email}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                                    Password {editingUser && '(Kosongkan jika tidak diubah)'}
-                                </label>
-                                <input
-                                    type="password"
-                                    required={!editingUser}
-                                    placeholder="••••••••"
-                                    value={data.password}
-                                    onChange={(e) => setData('password', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.password && <span className="text-xs text-red-700 mt-1 block">{errors.password}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Konfirmasi Password</label>
-                                <input
-                                    type="password"
-                                    required={!editingUser && data.password}
-                                    placeholder="••••••••"
-                                    value={data.password_confirmation}
-                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Peran Akses*</label>
-                                <select
-                                    required
-                                    value={data.role}
-                                    onChange={(e) => setData('role', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                >
-                                    <option value="" className="bg-white text-slate-800">Pilih Peran</option>
-                                    {roles.map((r, idx) => <option key={idx} value={r} className="bg-white text-slate-800">{r}</option>)}
-                                </select>
-                                {errors.role && <span className="text-xs text-red-700 mt-1 block">{errors.role}</span>}
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150"
-                                >
-                                    {editingUser ? 'Simpan Perubahan' : 'Daftarkan Pengguna'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                show={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                maxWidth="md"
+                title={editingUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
+                footer={
+                    <div className="flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            form="user-form"
+                            disabled={processing}
+                            className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            {editingUser ? 'Simpan Perubahan' : 'Daftarkan Pengguna'}
+                        </button>
                     </div>
-                </div>
-            )}
+                }
+            >
+                {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                    ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                <form id="user-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                    <div>
+                        <label htmlFor="user-name" className="block text-xs font-semibold text-slate-600 mb-1">Nama Lengkap*</label>
+                        <input
+                            id="user-name"
+                            type="text"
+                            required
+                            placeholder="Contoh: Administrator"
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="user-email" className="block text-xs font-semibold text-slate-600 mb-1">Alamat Email*</label>
+                        <input
+                            id="user-email"
+                            type="email"
+                            required
+                            placeholder="Contoh: admin@ubg.ac.id"
+                            value={data.email}
+                            onChange={(e) => setData('email', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.email && <span className="text-xs text-red-700 mt-1 block">{errors.email}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="user-password" className="block text-xs font-semibold text-slate-600 mb-1">
+                            Password {editingUser && '(Kosongkan jika tidak diubah)'}
+                        </label>
+                        <input
+                            id="user-password"
+                            type="password"
+                            required={!editingUser}
+                            placeholder="••••••••"
+                            value={data.password}
+                            onChange={(e) => setData('password', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.password && <span className="text-xs text-red-700 mt-1 block">{errors.password}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="user-password-confirmation" className="block text-xs font-semibold text-slate-600 mb-1">Konfirmasi Password</label>
+                        <input
+                            id="user-password-confirmation"
+                            type="password"
+                            required={!editingUser && data.password}
+                            placeholder="••••••••"
+                            value={data.password_confirmation}
+                            onChange={(e) => setData('password_confirmation', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="user-role" className="block text-xs font-semibold text-slate-600 mb-1">Peran Akses*</label>
+                        <select
+                            id="user-role"
+                            required
+                            value={data.role}
+                            onChange={(e) => setData('role', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        >
+                            <option value="" className="bg-white text-slate-800">Pilih Peran</option>
+                            {roles.map((r, idx) => <option key={idx} value={r} className="bg-white text-slate-800">{r}</option>)}
+                        </select>
+                        {errors.role && <span className="text-xs text-red-700 mt-1 block">{errors.role}</span>}
+                    </div>
+                </form>
+            </Modal>
         </CimsLayout>
     );
 }

@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -228,228 +229,248 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                     </div>
 
                     {/* Create Modal */}
-                    {isCreateOpen && (
-                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                            <div className="w-full max-w-lg bg-brand-card border border-brand-border rounded-2xl p-6 shadow-2xl relative">
-                                <h3 className="text-lg font-bold text-slate-900 mb-4">Create Maintenance Ticket</h3>
-                                
-                                <form onSubmit={handleCreateSubmit} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Target Device</label>
-                                        <select
-                                            value={createForm.data.device_id}
-                                            onChange={(e) => createForm.setData('device_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        >
-                                            {devices.map((d) => (
-                                                <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Assigned Technician</label>
-                                        <select
-                                            value={createForm.data.technician_id}
-                                            onChange={(e) => createForm.setData('technician_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        >
-                                            {technicians.map((t) => (
-                                                <option key={t.id} value={t.id}>{t.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Ticket Title</label>
-                                        <input
-                                            type="text"
-                                            value={createForm.data.title}
-                                            onChange={(e) => createForm.setData('title', e.target.value)}
-                                            required
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Description</label>
-                                        <textarea
-                                            value={createForm.data.description}
-                                            onChange={(e) => createForm.setData('description', e.target.value)}
-                                            rows="3"
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        ></textarea>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Status</label>
-                                            <select
-                                                value={createForm.data.status}
-                                                onChange={(e) => createForm.setData('status', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                            >
-                                                <option value="pending">Pending</option>
-                                                <option value="in_progress">In Progress</option>
-                                                <option value="completed">Completed</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Scheduled Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                value={createForm.data.scheduled_at}
-                                                onChange={(e) => createForm.setData('scheduled_at', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-end space-x-2 pt-4 border-t border-brand-border">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsCreateOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={createForm.processing}
-                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition"
-                                        >
-                                            Create
-                                        </button>
-                                    </div>
-                                </form>
+                    <Modal
+                        show={isCreateOpen}
+                        onClose={() => setIsCreateOpen(false)}
+                        maxWidth="lg"
+                        title="Create Maintenance Ticket"
+                        footer={
+                            <div className="flex items-center justify-end space-x-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCreateOpen(false)}
+                                    className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    form="maintenance-create-form"
+                                    disabled={createForm.processing}
+                                    className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                                >
+                                    Create
+                                </button>
                             </div>
-                        </div>
-                    )}
+                        }
+                    >
+                        {/* Tombol kirim berada di footer sticky di luar <form>, jadi ia
+                            ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                        <form id="maintenance-create-form" onSubmit={handleCreateSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                            <div>
+                                <label htmlFor="create-device-id" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Target Device</label>
+                                <select
+                                    id="create-device-id"
+                                    value={createForm.data.device_id}
+                                    onChange={(e) => createForm.setData('device_id', e.target.value)}
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                >
+                                    {devices.map((d) => (
+                                        <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="create-technician-id" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Assigned Technician</label>
+                                <select
+                                    id="create-technician-id"
+                                    value={createForm.data.technician_id}
+                                    onChange={(e) => createForm.setData('technician_id', e.target.value)}
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                >
+                                    {technicians.map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="create-title" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Ticket Title</label>
+                                <input
+                                    id="create-title"
+                                    type="text"
+                                    value={createForm.data.title}
+                                    onChange={(e) => createForm.setData('title', e.target.value)}
+                                    required
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="create-description" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Description</label>
+                                <textarea
+                                    id="create-description"
+                                    value={createForm.data.description}
+                                    onChange={(e) => createForm.setData('description', e.target.value)}
+                                    rows="3"
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                ></textarea>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="create-status" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Status</label>
+                                    <select
+                                        id="create-status"
+                                        value={createForm.data.status}
+                                        onChange={(e) => createForm.setData('status', e.target.value)}
+                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="create-scheduled-at" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Scheduled Time</label>
+                                    <input
+                                        id="create-scheduled-at"
+                                        type="datetime-local"
+                                        value={createForm.data.scheduled_at}
+                                        onChange={(e) => createForm.setData('scheduled_at', e.target.value)}
+                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                    />
+                                </div>
+                            </div>
+                        </form>
+                    </Modal>
 
                     {/* Edit Modal */}
-                    {isEditOpen && (
-                        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                            <div className="w-full max-w-lg bg-brand-card border border-brand-border rounded-2xl p-6 shadow-2xl relative">
-                                <h3 className="text-lg font-bold text-slate-900 mb-4">Edit Maintenance Ticket</h3>
-                                
-                                <form onSubmit={handleEditSubmit} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Target Device</label>
-                                        <select
-                                            value={editForm.data.device_id}
-                                            onChange={(e) => editForm.setData('device_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        >
-                                            {devices.map((d) => (
-                                                <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Assigned Technician</label>
-                                        <select
-                                            value={editForm.data.technician_id}
-                                            onChange={(e) => editForm.setData('technician_id', e.target.value)}
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {technicians.map((t) => (
-                                                <option key={t.id} value={t.id}>{t.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Ticket Title</label>
-                                        <input
-                                            type="text"
-                                            value={editForm.data.title}
-                                            onChange={(e) => editForm.setData('title', e.target.value)}
-                                            required
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Description</label>
-                                        <textarea
-                                            value={editForm.data.description}
-                                            onChange={(e) => editForm.setData('description', e.target.value)}
-                                            rows="3"
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        ></textarea>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Status</label>
-                                            <select
-                                                value={editForm.data.status}
-                                                onChange={(e) => editForm.setData('status', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                            >
-                                                <option value="pending">Pending</option>
-                                                <option value="in_progress">In Progress</option>
-                                                <option value="completed">Completed</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Scheduled Time</label>
-                                            <input
-                                                type="datetime-local"
-                                                value={editForm.data.scheduled_at}
-                                                onChange={(e) => editForm.setData('scheduled_at', e.target.value)}
-                                                className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Resolution Notes</label>
-                                        <textarea
-                                            value={editForm.data.notes}
-                                            onChange={(e) => editForm.setData('notes', e.target.value)}
-                                            rows="2"
-                                            placeholder="Write resolution comments here..."
-                                            className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
-                                        ></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Attachment File</label>
-                                        <input
-                                            type="file"
-                                            onChange={(e) => editForm.setData('attachment', e.target.files[0])}
-                                            className="w-full text-xs text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-white hover:file:bg-brand-primaryHover"
-                                        />
-                                        {activeTicket?.attachment_path && (
-                                            <div className="text-[10px] text-brand-primary mt-1">
-                                                Current file: <a href={`/storage/${activeTicket.attachment_path}`} target="_blank" rel="noopener noreferrer" className="underline">View current upload</a>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center justify-end space-x-2 pt-4 border-t border-brand-border">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsEditOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={editForm.processing}
-                                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </form>
+                    <Modal
+                        show={isEditOpen}
+                        onClose={() => setIsEditOpen(false)}
+                        maxWidth="lg"
+                        title="Edit Maintenance Ticket"
+                        footer={
+                            <div className="flex items-center justify-end space-x-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditOpen(false)}
+                                    className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    form="maintenance-edit-form"
+                                    disabled={editForm.processing}
+                                    className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                                >
+                                    Save Changes
+                                </button>
                             </div>
-                        </div>
-                    )}
+                        }
+                    >
+                        {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                            ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                        <form id="maintenance-edit-form" onSubmit={handleEditSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                            <div>
+                                <label htmlFor="edit-device-id" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Target Device</label>
+                                <select
+                                    id="edit-device-id"
+                                    value={editForm.data.device_id}
+                                    onChange={(e) => editForm.setData('device_id', e.target.value)}
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                >
+                                    {devices.map((d) => (
+                                        <option key={d.id} value={d.id}>{d.name} ({d.ip_address})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="edit-technician-id" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Assigned Technician</label>
+                                <select
+                                    id="edit-technician-id"
+                                    value={editForm.data.technician_id}
+                                    onChange={(e) => editForm.setData('technician_id', e.target.value)}
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                >
+                                    <option value="">Unassigned</option>
+                                    {technicians.map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="edit-title" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Ticket Title</label>
+                                <input
+                                    id="edit-title"
+                                    type="text"
+                                    value={editForm.data.title}
+                                    onChange={(e) => editForm.setData('title', e.target.value)}
+                                    required
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="edit-description" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Description</label>
+                                <textarea
+                                    id="edit-description"
+                                    value={editForm.data.description}
+                                    onChange={(e) => editForm.setData('description', e.target.value)}
+                                    rows="3"
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                ></textarea>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="edit-status" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Status</label>
+                                    <select
+                                        id="edit-status"
+                                        value={editForm.data.status}
+                                        onChange={(e) => editForm.setData('status', e.target.value)}
+                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                    >
+                                        <option value="pending">Pending</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="edit-scheduled-at" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Scheduled Time</label>
+                                    <input
+                                        id="edit-scheduled-at"
+                                        type="datetime-local"
+                                        value={editForm.data.scheduled_at}
+                                        onChange={(e) => editForm.setData('scheduled_at', e.target.value)}
+                                        className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label htmlFor="edit-notes" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Resolution Notes</label>
+                                <textarea
+                                    id="edit-notes"
+                                    value={editForm.data.notes}
+                                    onChange={(e) => editForm.setData('notes', e.target.value)}
+                                    rows="2"
+                                    placeholder="Write resolution comments here..."
+                                    className="w-full bg-brand-bgSecondary border border-brand-border rounded-xl text-slate-900 py-2 px-3 focus:outline-none focus:border-brand-primary"
+                                ></textarea>
+                            </div>
+
+                            <div>
+                                <label htmlFor="edit-attachment" className="block text-xs font-bold text-brand-textSecondary uppercase mb-1">Attachment File</label>
+                                <input
+                                    id="edit-attachment"
+                                    type="file"
+                                    onChange={(e) => editForm.setData('attachment', e.target.files[0])}
+                                    className="w-full text-xs text-brand-textSecondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-white hover:file:bg-brand-primaryHover"
+                                />
+                                {activeTicket?.attachment_path && (
+                                    <div className="text-[10px] text-brand-primary mt-1">
+                                        Current file: <a href={`/storage/${activeTicket.attachment_path}`} target="_blank" rel="noopener noreferrer" className="underline">View current upload</a>
+                                    </div>
+                                )}
+                            </div>
+                        </form>
+                    </Modal>
 
                 </div>
         </CimsLayout>

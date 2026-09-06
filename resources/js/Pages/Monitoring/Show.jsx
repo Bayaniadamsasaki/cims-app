@@ -116,7 +116,7 @@ const TrendChart = ({ title, subtitle, lines, emptyLabel, scaleLabel }) => {
         <div className="rounded-2xl border border-brand-border bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-brand-text">{title}</h3>
+                    <h3 className="text-sm font-semibold text-brand-textPrimary">{title}</h3>
                     <p className="mt-0.5 text-xs text-brand-textMuted">{subtitle}</p>
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs">
@@ -129,7 +129,7 @@ const TrendChart = ({ title, subtitle, lines, emptyLabel, scaleLabel }) => {
                 </div>
             </div>
             {measuredPoints === 0 ? (
-                <div className="mt-4 flex h-[150px] items-center justify-center rounded-xl border border-dashed border-brand-border bg-brand-surface px-4 text-center text-xs text-brand-textMuted">
+                <div className="mt-4 flex h-[150px] items-center justify-center rounded-xl border border-dashed border-brand-border bg-brand-cardElevated px-4 text-center text-xs text-brand-textMuted">
                     {emptyLabel}
                 </div>
             ) : (
@@ -175,7 +175,7 @@ const TrendChart = ({ title, subtitle, lines, emptyLabel, scaleLabel }) => {
 const SpecCard = ({ label, value, hint }) => (
     <div className="rounded-2xl border border-brand-border bg-white p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-brand-textMuted">{label}</p>
-        <p className="mt-1 truncate text-lg font-semibold text-brand-text" title={typeof value === 'string' ? value : undefined}>
+        <p className="mt-1 truncate text-lg font-semibold text-brand-textPrimary" title={typeof value === 'string' ? value : undefined}>
             {hasValue(value) && value !== '' ? value : <NoData />}
         </p>
         {hint ? <p className="mt-1 text-xs text-brand-textMuted">{hint}</p> : null}
@@ -217,7 +217,7 @@ const SCAN_NOTICE = {
 const NOTICE_TONE = {
     warning: 'border-amber-200 bg-amber-50 text-amber-900',
     critical: 'border-red-200 bg-red-50 text-red-900',
-    muted: 'border-brand-border bg-brand-surface text-brand-text',
+    muted: 'border-brand-border bg-brand-cardElevated text-brand-textPrimary',
 };
 export default function Show({ device = {}, historyLogs = [] }) {
     const metrics = device.metrics ?? {};
@@ -278,7 +278,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                         >
                             ← Kembali ke Pemantauan
                         </Link>
-                        <h2 className="mt-1 text-2xl font-bold tracking-tight text-brand-text">
+                        <h2 className="mt-1 text-2xl font-bold tracking-tight text-brand-textPrimary">
                             {device.name ?? 'Perangkat'}
                         </h2>
                         <p className="text-sm text-brand-textMuted">
@@ -300,7 +300,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
         >
             <Head title={`Monitoring · ${device.name ?? 'Perangkat'}`} />
 
-            <div className="space-y-6 text-brand-text">
+            <div className="space-y-6 text-brand-textPrimary">
                 {notice ? (
                     <div className={`rounded-2xl border p-4 ${NOTICE_TONE[notice.tone]}`} role="status">
                         <p className="text-sm font-semibold">{notice.title}</p>
@@ -384,7 +384,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                 </div>
                 {Array.isArray(metrics.last_interface_status) && metrics.last_interface_status.length > 0 ? (
                     <div className="rounded-2xl border border-brand-border bg-white p-5">
-                        <h3 className="text-sm font-semibold text-brand-text">Interface Terakhir Dilaporkan</h3>
+                        <h3 className="text-sm font-semibold text-brand-textPrimary">Interface Terakhir Dilaporkan</h3>
                         <p className="mt-0.5 text-xs text-brand-textMuted">
                             Daftar ini murni hasil pembacaan perangkat — tidak ada interface yang dibuatkan
                             sistem saat pembacaan gagal.
@@ -393,9 +393,9 @@ export default function Show({ device = {}, historyLogs = [] }) {
                             {metrics.last_interface_status.map((iface, index) => (
                                 <span
                                     key={`${iface?.name ?? 'iface'}-${index}`}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-brand-border bg-brand-surface px-3 py-1.5"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-brand-border bg-brand-cardElevated px-3 py-1.5"
                                 >
-                                    <span className="text-xs font-medium text-brand-text">
+                                    <span className="text-xs font-medium text-brand-textPrimary">
                                         {iface?.name ?? '—'}
                                     </span>
                                     <StatusBadge
@@ -432,7 +432,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-brand-border bg-white">
                     <div className="border-b border-brand-border px-5 py-4">
-                        <h3 className="text-sm font-semibold text-brand-text">Riwayat Pemindaian</h3>
+                        <h3 className="text-sm font-semibold text-brand-textPrimary">Riwayat Pemindaian</h3>
                         <p className="mt-0.5 text-xs text-brand-textMuted">
                             Terbaru di atas. Sel "—" berarti nilai itu memang tidak terukur pada siklus
                             tersebut; nilai 0 yang tampil adalah hasil pengukuran sungguhan.
@@ -440,7 +440,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-brand-border text-sm">
-                            <thead className="bg-brand-surface">
+                            <thead className="bg-brand-cardElevated">
                                 <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-brand-textMuted">
                                     <th scope="col" className="px-5 py-3">Waktu</th>
                                     <th scope="col" className="px-5 py-3">Status</th>
@@ -462,7 +462,7 @@ export default function Show({ device = {}, historyLogs = [] }) {
                                     </tr>
                                 ) : (
                                     newestFirst.map((log) => (
-                                        <tr key={log.id} className="text-brand-text">
+                                        <tr key={log.id} className="text-brand-textPrimary">
                                             <td className="whitespace-nowrap px-5 py-3 text-xs text-brand-textMuted">
                                                 {formatDateTime(log.checked_at) ?? <NoData />}
                                             </td>

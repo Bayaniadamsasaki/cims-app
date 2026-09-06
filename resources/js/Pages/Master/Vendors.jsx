@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -155,105 +156,101 @@ export default function Vendors({ vendors = [] }) {
             </div>
 
             {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
-                            <h3 className="text-lg font-bold text-slate-900">
-                                {editingVendor ? 'Edit Data Vendor' : 'Tambah Vendor Baru'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-700 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Nama Vendor*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: Mikrotik / Cisco / Ruijie"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Kontak Person (CP)</label>
-                                <input
-                                    type="text"
-                                    placeholder="Contoh: Budi (Sales Support)"
-                                    value={data.contact_person}
-                                    onChange={(e) => setData('contact_person', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.contact_person && <span className="text-xs text-red-700 mt-1 block">{errors.contact_person}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Alamat Email</label>
-                                <input
-                                    type="email"
-                                    placeholder="Contoh: support@vendor.com"
-                                    value={data.email}
-                                    onChange={(e) => setData('email', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                />
-                                {errors.email && <span className="text-xs text-red-700 mt-1 block">{errors.email}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">No. Telepon / WA</label>
-                                <input
-                                    type="text"
-                                    placeholder="Contoh: 081234567890"
-                                    value={data.phone}
-                                    onChange={(e) => setData('phone', e.target.value)}
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
-                                />
-                                {errors.phone && <span className="text-xs text-red-700 mt-1 block">{errors.phone}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Alamat</label>
-                                <textarea
-                                    value={data.address}
-                                    onChange={(e) => setData('address', e.target.value)}
-                                    rows="2"
-                                    placeholder="Alamat kantor atau pusat perbaikan vendor..."
-                                    className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
-                                ></textarea>
-                                {errors.address && <span className="text-xs text-red-700 mt-1 block">{errors.address}</span>}
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white transition duration-150"
-                                >
-                                    {editingVendor ? 'Simpan Perubahan' : 'Tambah Vendor'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                show={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                maxWidth="md"
+                title={editingVendor ? 'Edit Data Vendor' : 'Tambah Vendor Baru'}
+                footer={
+                    <div className="flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="rounded-xl border border-slate-200 hover:bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            form="vendor-form"
+                            disabled={processing}
+                            className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            {editingVendor ? 'Simpan Perubahan' : 'Tambah Vendor'}
+                        </button>
                     </div>
-                </div>
-            )}
+                }
+            >
+                {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                    ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                <form id="vendor-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                    <div>
+                        <label htmlFor="vendor-name" className="block text-xs font-semibold text-slate-600 mb-1">Nama Vendor*</label>
+                        <input
+                            id="vendor-name"
+                            type="text"
+                            required
+                            placeholder="Contoh: Mikrotik / Cisco / Ruijie"
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="vendor-contact-person" className="block text-xs font-semibold text-slate-600 mb-1">Kontak Person (CP)</label>
+                        <input
+                            id="vendor-contact-person"
+                            type="text"
+                            placeholder="Contoh: Budi (Sales Support)"
+                            value={data.contact_person}
+                            onChange={(e) => setData('contact_person', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.contact_person && <span className="text-xs text-red-700 mt-1 block">{errors.contact_person}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="vendor-email" className="block text-xs font-semibold text-slate-600 mb-1">Alamat Email</label>
+                        <input
+                            id="vendor-email"
+                            type="email"
+                            placeholder="Contoh: support@vendor.com"
+                            value={data.email}
+                            onChange={(e) => setData('email', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        />
+                        {errors.email && <span className="text-xs text-red-700 mt-1 block">{errors.email}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="vendor-phone" className="block text-xs font-semibold text-slate-600 mb-1">No. Telepon / WA</label>
+                        <input
+                            id="vendor-phone"
+                            type="text"
+                            placeholder="Contoh: 081234567890"
+                            value={data.phone}
+                            onChange={(e) => setData('phone', e.target.value)}
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600 font-mono"
+                        />
+                        {errors.phone && <span className="text-xs text-red-700 mt-1 block">{errors.phone}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="vendor-address" className="block text-xs font-semibold text-slate-600 mb-1">Alamat</label>
+                        <textarea
+                            id="vendor-address"
+                            value={data.address}
+                            onChange={(e) => setData('address', e.target.value)}
+                            rows="2"
+                            placeholder="Alamat kantor atau pusat perbaikan vendor..."
+                            className="w-full rounded-xl bg-slate-50 border-slate-200 text-sm text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-blue-600"
+                        ></textarea>
+                        {errors.address && <span className="text-xs text-red-700 mt-1 block">{errors.address}</span>}
+                    </div>
+                </form>
+            </Modal>
         </CimsLayout>
     );
 }

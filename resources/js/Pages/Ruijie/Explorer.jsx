@@ -14,7 +14,7 @@ const STATUS_STYLE = {
     online: {
         label: "ONLINE",
         chip: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
-        dot: "bg-emerald-400 animate-pulse",
+        dot: "bg-emerald-500",
     },
     degraded: {
         label: "DEGRADED",
@@ -189,7 +189,7 @@ export default function RuijieExplorer({
                                     </h1>
                                     {cloudConnected ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/30">
-                                            <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                                            <span className="h-2 w-2 rounded-full bg-emerald-500 mr-2"></span>
                                             CLOUD API TERHUBUNG
                                             {connection?.latency_ms ? ` (${connection.latency_ms} ms)` : ""}
                                         </span>

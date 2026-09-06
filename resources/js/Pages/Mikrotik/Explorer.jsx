@@ -663,12 +663,12 @@ export default function MikrotikExplorer({
                                     </h1>
                                     {isLiveDataPending ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-700 border border-blue-500/30">
-                                            <span className="h-2 w-2 rounded-full bg-blue-400 mr-2 animate-pulse"></span>
+                                            <span className="h-2 w-2 rounded-full bg-blue-400 mr-2 animate-pulse motion-reduce:animate-none"></span>
                                             Menghubungkan…
                                         </span>
                                     ) : connection?.success ? (
                                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/30">
-                                            <span className="h-2 w-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                                            <span className="h-2 w-2 rounded-full bg-emerald-500 mr-2"></span>
                                             API Terhubung
                                         </span>
                                     ) : (
@@ -2022,7 +2022,8 @@ export default function MikrotikExplorer({
                         {speedtest?.run?.state === "running" && (
                             <div className="bg-brand-card border border-brand-border rounded-2xl p-5">
                                 <div className="flex items-center gap-3">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    {/* Pengukuran adalah proses berdurasi, jadi denyutnya bermakna. */}
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse motion-reduce:animate-none" />
                                     <div className="text-sm font-semibold text-slate-900">
                                         Pengukuran berjalan
                                     </div>

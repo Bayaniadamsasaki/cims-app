@@ -1,4 +1,5 @@
 import CimsLayout from '@/Layouts/CimsLayout';
+import Modal from '@/Components/Modal';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
@@ -174,108 +175,100 @@ export default function Buildings({ buildings = [] }) {
             </div>
 
             {/* Create/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-md rounded-2xl bg-brand-card border border-brand-border p-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-brand-border mb-6">
-                            <h3 className="text-lg font-bold text-slate-900">
-                                {editingBuilding ? 'Modify Building Info' : 'Register New Building Zone'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="text-brand-textSecondary hover:text-slate-900 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building Code*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. GKB-A"
-                                    value={data.code}
-                                    onChange={(e) => setData('code', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.code && <span className="text-xs text-red-700 mt-1 block">{errors.code}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Building Name*</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="e.g. Gedung Kuliah Bersama A"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                />
-                                {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
-                                <textarea
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    rows="3"
-                                    placeholder="Describe the usage or location details..."
-                                    className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
-                                ></textarea>
-                                {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
-                            </div>
-
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-brand-border">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150"
-                                >
-                                    {editingBuilding ? 'Save Changes' : 'Register Zone'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal
+                show={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                maxWidth="md"
+                title={editingBuilding ? 'Modify Building Info' : 'Register New Building Zone'}
+                footer={
+                    <div className="flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            form="building-form"
+                            disabled={processing}
+                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            {editingBuilding ? 'Save Changes' : 'Register Zone'}
+                        </button>
                     </div>
-                </div>
-            )}
-            {/* View Layout Modal */}
-            {selectedLayoutBuilding && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-brand-card border border-brand-border">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border shrink-0">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-900">
-                                    Layout Structure: {selectedLayoutBuilding.name}
-                                </h3>
-                                <p className="text-xs text-brand-textSecondary mt-0.5 font-mono">
-                                    Code: {selectedLayoutBuilding.code} • {selectedLayoutBuilding.floors_count} Floors • {selectedLayoutBuilding.rooms_count} Rooms
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedLayoutBuilding(null)}
-                                className="text-brand-textSecondary hover:text-slate-900 transition"
-                            >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
+                }
+            >
+                {/* Tombol simpan berada di footer sticky di luar <form>, jadi ia
+                    ditautkan lewat atribut `form` agar Enter dan klik tetap mengirim. */}
+                <form id="building-form" onSubmit={handleSubmit} className="space-y-4 px-5 py-5 sm:px-6">
+                    <div>
+                        <label htmlFor="building-code" className="block text-xs font-semibold text-brand-textSecondary mb-1">Building Code*</label>
+                        <input
+                            id="building-code"
+                            type="text"
+                            required
+                            placeholder="e.g. GKB-A"
+                            value={data.code}
+                            onChange={(e) => setData('code', e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        />
+                        {errors.code && <span className="text-xs text-red-700 mt-1 block">{errors.code}</span>}
+                    </div>
 
-                        {/* Modal Body */}
-                        <div className="overflow-y-auto p-6 space-y-6 flex-1">
+                    <div>
+                        <label htmlFor="building-name" className="block text-xs font-semibold text-brand-textSecondary mb-1">Building Name*</label>
+                        <input
+                            id="building-name"
+                            type="text"
+                            required
+                            placeholder="e.g. Gedung Kuliah Bersama A"
+                            value={data.name}
+                            onChange={(e) => setData('name', e.target.value)}
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        />
+                        {errors.name && <span className="text-xs text-red-700 mt-1 block">{errors.name}</span>}
+                    </div>
+
+                    <div>
+                        <label htmlFor="building-description" className="block text-xs font-semibold text-brand-textSecondary mb-1">Description</label>
+                        <textarea
+                            id="building-description"
+                            value={data.description}
+                            onChange={(e) => setData('description', e.target.value)}
+                            rows="3"
+                            placeholder="Describe the usage or location details..."
+                            className="w-full rounded-xl bg-brand-bg border-brand-border text-sm text-slate-900 focus:border-brand-primary focus:ring-brand-primary"
+                        ></textarea>
+                        {errors.description && <span className="text-xs text-red-700 mt-1 block">{errors.description}</span>}
+                    </div>
+                </form>
+            </Modal>
+            {/* View Layout Modal */}
+            <Modal
+                show={Boolean(selectedLayoutBuilding)}
+                onClose={() => setSelectedLayoutBuilding(null)}
+                title={selectedLayoutBuilding ? `Layout Structure: ${selectedLayoutBuilding.name}` : ''}
+                description={
+                    selectedLayoutBuilding
+                        ? `Code: ${selectedLayoutBuilding.code} · ${selectedLayoutBuilding.floors_count} Floors · ${selectedLayoutBuilding.rooms_count} Rooms`
+                        : undefined
+                }
+                footer={
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedLayoutBuilding(null)}
+                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        >
+                            Close Layout
+                        </button>
+                    </div>
+                }
+            >
+                {selectedLayoutBuilding && (
+                        <div className="space-y-6 px-5 py-5 sm:px-6">
                             {selectedLayoutBuilding.floors && selectedLayoutBuilding.floors.length > 0 ? (
                                 selectedLayoutBuilding.floors.map((floor) => (
                                     <div key={floor.id} className="bg-brand-bgSecondary/50 border border-brand-border/40 rounded-xl p-4">
@@ -331,19 +324,8 @@ export default function Buildings({ buildings = [] }) {
                                 </div>
                             )}
                         </div>
-
-                        {/* Modal Footer */}
-                        <div className="flex justify-end px-6 py-4 border-t border-brand-border shrink-0">
-                            <button
-                                onClick={() => setSelectedLayoutBuilding(null)}
-                                className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-white transition duration-150"
-                            >
-                                Close Layout
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                )}
+            </Modal>
         </CimsLayout>
     );
 }

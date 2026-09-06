@@ -118,8 +118,19 @@ const MASTER_ITEMS = [
 
 const ITEM_BASE =
     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600";
-const ITEM_ACTIVE = "bg-blue-600 text-white font-semibold shadow-md shadow-blue-500/20";
-const ITEM_IDLE = "font-medium text-slate-600 hover:bg-blue-600 hover:text-white hover:shadow-md hover:shadow-blue-500/20";
+
+/**
+ * Aktif dan hover harus terbaca sebagai dua hal berbeda: "Anda sedang di sini"
+ * versus "kursor sedang di sini". Sebelumnya keduanya `bg-blue-600` + teks putih,
+ * jadi saat pointer menyusuri menu ada dua item yang tampak aktif sekaligus.
+ *
+ * Aktif memakai tint biru + teks biru tua sesuai `design_cims_dashboard.md` §5B;
+ * hover memakai abu netral supaya biru tetap milik state aktif saja. Penanda
+ * aktif tidak bergantung pada warna sendirian — ada `aria-current="page"` dan
+ * bobot font yang naik ke semibold.
+ */
+const ITEM_ACTIVE = "bg-blue-50 text-blue-700 font-semibold";
+const ITEM_IDLE = "font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900";
 
 /**
  * Prefetch jalan saat pointer hover/mousedown (perilaku default Inertia v2)
@@ -164,18 +175,18 @@ function NavLink({ item, onNavigate }) {
                     {Icon && (
                         <Icon
                             className={`h-5 w-5 shrink-0 transition-colors ${
-                                active ? "text-white" : "text-slate-400 group-hover:text-white"
+                                active ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
                             }`}
                         />
                     )}
                     <span className="truncate">{item.name}</span>
                 </span>
                 {item.badge && (
+                    /* Badge mempertahankan warna kategorinya di semua state — warnanya
+                       menandai jenis integrasi (Live/Cloud/RADIUS), bukan state item. */
                     <span
-                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold transition-colors ${
-                            active
-                                ? "bg-white/20 text-white"
-                                : `${item.badgeClass ?? "bg-slate-100 text-slate-600"} group-hover:bg-white/20 group-hover:text-white`
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                            item.badgeClass ?? "bg-slate-100 text-slate-600"
                         }`}
                     >
                         {item.badge}
@@ -311,8 +322,8 @@ export default function AppShell({ children }) {
                                             <IconMaster
                                                 className={`h-5 w-5 shrink-0 transition-colors ${
                                                     masterActive
-                                                        ? "text-white"
-                                                        : "text-slate-400 group-hover:text-white"
+                                                        ? "text-blue-600"
+                                                        : "text-slate-400 group-hover:text-slate-600"
                                                 }`}
                                             />
                                             Master Data
@@ -320,7 +331,7 @@ export default function AppShell({ children }) {
                                         <IconChevronDown
                                             className={`h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none ${
                                                 masterOpen ? "rotate-180" : ""
-                                            } ${masterActive ? "text-white" : "text-slate-400 group-hover:text-white"}`}
+                                            } ${masterActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"}`}
                                         />
                                     </button>
 
@@ -337,8 +348,8 @@ export default function AppShell({ children }) {
                                                             onClick={closeDrawer}
                                                             className={`block rounded-lg px-3 py-2 text-[13px] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                                                                 active
-                                                                    ? "bg-blue-600 font-semibold text-white shadow-sm shadow-blue-500/20"
-                                                                    : "font-medium text-slate-600 hover:bg-blue-600 hover:text-white hover:shadow-sm hover:shadow-blue-500/20"
+                                                                    ? "bg-blue-50 font-semibold text-blue-700"
+                                                                    : "font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                                                             }`}
                                                         >
                                                             {item.name}
@@ -385,9 +396,9 @@ export default function AppShell({ children }) {
                         <button
                             type="button"
                             onClick={() => setConfirmLogout(true)}
-                            className="group mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-blue-600 hover:text-white hover:shadow-md hover:shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                            className="group mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                         >
-                            <IconLogout className="h-5 w-5 shrink-0 text-slate-400 transition-colors group-hover:text-white" />
+                            <IconLogout className="h-5 w-5 shrink-0 text-slate-400 transition-colors group-hover:text-slate-600" />
                             Keluar
                         </button>
                     </div>

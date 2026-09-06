@@ -32,18 +32,33 @@
   animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* Custom Scrollbar Styles */
+/*
+ * Scrollbar kustom — palet netral CIMS (tema terang).
+ *
+ * Track dibuat lebih terang daripada thumb: yang harus paling terlihat adalah
+ * kontrol yang bisa ditarik, bukan lajurnya. Versi sebelumnya terbalik (track
+ * slate-900/60, thumb emerald-500/30) karena dirancang untuk panel gelap, dan
+ * emerald di sini juga membocorkan warna status ke chrome.
+ *
+ * `scrollbar-color` menangani Firefox, yang tidak mengenal pseudo-element
+ * ::-webkit-scrollbar.
+ */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 #F1F5F9; /* thumb slate-300, track slate-100 */
+}
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #F1F5F9; /* slate-100 */
   border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(16, 185, 129, 0.3);
+  background: #CBD5E1; /* slate-300 */
   border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.6);
+  background: #94A3B8; /* slate-400 */
 }

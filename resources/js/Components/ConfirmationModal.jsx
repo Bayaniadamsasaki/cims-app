@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
+import { DialogTitle } from '@headlessui/react';
+import Modal from './Modal';
 
 const ConfirmationContext = createContext(null);
 
@@ -82,37 +84,47 @@ export const ConfirmationDialog = ({ config }) => {
 
     const currentStyle = styles[variant] || styles.danger;
 
+    /**
+     * Dialog konfirmasi ikut memakai primitive `Modal` supaya focus trap, Escape,
+     * `aria-modal`, dan pengembalian fokus datang dari satu tempat. Escape dan klik
+     * di luar panel dipetakan ke `onCancel` — jalan keluar dari sebuah konfirmasi
+     * harus selalu berarti "tidak", bukan "ya".
+     *
+     * Kepalanya disusun sendiri (bukan lewat prop `title`) karena ikonnya berada di
+     * atas judul dan seluruh isinya rata tengah. `DialogTitle` tetap dipakai agar
+     * dialog punya `aria-labelledby` yang benar.
+     */
     return (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm">
-            <div className="relative flex w-full max-w-sm flex-col items-center rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-xl animate-zoom-in">
-
-                {/* Variant Styled Icon */}
-                <div className={`p-3.5 rounded-full border ${currentStyle.iconBg} mb-4 flex items-center justify-center`}>
+        <Modal show onClose={onCancel} maxWidth="sm">
+            <div className="flex flex-col items-center p-6 text-center">
+                <div
+                    className={`p-3.5 rounded-full border ${currentStyle.iconBg} mb-4 flex items-center justify-center`}
+                    aria-hidden="true"
+                >
                     {currentStyle.icon}
                 </div>
 
-                {/* Title */}
-                <h3 className="mb-2 text-lg font-bold text-slate-900">{title}</h3>
+                <DialogTitle className="mb-2 text-lg font-bold text-slate-900">{title}</DialogTitle>
 
-                {/* Message */}
                 <p className="mb-6 max-w-xs text-xs leading-relaxed text-slate-500">{message}</p>
 
-                {/* Actions */}
-                <div className="flex w-full space-x-3">
+                <div className="flex w-full gap-3">
                     <button
+                        type="button"
                         onClick={onCancel}
-                        className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                        className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                     >
                         {cancelLabel}
                     </button>
                     <button
+                        type="button"
                         onClick={onConfirm}
-                        className={`flex-1 rounded-xl py-2.5 text-xs font-semibold transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 ${currentStyle.button}`}
+                        className={`flex-1 rounded-xl py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${currentStyle.button}`}
                     >
                         {confirmLabel}
                     </button>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };

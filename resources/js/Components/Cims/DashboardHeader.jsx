@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import { IconAlerts, IconClock, IconExport, IconMenu, IconSearch } from "./icons";
 
 /**
@@ -36,6 +36,27 @@ const ICON_BUTTON =
  * notifikasi, dan profil admin di kanan.
  */
 export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar, onExport }) {
+    /**
+     * Search global menyerahkan kata kunci ke filter `search` inventaris perangkat
+     * yang sudah ada (DeviceRepository::paginate). Tidak ada endpoint pencarian
+     * lintas modul di aplikasi ini, jadi tujuannya sengaja satu halaman yang
+     * memang bisa menjawab: Device Inventory.
+     *
+     * Kolom yang benar-benar dicari repository itu adalah name, hostname,
+     * ip_address, mac_address, serial_number, dan model — bukan lokasi. Label dan
+     * placeholder di bawah menyebut tepat itu supaya kontrol ini tidak
+     * menjanjikan pencarian yang tidak dilakukan.
+     */
+    const submitSearch = (event) => {
+        event.preventDefault();
+
+        const keyword = new FormData(event.currentTarget).get("search")?.toString().trim();
+
+        if (!keyword) return;
+
+        router.get(route("devices.index"), { search: keyword }, { preserveState: false });
+    };
+
     return (
         <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -44,16 +65,17 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
                     <span className="sr-only">Buka menu navigasi</span>
                 </button>
 
-                <form className="min-w-0 flex-1 sm:max-w-md" role="search" onSubmit={(e) => e.preventDefault()}>
+                <form className="min-w-0 flex-1 sm:max-w-md" role="search" onSubmit={submitSearch}>
                     <label htmlFor="cims-global-search" className="sr-only">
-                        Cari perangkat, IP, atau lokasi
+                        Cari perangkat berdasarkan nama, hostname, IP, MAC, serial, atau model
                     </label>
                     <div className="relative">
                         <IconSearch className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input
                             id="cims-global-search"
+                            name="search"
                             type="search"
-                            placeholder="Cari perangkat, IP, atau lokasi…"
+                            placeholder="Cari perangkat, IP, atau serial…"
                             className="w-full rounded-full border-0 bg-slate-100 py-2.5 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-600"
                         />
                     </div>
@@ -72,7 +94,17 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
                     Export Report
                 </button>
 
-                <button type="button" className={ICON_BUTTON}>
+                {/*
+                  * Bel notifikasi menuju halaman Security Alerts yang sudah ada.
+                  * Sengaja `Link`, bukan dropdown: tidak ada endpoint ringkasan
+                  * notifikasi, jadi satu-satunya tujuan yang benar-benar bisa
+                  * menampilkan isinya adalah halaman alert itu sendiri.
+                  *
+                  * Tanpa prefetch — halaman alert menembak pemindaian saat dirender
+                  * (item `live: true` di AppShell), dan itu terlalu mahal untuk
+                  * dipicu hanya karena pointer melintas.
+                  */}
+                <Link href={route("alerts.index")} className={ICON_BUTTON}>
                     <IconAlerts className="h-5 w-5" />
                     {unreadAlerts > 0 && (
                         <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
@@ -80,7 +112,7 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
                     <span className="sr-only">
                         Notifikasi{unreadAlerts > 0 ? `, ${unreadAlerts} alert belum dibaca` : ", tidak ada yang baru"}
                     </span>
-                </button>
+                </Link>
 
                 <Link
                     href={route("profile.edit")}
