@@ -248,7 +248,7 @@ export default function AppShell({ children }) {
 
     return (
         <ShellContext.Provider value={shell}>
-            <div className="flex h-screen overflow-hidden bg-slate-50 font-inter text-slate-900">
+            <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900">
                 {drawerOpen && (
                     <div
                         className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"

@@ -1,4 +1,3 @@
-import defaultTheme from 'tailwindcss/defaultTheme';
 import forms from '@tailwindcss/forms';
 
 /** @type {import('tailwindcss').Config} */
@@ -13,9 +12,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
-                // Dipakai shell dashboard CIMS tema terang (design_cims_dashboard.md §4)
-                inter: ['Inter', 'Plus Jakarta Sans', ...defaultTheme.fontFamily.sans],
+                sans: ['Ubuntu', 'sans-serif'],
             },
             colors: {
                 /**

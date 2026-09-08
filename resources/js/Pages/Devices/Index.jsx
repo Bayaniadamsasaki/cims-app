@@ -1130,7 +1130,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="5" className="py-4 text-center text-slate-400 italic font-sans">
+                                                    <td colSpan="5" className="py-4 text-center text-slate-400 italic">
                                                         Belum ada port interface yang terdaftar. Klik <strong>"⚡ Sinkronkan Port & Interface"</strong> di atas untuk menarik port langsung dari router MikroTik atau membuat port default.
                                                     </td>
                                                 </tr>
@@ -1181,7 +1181,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="7" className="py-4 text-center text-slate-400 italic font-sans">
+                                                    <td colSpan="7" className="py-4 text-center text-slate-400 italic">
                                                         Belum ada perangkat tetangga yang terdeteksi. Data ini terisi otomatis saat Anda mengimport file audit Excel yang memiliki sheet <strong>"Neighbor"</strong>.
                                                     </td>
                                                 </tr>
