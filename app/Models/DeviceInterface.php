@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DeviceInterface extends Model
 {
@@ -36,5 +37,15 @@ class DeviceInterface extends Model
     public function device(): BelongsTo
     {
         return $this->belongsTo(Device::class);
+    }
+
+    public function physicalLinksAsInterfaceA(): HasMany
+    {
+        return $this->hasMany(PhysicalLink::class, 'interface_a_id');
+    }
+
+    public function physicalLinksAsInterfaceB(): HasMany
+    {
+        return $this->hasMany(PhysicalLink::class, 'interface_b_id');
     }
 }

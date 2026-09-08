@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Device;
+use App\Models\PhysicalLink;
 use App\Services\MikrotikService;
+use App\Services\PhysicalLinkPersistenceService;
 use App\Services\TopologyOverviewService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,11 +15,17 @@ class TopologyWebController extends Controller
 {
     protected MikrotikService $mikrotik;
     protected TopologyOverviewService $overview;
+    protected PhysicalLinkPersistenceService $physicalLinks;
 
-    public function __construct(MikrotikService $mikrotik, TopologyOverviewService $overview)
+    public function __construct(
+        MikrotikService $mikrotik,
+        TopologyOverviewService $overview,
+        PhysicalLinkPersistenceService $physicalLinks
+    )
     {
         $this->mikrotik = $mikrotik;
         $this->overview = $overview;
+        $this->physicalLinks = $physicalLinks;
     }
 
     /**
@@ -61,6 +69,11 @@ class TopologyWebController extends Controller
         $connection = $this->mikrotik->testConnection($targetHost);
         $neighbors = $connection['success'] ? $this->mikrotik->getNeighbors($targetHost) : [];
         $ipAddresses = $connection['success'] ? $this->mikrotik->getIpAddresses($targetHost) : [];
+        $coreDevice = $dbDevices->first(fn ($device) => $device->ip_address === $targetHost);
+
+        if ($connection['success'] && $coreDevice !== null) {
+            $this->physicalLinks->persistNeighbors($coreDevice, $neighbors, now());
+        }
 
         $nodes = [];
         $links = [];
@@ -89,7 +102,6 @@ class TopologyWebController extends Controller
         // 1. Core router: seluruh identitasnya berasal dari discovery nyata.
         // Kalau discovery gagal, field-nya dibiarkan kosong dan penyebabnya
         // dibawa ke UI — tidak diisi model/versi karangan.
-        $coreDevice = $dbDevices->first(fn ($device) => $device->ip_address === $targetHost);
         $coreRouterId = 'core-router-mikrotik';
         $nodes[] = [
             'id'          => $coreRouterId,
@@ -222,7 +234,7 @@ class TopologyWebController extends Controller
                 'source'        => $coreRouterId,
                 'target'        => $targetNodeId,
                 'source_interface' => $viaInterface,
-                'target_interface' => 'uplink',
+                'target_interface' => null,
                 'status'        => 'active',
                 'protocol'      => 'MNDP/CDP',
             ];
@@ -258,10 +270,12 @@ class TopologyWebController extends Controller
         }
 
         $overview = $this->overview->build($dbDevices, $nodes, $links);
+        $physicalLinks = $this->physicalLinks->forDevices($dbDevices->modelKeys());
 
         return [
             'nodes' => $nodes,
             'links' => $links,
+            'physical_links' => $physicalLinks->map(fn (PhysicalLink $link) => $this->physicalLinkPayload($link))->all(),
             'overview' => $overview,
             'connection' => [
                 'host' => $targetHost,
@@ -311,5 +325,33 @@ class TopologyWebController extends Controller
             'interface_status' => $metrics->last_interface_status,
             'last_checked_at' => $metrics->last_checked_at,
         ];
+    }
+
+    private function physicalLinkPayload(PhysicalLink $link): array
+    {
+        return [
+            'id' => $link->id,
+            'source' => $link->deviceA?->name,
+            'source_device_id' => $link->device_a_id,
+            'source_interface' => $link->interfaceA?->interface_name,
+            'target' => $link->deviceB?->name ?? ($link->metadata['remote_identity'] ?? $link->metadata['remote_ip'] ?? null),
+            'target_device_id' => $link->device_b_id,
+            'target_interface' => $link->interfaceB?->interface_name,
+            'verification_status' => $link->verification_status,
+            'discovery_source' => $link->discovery_source,
+            'first_seen_at' => $link->first_seen_at,
+            'last_seen_at' => $link->last_seen_at,
+            'current_health' => $this->currentLinkHealth($link),
+        ];
+    }
+
+    private function currentLinkHealth(PhysicalLink $link): string
+    {
+        $statuses = [$link->interfaceA?->interface_status, $link->interfaceB?->interface_status];
+
+        if (in_array('down', $statuses, true)) return 'down';
+        if ($statuses !== [] && count(array_filter($statuses, fn ($status) => $status === 'up')) === count($statuses)) return 'up';
+
+        return 'unknown';
     }
 }

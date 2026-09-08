@@ -429,7 +429,11 @@ export default function TopologyMap({ topologyData: initialData }) {
                             <div className="text-2xl font-bold text-slate-900 mt-1">{data.stats?.total_nodes ?? 0}</div>
                             <div className="text-[11px] text-slate-500 mt-0.5">inventaris + hasil discovery</div>
                         </div>
-                        <div className="p-3 bg-purple-50 rounded-xl text-purple-700 font-bold">🗺️</div>
+                        <div className="p-3 bg-purple-50 rounded-xl text-purple-700 font-bold">
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6zM9 3v15M15 6v15" />
+                            </svg>
+                        </div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
@@ -564,6 +568,52 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 Kembali ke overview
                             </button>
                         </div>
+
+                        {(data.physical_links || []).length > 0 && (
+                            <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Physical links</p>
+                                        <h2 className="mt-1 text-base font-bold text-slate-900">Relationship yang pernah ditemukan</h2>
+                                    </div>
+                                    <span className="text-xs text-slate-500">{data.physical_links.length} link</span>
+                                </div>
+                                <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="min-w-full text-left text-xs">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                            <tr>
+                                                <th className="px-3 py-2 font-semibold">Endpoint A</th>
+                                                <th className="px-3 py-2 font-semibold">Endpoint B</th>
+                                                <th className="px-3 py-2 font-semibold">Relationship</th>
+                                                <th className="px-3 py-2 font-semibold">Source</th>
+                                                <th className="px-3 py-2 font-semibold">Current state</th>
+                                                <th className="px-3 py-2 font-semibold">Last discovered</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {data.physical_links.map((link) => (
+                                                    <tr key={link.id}>
+                                                        <td className="px-3 py-2 font-mono text-slate-800">
+                                                            {link.source || 'Unknown'} · {link.source_interface || 'interface unknown'}
+                                                        </td>
+                                                        <td className="px-3 py-2 font-mono text-slate-800">
+                                                            {link.target || 'Unknown'} · {link.target_interface || 'interface unknown'}
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                                                                {link.verification_status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-slate-600">{link.discovery_source}</td>
+                                                        <td className="px-3 py-2 font-semibold text-slate-700">{String(link.current_health || 'unknown').toUpperCase()}</td>
+                                                        <td className="px-3 py-2 text-slate-500">{link.last_seen_at || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        )}
 
                         {/* Main Interactive Canvas & Drawer Area */}
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

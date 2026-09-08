@@ -135,6 +135,16 @@ class Device extends Model
         return $this->hasMany(DeviceNeighbor::class);
     }
 
+    public function physicalLinksAsDeviceA(): HasMany
+    {
+        return $this->hasMany(PhysicalLink::class, 'device_a_id');
+    }
+
+    public function physicalLinksAsDeviceB(): HasMany
+    {
+        return $this->hasMany(PhysicalLink::class, 'device_b_id');
+    }
+
     public function metrics(): HasOne
     {
         return $this->hasOne(DeviceMetric::class);
