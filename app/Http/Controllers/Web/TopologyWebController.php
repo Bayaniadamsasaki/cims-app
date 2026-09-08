@@ -5,16 +5,19 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Device;
 use App\Services\MikrotikService;
+use App\Services\TopologyOverviewService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class TopologyWebController extends Controller
 {
     protected MikrotikService $mikrotik;
+    protected TopologyOverviewService $overview;
 
-    public function __construct(MikrotikService $mikrotik)
+    public function __construct(MikrotikService $mikrotik, TopologyOverviewService $overview)
     {
         $this->mikrotik = $mikrotik;
+        $this->overview = $overview;
     }
 
     /**
@@ -105,6 +108,7 @@ class TopologyWebController extends Controller
             'model'       => $connection['board'] ?? $coreDevice?->model,
             'version'     => $connection['version'] ?? null,
             'interfaces'  => count($ipAddresses),
+            'telemetry'   => $this->telemetryOf($coreDevice?->metrics),
         ];
         $existingNodeKeys[$targetHost] = $coreRouterId;
 
@@ -158,6 +162,7 @@ class TopologyWebController extends Controller
                 'room'          => $dev->room?->name ?? '-',
                 'model'         => $dev->model ?? '-',
                 'serial_number' => $dev->serial_number ?? '-',
+                'telemetry'     => $this->telemetryOf($dev->metrics),
             ];
 
             if ($ip) {
@@ -197,7 +202,9 @@ class TopologyWebController extends Controller
                     'type'          => $type,
                     'category'      => 'Discovered Neighbor (MNDP)',
                     'vendor'        => 'MikroTik',
-                    'status'        => 'online',
+                    // MNDP proves that the parent saw this neighbor, not that
+                    // the neighbor's own health telemetry is available.
+                    'status'        => 'unknown',
                     'is_core'       => false,
                     'is_discovered' => true,
                     'building'      => $viaInterface ? 'Terdeteksi via ' . $viaInterface : 'Terdeteksi via MNDP',
@@ -250,9 +257,12 @@ class TopologyWebController extends Controller
             }
         }
 
+        $overview = $this->overview->build($dbDevices, $nodes, $links);
+
         return [
             'nodes' => $nodes,
             'links' => $links,
+            'overview' => $overview,
             'connection' => [
                 'host' => $targetHost,
                 'success' => (bool) ($connection['success'] ?? false),
@@ -265,7 +275,41 @@ class TopologyWebController extends Controller
                 'online_nodes'         => count(array_filter($nodes, fn($n) => $n['status'] === 'online')),
                 'total_links'          => count($links),
                 'unverified_links'     => count(array_filter($links, fn($l) => $l['inferred'] ?? false)),
+                'health'               => $overview['health'],
+                'active_incidents'     => $overview['active_incidents'],
+                'affected_devices'     => $overview['affected_devices'],
             ]
+        ];
+    }
+
+    private function telemetryOf($metrics): array
+    {
+        if ($metrics === null) {
+            return [
+                'ping' => null,
+                'latency_ms' => null,
+                'packet_loss_percent' => null,
+                'cpu_percent' => null,
+                'ram_percent' => null,
+                'rx_bps' => null,
+                'tx_bps' => null,
+                'interface_status' => null,
+                'last_checked_at' => null,
+            ];
+        }
+
+        return [
+            'ping' => in_array($metrics->last_ping_status, ['online', 'degraded'], true)
+                ? 'up'
+                : ($metrics->last_ping_status === 'unreachable' ? 'down' : null),
+            'latency_ms' => $metrics->last_ping_latency_ms,
+            'packet_loss_percent' => $metrics->last_packet_loss_percent,
+            'cpu_percent' => $metrics->last_cpu_usage_percent,
+            'ram_percent' => $metrics->last_ram_usage_percent,
+            'rx_bps' => $metrics->last_bandwidth_rx_bps,
+            'tx_bps' => $metrics->last_bandwidth_tx_bps,
+            'interface_status' => $metrics->last_interface_status,
+            'last_checked_at' => $metrics->last_checked_at,
         ];
     }
 }

@@ -46,6 +46,7 @@ const formatCheckedAt = (value) => {
 export default function TopologyMap({ topologyData: initialData }) {
     const [data, setData] = useState(initialData || { nodes: [], links: [], stats: {} });
     const [selectedNode, setSelectedNode] = useState(null);
+    const [selectedBuilding, setSelectedBuilding] = useState(null);
     const [filterType, setFilterType] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -119,11 +120,16 @@ export default function TopologyMap({ topologyData: initialData }) {
                 (node.ip || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (node.building || "").toLowerCase().includes(searchQuery.toLowerCase());
 
+            if (selectedBuilding && (node.building || "__unknown__") !== selectedBuilding) return false;
             if (filterType === "all") return matchesSearch;
             if (filterType === "discovered") return matchesSearch && node.is_discovered;
             return matchesSearch && node.type === filterType;
         });
-    }, [data.nodes, searchQuery, filterType]);
+    }, [data.nodes, searchQuery, filterType, selectedBuilding]);
+
+    const overview = data.overview || {};
+    const health = overview.health || { healthy: 0, degraded: 0, warning: 0, down: 0, unknown: 0 };
+    const showAreaTopology = selectedBuilding !== null || filterType !== "all" || searchQuery.trim() !== "";
 
     // Rekap status dihitung dari status simpul yang benar-benar ada di payload.
     // Simpul tanpa laporan monitoring masuk ke `unknown`, bukan dianggap mati.
@@ -300,6 +306,121 @@ export default function TopologyMap({ topologyData: initialData }) {
                     </div>
                 )}
 
+                {!showAreaTopology && (
+                    <div className="space-y-5">
+                        <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Network health</p>
+                                    <h2 className="mt-1 text-lg font-bold text-slate-900">Ringkasan kondisi jaringan</h2>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        Ringkasan ini dihitung dari snapshot monitoring terakhir. Perangkat tanpa telemetry tetap Unknown.
+                                    </p>
+                                </div>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+                                    {overview.total_devices ?? 0} perangkat
+                                </span>
+                            </div>
+                            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                                {[
+                                    ['Healthy', health.healthy, 'text-emerald-700', 'bg-emerald-50'],
+                                    ['Degraded', health.degraded, 'text-amber-700', 'bg-amber-50'],
+                                    ['Warning', health.warning, 'text-orange-700', 'bg-orange-50'],
+                                    ['Down', health.down, 'text-rose-700', 'bg-rose-50'],
+                                    ['Unknown', health.unknown, 'text-slate-600', 'bg-slate-100'],
+                                ].map(([label, value, text, surface]) => (
+                                    <div key={label} className={`rounded-xl border border-slate-200 p-3 ${surface}`}>
+                                        <div className={`text-2xl font-bold ${text}`}>{value ?? 0}</div>
+                                        <div className="mt-1 text-xs font-semibold text-slate-600">{label}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Active incidents</p>
+                                    <h2 className="mt-1 text-lg font-bold text-slate-900">Gangguan yang perlu diperiksa</h2>
+                                </div>
+                                <span className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700">
+                                    {overview.active_incidents ?? 0} aktif
+                                </span>
+                            </div>
+                            {(overview.incidents || []).length > 0 ? (
+                                <div className="mt-4 divide-y divide-rose-200 rounded-xl border border-rose-200 bg-white">
+                                    {overview.incidents.slice(0, 5).map((incident) => (
+                                        <button
+                                            key={incident.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedBuilding(incident.location?.split(' · ')[0] || '__unknown__');
+                                                setSearchQuery(incident.device || '');
+                                            }}
+                                            className="flex w-full items-start justify-between gap-4 px-4 py-3 text-left transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset"
+                                        >
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-bold text-slate-900">{incident.device}</span>
+                                                <span className="mt-0.5 block text-xs text-slate-500">{incident.location}</span>
+                                                <span className="mt-1 block text-xs text-rose-700">{incident.evidence?.[0] || 'Evidence belum tersedia'}</span>
+                                                {incident.affected_devices?.length > 0 && (
+                                                    <span className="mt-1 block text-xs text-slate-500">
+                                                        Affected: {incident.affected_devices.map((device) => device.name).join(', ')}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="shrink-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold uppercase text-rose-700">
+                                                {incident.severity}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                    Tidak ada incident aktif berdasarkan telemetry terakhir.
+                                </p>
+                            )}
+                        </section>
+
+                        <section>
+                            <div className="mb-3 flex items-end justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Location overview</p>
+                                    <h2 className="mt-1 text-lg font-bold text-slate-900">Pilih area untuk membuka topology</h2>
+                                </div>
+                                <span className="text-xs text-slate-500">{(overview.locations || []).length} area</span>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                                {(overview.locations || []).map((location) => (
+                                    <button
+                                        key={location.key}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedBuilding(location.key);
+                                            setSelectedNode(null);
+                                        }}
+                                        className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <span className="font-bold text-slate-900">{location.name}</span>
+                                            <span className="text-xs font-mono text-slate-500">{location.total_devices} device</span>
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                                            <span className="text-emerald-700">{location.healthy} healthy</span>
+                                            <span className="text-amber-700">{location.degraded} degraded</span>
+                                            <span className="text-rose-700">{location.down} down</span>
+                                            <span>{location.unknown} unknown</span>
+                                        </div>
+                                        <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                                            Router {location.routers} · Switch {location.switches} · AP {location.access_points} · Server {location.servers}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+                )}
+
                 {/* Summary Stat Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
@@ -421,8 +542,31 @@ export default function TopologyMap({ topologyData: initialData }) {
                     </div>
                 </div>
 
-                {/* Main Interactive Canvas & Drawer Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {showAreaTopology && (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/60 px-4 py-3">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Area topology</p>
+                                <p className="mt-1 text-sm text-slate-700">
+                                    {selectedBuilding ? `Menampilkan ${selectedBuilding === '__unknown__' ? 'lokasi belum diisi' : selectedBuilding}` : 'Hasil filter topology'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedBuilding(null);
+                                    setFilterType("all");
+                                    setSearchQuery("");
+                                    setSelectedNode(null);
+                                }}
+                                className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                            >
+                                Kembali ke overview
+                            </button>
+                        </div>
+
+                        {/* Main Interactive Canvas & Drawer Area */}
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* SVG Interactive Visualizer Canvas */}
                     <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 overflow-hidden relative min-h-[720px] flex items-center justify-center">
                         {/* Overlay selama discovery MikroTik masih berjalan (deferred prop). */}
@@ -827,6 +971,27 @@ export default function TopologyMap({ topologyData: initialData }) {
                                         </div>
                                     </div>
 
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Telemetry terakhir</div>
+                                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                                            {[
+                                                ['Ping', selectedNode.telemetry?.ping?.toUpperCase()],
+                                                ['Latensi', selectedNode.telemetry?.latency_ms != null ? `${selectedNode.telemetry.latency_ms} ms` : null],
+                                                ['Packet loss', selectedNode.telemetry?.packet_loss_percent != null ? `${selectedNode.telemetry.packet_loss_percent}%` : null],
+                                                ['CPU', selectedNode.telemetry?.cpu_percent != null ? `${selectedNode.telemetry.cpu_percent}%` : null],
+                                                ['RAM', selectedNode.telemetry?.ram_percent != null ? `${selectedNode.telemetry.ram_percent}%` : null],
+                                                ['RX / TX', selectedNode.telemetry?.rx_bps != null || selectedNode.telemetry?.tx_bps != null
+                                                    ? `${selectedNode.telemetry.rx_bps ?? '—'} / ${selectedNode.telemetry.tx_bps ?? '—'} bps`
+                                                    : null],
+                                            ].map(([label, value]) => (
+                                                <div key={label}>
+                                                    <div className="text-[10px] uppercase text-slate-400">{label}</div>
+                                                    <div className="mt-0.5 text-xs font-semibold text-slate-800">{value ?? '—'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     {/* Penyebab kegagalan discovery ditampilkan apa adanya, tidak ditutup status hijau. */}
                                     {selectedNode.error && (
                                         <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5">
@@ -902,6 +1067,13 @@ export default function TopologyMap({ topologyData: initialData }) {
                                             )}
                                         </div>
                                     </div>
+
+                                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Kemungkinan root cause</div>
+                                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                                            Relationship uplink fisik dan bukti OSPF belum tersedia untuk node ini. Jangan menyimpulkan kabel putus dari status monitoring saja.
+                                        </p>
+                                    </div>
                                 </div>
 
                                 {selectedNode.db_id && (
@@ -915,7 +1087,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                             </div>
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 p-6 space-y-3">
-                                <div className="text-4xl">👆</div>
+                                <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                                    <path d="M8 11V6a2 2 0 0 1 4 0v5m0-1V4a2 2 0 0 1 4 0v7m0-2V6a2 2 0 0 1 4 0v7m0-2a2 2 0 0 1 4 0v3c0 5-3 8-8 8h-1c-3 0-5-1-7-3l-3-3a2 2 0 0 1 3-3l3 2V11a2 2 0 0 1 4 0z" />
+                                </svg>
                                 <div className="font-semibold text-slate-900">Pilih Perangkat</div>
                                 <p className="text-xs">
                                     Klik salah satu ikon perangkat pada peta untuk memeriksa interface fisik, alamat IP/MAC, lokasi, dan detail data inventaris.
@@ -927,7 +1101,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                             Klik perangkat untuk menyorot jalur koneksi
                         </div>
                     </div>
-                    </div>
+                        </div>
+                    </>
+                )}
                 </div>
         </CimsLayout>
     );
