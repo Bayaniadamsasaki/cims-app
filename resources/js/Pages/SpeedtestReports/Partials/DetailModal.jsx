@@ -24,7 +24,7 @@ export default function DetailModal({ report, onClose, onEdit, onPreview }) {
                     <button
                         type="button"
                         onClick={() => onEdit(report)}
-                        className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                     >
                         Edit Laporan
                     </button>

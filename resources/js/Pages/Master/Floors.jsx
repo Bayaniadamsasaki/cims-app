@@ -188,7 +188,7 @@ export default function Floors({ floors = [], buildings = [], usedLevels = {}, f
                                                     <div className="flex justify-end space-x-2">
                                                         <Link
                                                             href={route('floors.show', floor.id)}
-                                                            className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
+                                                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-600 hover:text-white"
                                                         >
                                                             Kelola Ruangan
                                                         </Link>
@@ -242,7 +242,7 @@ export default function Floors({ floors = [], buildings = [], usedLevels = {}, f
                             type="submit"
                             form="floor-form"
                             disabled={processing}
-                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                            className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                         >
                             {editingFloor ? 'Save Changes' : 'Register Floor'}
                         </button>

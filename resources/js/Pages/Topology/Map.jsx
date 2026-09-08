@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
 import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * Warna titik status simpul mengikuti hasil monitoring nyata (MonitoringService)
@@ -21,6 +21,17 @@ const nodeStatusOf = (status) => NODE_STATUS[status] ?? NODE_STATUS.unknown;
 
 /** Field yang tidak dilaporkan sumbernya ditulis "—", bukan diisi tebakan. */
 const show = (value) => (value === null || value === undefined || value === "" ? "—" : value);
+
+const NODE_ICON_PATHS = {
+    internet: "M12 2v20M2 12h20M4.9 4.9c3.9 3.9 10.3 3.9 14.2 0M4.9 19.1c3.9-3.9 10.3-3.9 14.2 0M12 2c2.2 2.8 3.5 6.2 3.5 10S14.2 19.2 12 22c-2.2-2.8-3.5-6.2-3.5-10S9.8 4.8 12 2z",
+    core: "M7 3h10v4h4v10h-4v4H7v-4H3V7h4V3zM9 8h6v8H9V8z",
+    router: "M5 12h14M5 12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2M5 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2M8 8h.01M16 16h.01",
+    switch: "M4 7h16M4 17h16M8 4l-4 3 4 3M16 14l4 3-4 3",
+    access_point: "M4 9a11 11 0 0 1 16 0M7 12a7 7 0 0 1 10 0M10 15a3 3 0 0 1 4 0M12 19h.01",
+    server: "M4 4h16v6H4zM4 14h16v6H4zM7 7h.01M7 17h.01M11 7h6M11 17h6",
+    firewall: "M12 3l7 4v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V7l7-4zM9 12l2 2 4-4",
+    device: "M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 8h8v8H8z",
+};
 
 const formatCheckedAt = (value) => {
     if (!value) return "Belum pernah dipindai";
@@ -195,24 +206,11 @@ export default function TopologyMap({ topologyData: initialData }) {
         return positions;
     }, [filteredNodes]);
 
-    // Node icon helper
-    const getNodeIcon = (type, isCore, isInternet) => {
-        if (isInternet) return "🌐";
-        if (isCore) return "🔒";
-        switch (type) {
-            case "router":
-                return "🛜";
-            case "switch":
-                return "🔀";
-            case "access_point":
-                return "📡";
-            case "server":
-                return "🖥️";
-            case "firewall":
-                return "🛡️";
-            default:
-                return "💻";
-        }
+    // Node icon helper: one stroke language for the SVG canvas, no emoji glyphs.
+    const getNodeIconPath = (type, isCore, isInternet) => {
+        if (isInternet) return NODE_ICON_PATHS.internet;
+        if (isCore) return NODE_ICON_PATHS.core;
+        return NODE_ICON_PATHS[type] ?? NODE_ICON_PATHS.device;
     };
 
     // Node Role Badge metadata
@@ -235,7 +233,11 @@ export default function TopologyMap({ topologyData: initialData }) {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-2xl">
                     <div className="flex items-center space-x-4">
                         <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold text-2xl">
-                            🕸️
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <circle cx="12" cy="12" r="3" />
+                                <circle cx="12" cy="12" r="8" />
+                                <path d="M12 1v8M12 15v8M1 12h8M15 12h8" />
+                            </svg>
                         </div>
                         <div>
                             <div className="flex items-center space-x-3">
@@ -317,7 +319,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 {statusTally.unknown} simpul belum ada data
                             </div>
                         </div>
-                        <div className="p-3 bg-emerald-50 rounded-xl text-emerald-700 font-bold">🟢</div>
+                        <div className="p-3 bg-emerald-50 rounded-xl text-emerald-700 font-bold">
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" /></svg>
+                        </div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
@@ -329,7 +333,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 {statusTally.degraded} degraded
                             </div>
                         </div>
-                        <div className="p-3 bg-red-50 rounded-xl text-red-700 font-bold">🔴</div>
+                        <div className="p-3 bg-red-50 rounded-xl text-red-700 font-bold">
+                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" /></svg>
+                        </div>
                     </div>
 
                     <div className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between">
@@ -340,7 +346,11 @@ export default function TopologyMap({ topologyData: initialData }) {
                             </div>
                             <div className="text-[11px] text-slate-500 mt-0.5">tetangga langsung core router</div>
                         </div>
-                        <div className="p-3 bg-blue-50 rounded-xl text-blue-700 font-bold">📡</div>
+                        <div className="p-3 bg-blue-50 rounded-xl text-blue-700 font-bold">
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path d="M4 9a11 11 0 0 1 16 0M7 12a7 7 0 0 1 10 0M10 15a3 3 0 0 1 4 0M12 19h.01" />
+                            </svg>
+                        </div>
                     </div>
 
                     {/* Relasi yang belum diverifikasi discovery disebutkan terang-terangan. */}
@@ -352,7 +362,11 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 {data.stats?.unverified_links ?? 0} belum terverifikasi
                             </div>
                         </div>
-                        <div className="p-3 bg-amber-50 rounded-xl text-amber-700 font-bold">🔗</div>
+                        <div className="p-3 bg-amber-50 rounded-xl text-amber-700 font-bold">
+                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                                <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
 
@@ -430,7 +444,7 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 className="p-1.5 hover:bg-brand-bgSecondary rounded-lg text-slate-900 text-xs font-bold transition flex items-center space-x-1"
                                 title="Zoom In (+)"
                             >
-                                <span>🔍</span>
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 5 5" /></svg>
                                 <span>+</span>
                             </button>
                             <button
@@ -438,7 +452,7 @@ export default function TopologyMap({ topologyData: initialData }) {
                                 className="p-1.5 hover:bg-brand-bgSecondary rounded-lg text-slate-900 text-xs font-bold transition flex items-center space-x-1"
                                 title="Zoom Out (-)"
                             >
-                                <span>🔍</span>
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m16 16 5 5" /></svg>
                                 <span>-</span>
                             </button>
                             <span className="px-2 text-xs font-mono text-emerald-700 font-bold border-l border-r border-brand-border">
@@ -446,10 +460,10 @@ export default function TopologyMap({ topologyData: initialData }) {
                             </span>
                             <button
                                 onClick={handleResetZoom}
-                                className="px-2.5 py-1 bg-purple-50 border border-purple-200 hover:bg-purple-600 text-purple-700 rounded-lg text-xs font-semibold transition"
+                                className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold transition"
                                 title="Reset Zoom & Pan to Fit Screen"
                             >
-                                🎯 Fit View
+                                Fit view
                             </button>
                         </div>
 
@@ -620,7 +634,15 @@ export default function TopologyMap({ topologyData: initialData }) {
                                                 dy={isLarge ? 8 : 6}
                                                 fontSize={isLarge ? "22" : "16"}
                                             >
-                                                {getNodeIcon(node.type, isCore, isInternet)}
+                                                <path
+                                                    d={getNodeIconPath(node.type, isCore, isInternet)}
+                                                    transform="translate(-12 -12)"
+                                                    fill="none"
+                                                    stroke={roleInfo.fill}
+                                                    strokeWidth="1.5"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
                                             </text>
 
                                             {/* Status Dot — mengikuti status monitoring nyata, termasuk
@@ -696,27 +718,27 @@ export default function TopologyMap({ topologyData: initialData }) {
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full bg-cyan-400"></span>
-                                    <span className="text-cyan-700 font-semibold">🌐 Gateway ISP</span>
+                                    <span className="text-cyan-700 font-semibold">Gateway ISP</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-                                    <span className="text-emerald-700 font-semibold">🔒 Core Router</span>
+                                    <span className="text-emerald-700 font-semibold">Core Router</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full bg-purple-400"></span>
-                                    <span className="text-purple-700">🔀 Switch</span>
+                                    <span className="text-purple-700">Switch</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full bg-sky-400"></span>
-                                    <span className="text-sky-700">📡 Access Point</span>
+                                    <span className="text-sky-700">Access Point</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
-                                    <span className="text-amber-700">🖥️ Server</span>
+                                    <span className="text-amber-700">Server</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="h-2.5 w-2.5 rounded-full border border-blue-400 border-dashed bg-blue-500/20"></span>
-                                    <span className="text-blue-700">🔍 Terdeteksi MNDP</span>
+                                    <span className="text-blue-700">Terdeteksi MNDP</span>
                                 </div>
                             </div>
 
@@ -769,7 +791,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                                     <div className="flex items-center space-x-2.5">
-                                        <span className="text-2xl">{getNodeIcon(selectedNode.type, selectedNode.is_core, selectedNode.is_internet)}</span>
+                                        <svg className="h-6 w-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                                            <path d={getNodeIconPath(selectedNode.type, selectedNode.is_core, selectedNode.is_internet)} />
+                                        </svg>
                                         <div>
                                             <h3 className="font-bold text-slate-900 text-base leading-tight">{selectedNode.name}</h3>
                                             <span className="text-xs text-slate-500 font-mono">{selectedNode.category}</span>
@@ -779,7 +803,9 @@ export default function TopologyMap({ topologyData: initialData }) {
                                         onClick={() => setSelectedNode(null)}
                                         className="text-slate-400 hover:text-slate-700 text-lg"
                                     >
-                                        ✕
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                            <path d="M6 6l12 12M18 6L6 18" />
+                                        </svg>
                                     </button>
                                 </div>
 
@@ -859,19 +885,19 @@ export default function TopologyMap({ topologyData: initialData }) {
                                         <div className="mt-1">
                                             {selectedNode.is_internet ? (
                                                 <span className="px-2 py-0.5 rounded bg-cyan-50 text-cyan-700 font-semibold border border-cyan-200">
-                                                    🌐 Gateway Sumber Internet ISP
+                                                    Gateway Sumber Internet ISP
                                                 </span>
                                             ) : selectedNode.is_core ? (
                                                 <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                                                    🔒 Core Router MikroTik Utama
+                                                    Core Router MikroTik Utama
                                                 </span>
                                             ) : selectedNode.is_discovered ? (
                                                 <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                                                    🔍 Otomatis Terdeteksi via MNDP
+                                                    Otomatis Terdeteksi via MNDP
                                                 </span>
                                             ) : (
                                                 <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold border border-purple-200">
-                                                    📦 Terdaftar di Inventaris CIMS
+                                                    Terdaftar di Inventaris CIMS
                                                 </span>
                                             )}
                                         </div>

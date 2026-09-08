@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
 import { DialogTitle } from '@headlessui/react';
+import { createContext, useContext, useState } from 'react';
 import Modal from './Modal';
 
 const ConfirmationContext = createContext(null);
@@ -112,14 +112,14 @@ export const ConfirmationDialog = ({ config }) => {
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                        className="flex-1 rounded-lg border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                     >
                         {cancelLabel}
                     </button>
                     <button
                         type="button"
                         onClick={onConfirm}
-                        className={`flex-1 rounded-xl py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${currentStyle.button}`}
+                        className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${currentStyle.button}`}
                     >
                         {confirmLabel}
                     </button>

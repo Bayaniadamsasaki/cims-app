@@ -28,7 +28,8 @@ export default {
                     cardElevated: '#F8FAFC', // slate-50  — kartu bertumpuk/hover
                     primary: '#2563EB',      // blue-600  — aksi utama
                     primaryHover: '#1D4ED8', // blue-700
-                    primaryLight: '#DBEAFE', // blue-100
+                    primarySoft: '#EFF6FF',  // blue-50   — tint lembut (aksen)
+                    primaryLight: '#DBEAFE', // blue-100  — dipertahankan utk kompatibilitas
                     border: '#E2E8F0',       // slate-200 — garis pemisah
                     textPrimary: '#0F172A',  // slate-900
                     textSecondary: '#475569',// slate-600 — teks isi & label

@@ -1,11 +1,11 @@
-import { Head, Link, usePage } from "@inertiajs/react";
-import CimsLayout from "@/Layouts/CimsLayout";
-import MetricCard from "@/Components/Cims/MetricCard";
-import TrafficBarChart from "@/Components/Cims/TrafficBarChart";
 import DeviceStatusList from "@/Components/Cims/DeviceStatusList";
+import MetricCard from "@/Components/Cims/MetricCard";
 import RecentAlertsList from "@/Components/Cims/RecentAlertsList";
+import TrafficBarChart from "@/Components/Cims/TrafficBarChart";
 import { IconAlerts, IconInventory, IconMaintenance } from "@/Components/Cims/icons";
 import { TRAFFIC_SERIES } from "@/Components/Cims/theme";
+import CimsLayout from "@/Layouts/CimsLayout";
+import { Head, Link, usePage } from "@inertiajs/react";
 
 const VIEW_ALL =
     "text-xs font-semibold text-blue-600 transition hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded";
@@ -57,7 +57,6 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                     title="Total Devices"
                     value={totalDevices}
                     icon={IconInventory}
-                    tint="blue"
                     trend={
                         newDevices > 0
                             ? { tone: "positive", label: `+${newDevices} minggu ini` }
@@ -69,7 +68,6 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                     title="Active Alerts"
                     value={stats.activeAlerts ?? 0}
                     icon={IconAlerts}
-                    tint="red"
                     trend={
                         criticalAlerts > 0
                             ? { tone: "negative", label: `${criticalAlerts} critical` }
@@ -81,7 +79,6 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                     title="Maintenance Scheduled"
                     value={stats.maintenanceScheduled ?? 0}
                     icon={IconMaintenance}
-                    tint="amber"
                     trend={{ tone: "neutral", label: `${stats.maintenanceToday ?? 0} hari ini` }}
                     caption="tiket terjadwal"
                 />
@@ -105,7 +102,7 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                     alerts={alerts}
                     action={
                         <Link href={route("alerts.index")} className={VIEW_ALL}>
-                            Lihat semua →
+                            Lihat semua
                         </Link>
                     }
                 />
@@ -117,7 +114,7 @@ export default function Dashboard({ metrics = {}, traffic = [], devices = [], al
                     devices={devices}
                     action={
                         <Link href={route("devices.index")} className={VIEW_ALL}>
-                            Lihat inventaris →
+                            Lihat inventaris
                         </Link>
                     }
                 />

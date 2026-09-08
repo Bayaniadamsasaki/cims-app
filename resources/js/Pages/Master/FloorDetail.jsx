@@ -212,7 +212,7 @@ export default function FloorDetail({ floor }) {
                             type="submit"
                             form="floor-room-form"
                             disabled={processing}
-                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                            className="rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                         >
                             {editingRoom ? 'Save Changes' : 'Register Room'}
                         </button>

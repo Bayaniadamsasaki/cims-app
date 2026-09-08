@@ -1,7 +1,9 @@
+import { useConfirmation } from '@/Components/ConfirmationModal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
 import CimsLayout from '@/Layouts/CimsLayout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { useConfirmation } from '@/Components/ConfirmationModal';
 
 /** Padanan status voucher → label & warna badge. */
 const STATUS_META = {
@@ -408,40 +410,30 @@ export default function Vouchers({
                                     </option>
                                 ))}
                             </select>
-                            <button
-                                onClick={() => setShowImport(true)}
-                                className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-600 hover:text-white"
-                            >
-                                Import Excel
-                            </button>
+                            <SecondaryButton onClick={() => setShowImport(true)}>
+                                Import daftar
+                            </SecondaryButton>
                             {hotspot.pmb_configured && (
-                                <button
-                                    onClick={syncFromSiska}
-                                    disabled={syncForm.processing}
-                                    className="inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                                >
+                                <SecondaryButton onClick={syncFromSiska} disabled={syncForm.processing}>
                                     {syncForm.processing ? 'Menarik dari SISKA...' : 'Tarik dari SISKA'}
-                                </button>
+                                </SecondaryButton>
                             )}
-                            <button
-                                onClick={openCreate}
-                                className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-                            >
-                                Tambah Manual
-                            </button>
-                            <button
+                            <PrimaryButton onClick={openCreate}>
+                                Tambah voucher
+                            </PrimaryButton>
+                            <PrimaryButton
                                 onClick={pushBatch}
                                 disabled={(pendingTotal === 0 && selected.length === 0) || hotspot.radius_configured === false}
+                                className="bg-slate-900 hover:bg-slate-700"
                                 title={
                                     hotspot.radius_configured === false
                                         ? 'RADIUS_DB_* belum diisi di .env, jadi belum ada tujuan yang bisa ditulis.'
                                         : undefined
                                 }
-                                className="inline-flex items-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             >
                                 Terapkan ke RADIUS{' '}
                                 {selected.length > 0 ? `(${selected.length})` : pendingTotal > 0 ? `(${pendingTotal})` : ''}
-                            </button>
+                            </PrimaryButton>
                         </div>
                         <span className="text-[11px] leading-tight text-slate-400">
                             Pemilih router hanya mengatur panel sesi aktif &amp; tombol Kick — daftar voucher tidak lagi
@@ -627,7 +619,7 @@ export default function Vouchers({
                     <div className="flex flex-col items-end">
                         <button
                             onClick={loadSessions}
-                            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-600 hover:text-white"
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-600 hover:text-white"
                         >
                             {loadingSessions ? 'Memuat…' : 'Lihat Yang Online'}
                         </button>
@@ -958,7 +950,7 @@ export default function Vouchers({
                                                     onClick={() =>
                                                         router.post(route('hotspot.vouchers.push-one', voucher.id), {}, { preserveScroll: true })
                                                     }
-                                                    className="rounded-lg border border-slate-900 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+                                                    className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-600 hover:text-white"
                                                     title="Tulis ulang kredensial NIM ini ke RADIUS"
                                                 >
                                                     Terapkan
@@ -1289,7 +1281,7 @@ export default function Vouchers({
                                 type="submit"
                                 form="voucher-form"
                                 disabled={form.processing}
-                                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:bg-slate-300"
+                                className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:bg-slate-300"
                             >
                                 {editing ? 'Simpan Perubahan' : 'Simpan sebagai Pending'}
                             </button>
@@ -1449,7 +1441,7 @@ export default function Vouchers({
                                 type="submit"
                                 form="voucher-import-form"
                                 disabled={importForm.processing || !importForm.data.file}
-                                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {importForm.processing ? 'Mengimpor…' : 'Import Sekarang'}
                             </button>

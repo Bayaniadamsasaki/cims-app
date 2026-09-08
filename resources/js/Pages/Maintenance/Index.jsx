@@ -1,8 +1,10 @@
-import CimsLayout from '@/Layouts/CimsLayout';
-import Modal from '@/Components/Modal';
-import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import CimsLayout from '@/Layouts/CimsLayout';
+import { Head, router, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 
 export default function Index({ tickets = [], devices = [], technicians = [] }) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -105,12 +107,7 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                             Jadwalkan pemeliharaan, tugaskan teknisi, catat riwayat perbaikan, dan unggah lampiran.
                         </p>
                     </div>
-                    <button
-                        onClick={() => setIsCreateOpen(true)}
-                        className="inline-flex items-center rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition duration-150"
-                    >
-                        + Buat Tiket
-                    </button>
+                    <PrimaryButton onClick={() => setIsCreateOpen(true)}>Buat tiket</PrimaryButton>
                 </div>
             }
         >
@@ -201,17 +198,19 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                                                     </span>
                                                 </td>
                                                 <td className="whitespace-nowrap py-4 pr-6 text-right text-sm">
-                                                    <button
+                                                    <SecondaryButton
+                                                        type="button"
+                                                        className="mr-3 px-0 py-0 text-xs font-bold border-0 bg-transparent hover:bg-transparent hover:text-blue-900"
                                                         onClick={() => handleEditOpen(ticket)}
-                                                        className="text-brand-primary hover:underline font-bold text-xs mr-3"
                                                     >
                                                         Edit
-                                                    </button>
+                                                    </SecondaryButton>
                                                     <button
+                                                        type="button"
                                                         onClick={() => handleDelete(ticket.id)}
-                                                        className="text-red-700 hover:underline font-bold text-xs"
+                                                        className="text-xs font-bold text-red-700 transition hover:text-red-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
                                                     >
-                                                        Delete
+                                                        Hapus
                                                     </button>
                                                 </td>
                                             </tr>
@@ -236,21 +235,10 @@ export default function Index({ tickets = [], devices = [], technicians = [] }) 
                         title="Create Maintenance Ticket"
                         footer={
                             <div className="flex items-center justify-end space-x-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateOpen(false)}
-                                    className="px-4 py-2 text-xs font-bold text-brand-textSecondary hover:text-slate-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    form="maintenance-create-form"
-                                    disabled={createForm.processing}
-                                    className="px-4 py-2 bg-brand-primary hover:bg-brand-primaryHover text-white font-bold rounded-xl text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
-                                >
-                                    Create
-                                </button>
+                                <SecondaryButton onClick={() => setIsCreateOpen(false)}>Batal</SecondaryButton>
+                                <PrimaryButton type="submit" form="maintenance-create-form" disabled={createForm.processing}>
+                                    Buat tiket
+                                </PrimaryButton>
                             </div>
                         }
                     >

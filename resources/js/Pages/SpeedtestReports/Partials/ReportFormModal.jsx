@@ -98,7 +98,7 @@ export default function ReportFormModal({ mode = "create", report = null, tester
                         type="submit"
                         form="speedtest-report-form"
                         disabled={processing}
-                        className="rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                        className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primaryHover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                     >
                         {processing ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Laporan"}
                     </button>

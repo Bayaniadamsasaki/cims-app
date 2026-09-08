@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link, router } from "@inertiajs/react";
+import { useEffect, useState } from "react";
 import { IconAlerts, IconClock, IconExport, IconMenu, IconSearch } from "./icons";
 
 /**
@@ -15,7 +15,7 @@ function LiveClock() {
     }, []);
 
     return (
-        <div className="hidden items-center gap-2 rounded-full bg-slate-100 px-3.5 py-2 lg:flex">
+        <div className="hidden items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 lg:flex">
             <IconClock className="h-4 w-4 text-slate-400" />
             <span className="text-xs font-medium text-slate-500">
                 {now.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })}
@@ -29,7 +29,7 @@ function LiveClock() {
 }
 
 const ICON_BUTTON =
-    "relative flex h-11 w-11 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2";
+    "relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2";
 
 /**
  * Top header (§5C): search bar global di kiri; indikator waktu, tombol aksi,
@@ -76,7 +76,7 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
                             name="search"
                             type="search"
                             placeholder="Cari perangkat, IP, atau serial…"
-                            className="w-full rounded-full border-0 bg-slate-100 py-2.5 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-600"
+                            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600"
                         />
                     </div>
                 </form>
@@ -88,10 +88,10 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
                 <button
                     type="button"
                     onClick={onExport}
-                    className="hidden items-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 sm:inline-flex"
+                    className="hidden items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:inline-flex"
                 >
                     <IconExport className="h-4 w-4" />
-                    Export Report
+                    Unduh laporan
                 </button>
 
                 {/*
@@ -116,7 +116,7 @@ export default function DashboardHeader({ user, unreadAlerts = 0, onOpenSidebar,
 
                 <Link
                     href={route("profile.edit")}
-                    className="flex items-center gap-2.5 rounded-full p-1 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                    className="flex items-center gap-2.5 rounded-lg p-1 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                 >
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
                         {user?.name?.charAt(0).toUpperCase() ?? "A"}

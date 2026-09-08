@@ -68,7 +68,7 @@ export default function TesterManagerModal({ testers = [], onClose, onConfirm })
                         <button
                             type="submit"
                             disabled={processing}
-                            className="shrink-0 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-white transition hover:bg-brand-primaryHover disabled:opacity-60"
+                            className="shrink-0 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primaryHover disabled:opacity-60"
                         >
                             Tambah
                         </button>

@@ -1,8 +1,18 @@
-import CimsLayout from '@/Layouts/CimsLayout';
-import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { useRef, useState } from 'react';
-import { useConfirmation } from '@/Components/ConfirmationModal';
 import CredentialReveal from '@/Components/Cims/CredentialReveal';
+import { IconClose, IconInventory, IconRouter } from '@/Components/Cims/icons';
+import { useConfirmation } from '@/Components/ConfirmationModal';
+import DangerButton from '@/Components/DangerButton';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import CimsLayout from '@/Layouts/CimsLayout';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+
+const DEVICE_STATUS = {
+    active: { label: 'Aktif', dot: 'bg-emerald-500', text: 'text-emerald-700', surface: 'bg-emerald-50 border-emerald-200' },
+    maintenance: { label: 'Pemeliharaan', dot: 'bg-amber-500', text: 'text-amber-700', surface: 'bg-amber-50 border-amber-200' },
+    inactive: { label: 'Nonaktif', dot: 'bg-slate-400', text: 'text-slate-600', surface: 'bg-slate-100 border-slate-200' },
+};
 
 export default function Index({ devices = [], vendors = [], categories = [], buildings = [], floors = [], rooms = [], racks = [], filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
@@ -281,24 +291,18 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                         </p>
                     </div>
                     <div className="flex items-center space-x-3">
-                        <button
-                            onClick={() => setIsImportModalOpen(true)}
-                            className="inline-flex items-center rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 transition duration-150"
-                        >
-                            <svg className="h-5 w-5 mr-2 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <SecondaryButton onClick={() => setIsImportModalOpen(true)}>
+                            <svg className="h-5 w-5 mr-2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
-                            Import Excel UBG
-                        </button>
-                        <button
-                            onClick={handleOpenCreateModal}
-                            className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
-                        >
+                            Import data
+                        </SecondaryButton>
+                        <PrimaryButton onClick={handleOpenCreateModal}>
                             <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                             </svg>
                             Tambah Perangkat
-                        </button>
+                        </PrimaryButton>
                     </div>
                 </div>
             }
@@ -341,12 +345,9 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                         </select>
                     </div>
                     <div className="flex items-end">
-                        <button
-                            type="submit"
-                            className="w-full rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-600 hover:text-white px-4 py-2.5 text-sm font-semibold text-blue-700 transition duration-150"
-                        >
+                        <SecondaryButton type="submit" className="w-full">
                             Filter Inventaris
-                        </button>
+                        </SecondaryButton>
                     </div>
                 </form>
 
@@ -362,37 +363,29 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </span>
                             <div className="flex items-center gap-2">
                                 {!allVisibleSelected && (
-                                    <button
-                                        type="button"
-                                        onClick={toggleAllVisible}
-                                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-600 hover:text-white"
-                                    >
+                                    <SecondaryButton type="button" onClick={toggleAllVisible} className="px-3 py-1.5 text-xs">
                                         Pilih semua {visibleIds.length} baris
-                                    </button>
+                                    </SecondaryButton>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={clearSelection}
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-                                >
+                                <SecondaryButton type="button" onClick={clearSelection} className="px-3 py-1.5 text-xs">
                                     Bersihkan pilihan
-                                </button>
+                                </SecondaryButton>
                                 {/* Aksi merusak dipisah garis dan diberi warna sendiri supaya tidak
                                     terklik saat pengguna sebenarnya mengincar tombol di sebelahnya. */}
                                 {canManageDevices && (
                                     <>
                                         <span className="mx-1 h-5 w-px bg-blue-200" aria-hidden="true"></span>
-                                        <button
+                                        <DangerButton
                                             type="button"
                                             onClick={handleBulkDelete}
                                             disabled={isBulkDeleting}
-                                            className="inline-flex items-center rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                            className="px-3 py-1.5 text-xs"
                                         >
                                             <svg className="mr-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                             </svg>
                                             {isBulkDeleting ? 'Menghapus...' : `Hapus ${selectedVisibleIds.length} Terpilih`}
-                                        </button>
+                                        </DangerButton>
                                     </>
                                 )}
                             </div>
@@ -495,50 +488,48 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                 {device.source === 'live_api' ? (
                                                     <span className="inline-flex items-center rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                                                        📡 Live API Monitored
+                                                        <IconRouter className="mr-1.5 h-3.5 w-3.5" />
+                                                        Live API Monitored
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                                                        📦 Inventaris Statis
+                                                        <IconInventory className="mr-1.5 h-3.5 w-3.5" />
+                                                        Inventaris Statis
                                                     </span>
                                                 )}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm">
-                                                <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold border ${
-                                                    device.status === 'active'
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                        : device.status === 'maintenance'
-                                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                        : 'bg-rose-50 text-rose-700 border-rose-200'
-                                                }`}>
-                                                    {device.status.charAt(0).toUpperCase() + device.status.slice(1)}
+                                                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${
+                                                    DEVICE_STATUS[device.status]?.surface ?? 'bg-slate-100 border-slate-200'
+                                                } ${DEVICE_STATUS[device.status]?.text ?? 'text-slate-600'}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${DEVICE_STATUS[device.status]?.dot ?? 'bg-slate-400'}`} />
+                                                    {DEVICE_STATUS[device.status]?.label ?? device.status}
                                                 </span>
                                             </td>
                                             <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
-                                                <div className="flex justify-end space-x-1.5">
-                                                    <button
-                                                        onClick={() => setViewingDevice(device)}
-                                                        className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition flex items-center"
-                                                    >
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <SecondaryButton onClick={() => setViewingDevice(device)} className="px-2.5 py-1.5 text-xs">
                                                         <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                         </svg>
                                                         Detail
-                                                    </button>
+                                                    </SecondaryButton>
                                                     <button
+                                                        type="button"
                                                         onClick={() => handleOpenEditModal(device)}
-                                                        className="rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
+                                                        className="rounded-md px-2 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                                                     >
                                                         Edit
                                                     </button>
                                                     {canManageDevices && (
-                                                        <button
+                                                        <DangerButton
+                                                            type="button"
                                                             onClick={() => handleDelete(device.id)}
-                                                            className="rounded-lg bg-rose-50 border border-rose-200 text-red-700 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 text-xs font-bold transition"
+                                                            className="px-2.5 py-1.5 text-xs"
                                                         >
                                                             Hapus
-                                                        </button>
+                                                        </DangerButton>
                                                     )}
                                                 </div>
                                             </td>
@@ -573,10 +564,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 </p>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-700 transition text-2xl font-bold"
+                                aria-label="Tutup formulir perangkat"
+                                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                             >
-                                &times;
+                                <IconClose className="h-5 w-5" />
                             </button>
                         </div>
 
@@ -805,7 +798,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                                          const isServer = (r.name || '').toLowerCase().includes('server') || (r.code || '').includes('RS');
                                                          return (
                                                              <option key={r.id} value={r.id}>
-                                                                 {isServer ? '🖥️ ' : ''}{r.code ? `[${r.code}] ` : ''}{r.name}{isServer ? ' (Utama)' : ''}
+                                                                 {r.code ? `[${r.code}] ` : ''}{r.name}{isServer ? ' (Utama)' : ''}
                                                              </option>
                                                          );
                                                      })}
@@ -903,20 +896,10 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
 
                             {/* Modal Footer */}
                             <div className="flex justify-end space-x-3 px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="rounded-xl border border-slate-200 hover:bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 transition"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150"
-                                >
+                                <SecondaryButton onClick={() => setIsModalOpen(false)}>Batal</SecondaryButton>
+                                <PrimaryButton type="submit" disabled={processing}>
                                     {editingDevice ? 'Simpan Perubahan' : 'Simpan Perangkat Baru'}
-                                </button>
+                                </PrimaryButton>
                             </div>
                         </form>
                     </div>
@@ -935,10 +918,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 Import Data Inventaris (.xlsx / .xls)
                             </h3>
                             <button
+                                type="button"
                                 onClick={() => setIsImportModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-700 text-xl font-bold"
+                                aria-label="Tutup import inventaris"
+                                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                             >
-                                &times;
+                                <IconClose className="h-5 w-5" />
                             </button>
                         </div>
                         <form onSubmit={handleImportSubmit} className="p-6 space-y-4">
@@ -958,20 +943,10 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                             </div>
 
                             <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsImportModalOpen(false)}
-                                    className="rounded-xl border border-slate-200 hover:bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 transition"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={importForm.processing || !importForm.data.file}
-                                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150 disabled:opacity-50"
-                                >
+                                <SecondaryButton onClick={() => setIsImportModalOpen(false)}>Batal</SecondaryButton>
+                                <PrimaryButton type="submit" disabled={importForm.processing || !importForm.data.file}>
                                     {importForm.processing ? 'Mengimport...' : 'Mulai Import Excel'}
-                                </button>
+                                </PrimaryButton>
                             </div>
                         </form>
                     </div>
@@ -996,10 +971,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                 </p>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setViewingDevice(null)}
-                                className="text-slate-400 hover:text-slate-700 transition text-2xl font-bold"
+                                aria-label="Tutup detail perangkat"
+                                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                             >
-                                &times;
+                                <IconClose className="h-5 w-5" />
                             </button>
                         </div>
 
@@ -1088,12 +1065,12 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                         type="button"
                                         disabled={isSyncing}
                                         onClick={() => handleSyncInterfaces(viewingDevice.id)}
-                                        className="inline-flex items-center px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white text-xs font-bold transition disabled:opacity-50 shadow-sm"
+                                        className="inline-flex items-center px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white text-xs font-semibold transition disabled:opacity-50"
                                     >
                                         <svg className={`w-3.5 h-3.5 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                         </svg>
-                                        {isSyncing ? 'Menghubungkan...' : '⚡ Sinkronkan Port & Interface'}
+                                        {isSyncing ? 'Menghubungkan...' : 'Sinkronkan Port & Interface'}
                                     </button>
                                 </div>
                                 <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -1131,7 +1108,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                                             ) : (
                                                 <tr>
                                                     <td colSpan="5" className="py-4 text-center text-slate-400 italic">
-                                                        Belum ada port interface yang terdaftar. Klik <strong>"⚡ Sinkronkan Port & Interface"</strong> di atas untuk menarik port langsung dari router MikroTik atau membuat port default.
+                                                        Belum ada port interface yang terdaftar. Klik <strong>"Sinkronkan Port &amp; Interface"</strong> di atas untuk menarik port langsung dari router MikroTik atau membuat port default.
                                                     </td>
                                                 </tr>
                                             )}
@@ -1196,7 +1173,7 @@ export default function Index({ devices = [], vendors = [], categories = [], bui
                         <div className="flex justify-end px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0">
                             <button
                                 onClick={() => setViewingDevice(null)}
-                                className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150"
+                                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
                             >
                                 Tutup Detail
                             </button>

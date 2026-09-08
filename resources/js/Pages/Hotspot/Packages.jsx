@@ -286,7 +286,7 @@ export default function Packages({
                                             ? undefined
                                             : 'RADIUS_DB_* belum diisi di .env, jadi belum ada tujuan yang bisa ditulis.'
                                     }
-                                    className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                    className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                                 >
                                     Tambah Paket
                                 </button>
@@ -397,7 +397,7 @@ export default function Packages({
                     {canManage && radiusConfigured && (
                         <button
                             onClick={() => openCreate(defaultGroup ?? '')}
-                            className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                            className="mt-4 inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
                         >
                             Buat paket {defaultGroup ? `"${defaultGroup}"` : 'pertama'}
                         </button>
@@ -870,7 +870,7 @@ export default function Packages({
                                 type="submit"
                                 form="package-form"
                                 disabled={form.processing}
-                                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                             >
                                 {form.processing ? 'Menyimpan…' : editing ? 'Simpan Perubahan' : 'Simpan Paket'}
                             </button>

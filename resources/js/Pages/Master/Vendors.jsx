@@ -174,7 +174,7 @@ export default function Vendors({ vendors = [] }) {
                             type="submit"
                             form="vendor-form"
                             disabled={processing}
-                            className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                            className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                         >
                             {editingVendor ? 'Simpan Perubahan' : 'Tambah Vendor'}
                         </button>

@@ -1,49 +1,25 @@
-import React, { useState } from "react";
+import { IconAlerts, IconCloud, IconRouter, IconUsers, IconWifi } from "@/Components/Cims/icons";
+import { statusOf } from "@/Components/Cims/theme";
 import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
+import { useState } from "react";
 
 /**
- * Kosakata status di halaman ini berasal dari dua sumber nyata: Ruijie Cloud
- * melaporkan `online`/`offline`, sedangkan perangkat yang hanya ada di inventaris
- * CIMS memakai hasil MonitoringService (`online`, `degraded`, `unreachable`,
- * `error`). Status yang belum dilaporkan siapa pun menjadi `unknown`. Tidak ada
+ * Kosakata status memakai sumber tunggal `Components/Cims/theme.jsx` — idem
+ * dengan halaman lain — supaya label, titik, dan chip tidak bercabang per
+ * halaman. Status yang belum dilaporkan siapa pun menjadi `unknown`. Tidak ada
  * status hasil karangan.
  */
-const STATUS_STYLE = {
-    online: {
-        label: "ONLINE",
-        chip: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30",
-        dot: "bg-emerald-500",
-    },
-    degraded: {
-        label: "DEGRADED",
-        chip: "bg-amber-500/10 text-amber-700 border-amber-500/30",
-        dot: "bg-amber-400",
-    },
-    unreachable: {
-        label: "UNREACHABLE",
-        chip: "bg-red-500/10 text-red-700 border-red-500/30",
-        dot: "bg-red-400",
-    },
-    error: {
-        label: "MONITORING ERROR",
-        chip: "bg-rose-500/10 text-rose-700 border-rose-500/30",
-        dot: "bg-rose-500",
-    },
-    offline: {
-        label: "OFFLINE",
-        chip: "bg-red-500/10 text-red-700 border-red-500/30",
-        dot: "bg-red-400",
-    },
-    unknown: {
-        label: "NO DATA",
-        chip: "bg-slate-100 text-slate-600 border-slate-200",
-        dot: "bg-slate-400",
-    },
-};
+const statusStyleOf = (status) => {
+    const tone = statusOf(status);
 
-const statusStyleOf = (status) => STATUS_STYLE[status] ?? STATUS_STYLE.unknown;
+    return {
+        label: tone.label,
+        chip: `${tone.chip} border border-transparent`,
+        dot: tone.dot,
+    };
+};
 
 /** Field yang tidak dilaporkan sumbernya dirender sebagai "—", bukan diisi tebakan. */
 const NoData = () => <span className="text-brand-textMuted">—</span>;
@@ -218,7 +194,7 @@ export default function RuijieExplorer({
                             <button
                                 onClick={handleRefresh}
                                 disabled={isRefreshing}
-                                className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-sm font-semibold transition duration-200 disabled:opacity-50 shadow-lg shadow-cyan-900/30 shrink-0"
+                                className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shrink-0"
                             >
                                 <svg
                                     className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -266,7 +242,9 @@ export default function RuijieExplorer({
                             <span className="text-xs text-brand-textSecondary uppercase tracking-wider font-bold">
                                 Total Devices
                             </span>
-                            <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-700 text-sm">📡</span>
+                            <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-700">
+                                <IconRouter className="h-4 w-4" />
+                            </span>
                         </div>
                         <div className="text-3xl font-extrabold text-slate-900 mt-2">{summary?.totalDevices ?? 0}</div>
                         <div className="text-xs text-cyan-700 mt-1 font-mono">Cloud API + inventaris CIMS</div>
@@ -277,7 +255,9 @@ export default function RuijieExplorer({
                             <span className="text-xs text-brand-textSecondary uppercase tracking-wider font-bold">
                                 Online Nodes
                             </span>
-                            <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-700 text-sm">🟢</span>
+                            <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-700">
+                                <IconWifi className="h-4 w-4" />
+                            </span>
                         </div>
                         <div className="text-3xl font-extrabold text-emerald-700 mt-2">
                             {summary?.onlineDevices ?? 0}
@@ -293,7 +273,9 @@ export default function RuijieExplorer({
                             <span className="text-xs text-brand-textSecondary uppercase tracking-wider font-bold">
                                 Wi-Fi Clients (STAs)
                             </span>
-                            <span className="p-2 rounded-lg bg-purple-500/10 text-purple-700 text-sm">📱</span>
+                            <span className="p-2 rounded-lg bg-purple-500/10 text-purple-700">
+                                <IconUsers className="h-4 w-4" />
+                            </span>
                         </div>
                         {/* Daftar klien hanya bisa datang dari Cloud API. */}
                         <div className="text-3xl font-extrabold text-purple-700 mt-2">
@@ -369,11 +351,14 @@ export default function RuijieExplorer({
                 {/* Tab Navigation */}
                 <div className="border-b border-brand-border flex overflow-x-auto space-x-2 pb-2">
                     {[
-                        { id: "devices", label: "Managed Devices", icon: "📡", count: devices.length },
-                        { id: "clients", label: "Connected Wi-Fi Clients", icon: "📱", count: wirelessClients.length },
-                        { id: "alarms", label: "Alarms & Events", icon: "🔔", count: alarms.length },
-                        { id: "diagnostics", label: "API Authentication Info", icon: "🔑" },
-                    ].map((tab) => (
+                        { id: "devices", label: "Managed Devices", icon: IconRouter, count: devices.length },
+                        { id: "clients", label: "Connected Wi-Fi Clients", icon: IconUsers, count: wirelessClients.length },
+                        { id: "alarms", label: "Alarms & Events", icon: IconAlerts, count: alarms.length },
+                        { id: "diagnostics", label: "API Authentication Info", icon: IconCloud },
+                    ].map((tab) => {
+                        const TabIcon = tab.icon;
+
+                        return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
@@ -383,7 +368,7 @@ export default function RuijieExplorer({
                                     : "text-brand-textSecondary hover:text-slate-900 hover:bg-brand-cardElevated"
                             }`}
                         >
-                            <span aria-hidden="true">{tab.icon}</span>
+                            <TabIcon className="h-4 w-4" />
                             <span>{tab.label}</span>
                             {tab.count !== undefined && (
                                 <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-brand-bgSecondary border border-brand-border text-cyan-700 font-mono">
@@ -391,7 +376,8 @@ export default function RuijieExplorer({
                                 </span>
                             )}
                         </button>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* ============ TAB: MANAGED DEVICES ============ */}
@@ -524,7 +510,7 @@ export default function RuijieExplorer({
                                                 </td>
                                                 <td className="px-5 py-3.5">
                                                     <span
-                                                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${style.chip}`}
+                                                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${style.chip}`}
                                                     >
                                                         <span
                                                             className={`h-1.5 w-1.5 rounded-full mr-1.5 ${style.dot}`}
@@ -559,8 +545,8 @@ export default function RuijieExplorer({
 
                         {wirelessClients.length === 0 ? (
                             <div className="px-5 py-12 text-center">
-                                <div className="text-3xl mb-2" aria-hidden="true">
-                                    📡
+                                <div className="mb-2 flex justify-center text-cyan-700" aria-hidden="true">
+                                    <IconWifi className="h-8 w-8" />
                                 </div>
                                 <div className="text-sm font-semibold text-slate-900">
                                     {cloudConnected
@@ -668,8 +654,8 @@ export default function RuijieExplorer({
 
                         {alarms.length === 0 ? (
                             <div className="px-5 py-12 text-center">
-                                <div className="text-3xl mb-2" aria-hidden="true">
-                                    {cloudConnected ? "✅" : "🔌"}
+                                <div className="mb-2 flex justify-center text-cyan-700" aria-hidden="true">
+                                    {cloudConnected ? <IconCloud className="h-8 w-8" /> : <IconAlerts className="h-8 w-8" />}
                                 </div>
                                 <div className="text-sm font-semibold text-slate-900">
                                     {cloudConnected

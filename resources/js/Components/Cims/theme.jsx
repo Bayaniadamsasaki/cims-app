@@ -81,15 +81,9 @@ export const STATUS = {
  */
 export const statusOf = (key) => STATUS[key] ?? STATUS.unknown;
 
-/** Tint lingkaran ikon pada Metric Card (§6A). */
-export const ICON_TINT = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    red: "bg-red-50 text-red-600",
-    amber: "bg-amber-50 text-amber-600",
-};
-
-/** Badge tren kecil di kaki Metric Card (§6A). */
+/**
+ * Badge tren kecil di kaki Metric Card.
+ */
 export const TREND_TONE = {
     positive: "bg-emerald-50 text-emerald-700",
     negative: "bg-red-50 text-red-700",
@@ -107,8 +101,8 @@ export const CHART = {
     label: "#64748B", // slate-500
 };
 
-/** Shell kartu standar (§6A): putih, sudut 2xl, border tipis, shadow lembut. */
-export const CARD = "bg-white rounded-2xl border border-slate-100 shadow-sm";
+/** Shell kartu standar: putih, sudut xl, border tipis, shadow lembut. */
+export const CARD = "bg-white rounded-xl border border-slate-200 shadow-sm";
 
 /** Seri chart trafik — datanya berasal dari log monitoring nyata. */
 export const TRAFFIC_SERIES = [

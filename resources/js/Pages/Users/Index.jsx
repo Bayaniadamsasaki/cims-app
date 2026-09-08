@@ -1,8 +1,11 @@
-import CimsLayout from '@/Layouts/CimsLayout';
-import Modal from '@/Components/Modal';
-import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
+import DangerButton from '@/Components/DangerButton';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import CimsLayout from '@/Layouts/CimsLayout';
+import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 
 export default function UsersIndex({ users = [], roles = [], filters = {} }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,15 +82,12 @@ export default function UsersIndex({ users = [], roles = [], filters = {} }) {
                             Konfigurasi kredensial pengguna, peran, dan tingkat akses sumber daya.
                         </p>
                     </div>
-                    <button
-                        onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition duration-150"
-                    >
+                    <PrimaryButton onClick={handleOpenCreateModal}>
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
                         Tambah Pengguna
-                    </button>
+                    </PrimaryButton>
                 </div>
             }
         >
@@ -135,18 +135,12 @@ export default function UsersIndex({ users = [], roles = [], filters = {} }) {
                                                 </td>
                                                 <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
                                                     <div className="flex justify-end space-x-2">
-                                                        <button
-                                                            onClick={() => handleOpenEditModal(user)}
-                                                            className="rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
-                                                        >
+                                                        <SecondaryButton className="px-3 py-1.5 text-xs" onClick={() => handleOpenEditModal(user)}>
                                                             Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(user.id)}
-                                                            className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
-                                                        >
+                                                        </SecondaryButton>
+                                                        <DangerButton className="px-3 py-1.5 text-xs" onClick={() => handleDelete(user.id)}>
                                                             Hapus
-                                                        </button>
+                                                        </DangerButton>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -183,7 +177,7 @@ export default function UsersIndex({ users = [], roles = [], filters = {} }) {
                             type="submit"
                             form="user-form"
                             disabled={processing}
-                            className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                         >
                             {editingUser ? 'Simpan Perubahan' : 'Daftarkan Pengguna'}
                         </button>

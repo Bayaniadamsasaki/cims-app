@@ -2,6 +2,18 @@ import CimsLayout from "@/Layouts/CimsLayout";
 import { Head } from "@inertiajs/react";
 import axios from "axios";
 import { useEffect, useState } from "react";
+import {
+    IconDashboard,
+    IconTopology,
+    IconSpeedtest,
+    IconAlerts,
+    IconWifi,
+    IconMaster,
+    IconReports,
+    IconRouter,
+    IconClock,
+    IconCheckCircle,
+} from "@/Components/Cims/icons";
 
 /**
  * Tahapan satu putaran speedtest, urut sesuai urutan kerja speedtest-cli.
@@ -698,8 +710,8 @@ export default function MikrotikExplorer({
                                     className="flex items-center justify-between space-x-3 bg-brand-bg/90 hover:bg-brand-bgSecondary border border-brand-border/90 hover:border-emerald-500/50 px-4 py-2 rounded-xl shadow-inner min-w-[290px] sm:min-w-[340px] transition group text-left"
                                 >
                                     <div className="flex items-center space-x-3 min-w-0">
-                                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 text-sm shrink-0 group-hover:scale-105 transition-transform">
-                                            🎛️
+                                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-50 text-emerald-700 text-sm shrink-0">
+                                            <IconRouter className="h-4 w-4" aria-hidden="true" />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <span className="block text-[10px] font-bold uppercase tracking-wider text-brand-textSecondary">
@@ -744,7 +756,7 @@ export default function MikrotikExplorer({
                                         <div className="absolute right-0 top-full mt-2 w-full sm:w-[400px] z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 space-y-1 animate-in fade-in duration-150">
                                             <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center space-x-1.5">
-                                                    <span>📡</span>
+                                                    <IconAlerts className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" />
                                                     <span>
                                                         Pilih Target Monitoring
                                                     </span>
@@ -774,7 +786,7 @@ export default function MikrotikExplorer({
                             <button
                                 onClick={handleManualRefresh}
                                 disabled={isRefreshing}
-                                className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition duration-200 disabled:opacity-50 shadow-md shadow-emerald-900/20 shrink-0"
+                                className="flex items-center justify-center space-x-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition disabled:opacity-50 shrink-0"
                             >
                                 <svg
                                     className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -849,8 +861,10 @@ export default function MikrotikExplorer({
                         {/* Diagnostics box: Mengubah bg-slate-800 menjadi bg-white agar sesuai light theme */}
                         <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 shadow-sm">
                             <div className="font-semibold text-slate-800 text-sm flex items-center">
-                                <span className="mr-2">🔧</span> Kemungkinan
-                                Penyebab & Solusi:
+                                <span className="mr-2 text-slate-500">
+                                <IconAlerts className="h-4 w-4" aria-hidden="true" />
+                            </span> Kemungkinan
+                            Penyebab & Solusi:
                             </div>
                             <ol className="list-decimal list-outside ml-5 space-y-2.5 text-sm text-slate-600 leading-relaxed">
                                 <li>
@@ -948,31 +962,31 @@ export default function MikrotikExplorer({
                         {
                             id: "overview",
                             label: "Ringkasan Sistem",
-                            icon: "📊",
+                            icon: <IconDashboard className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" />,
                         },
-                        { id: "network", label: "IP & Routing", icon: "🌐" },
-                        { id: "ospf", label: "OSPF", icon: "🛰️" },
+                        { id: "network", label: "IP & Routing", icon: <IconTopology className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
+                        { id: "ospf", label: "OSPF", icon: <IconTopology className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
                         {
                             id: "speedtest",
                             label: "Speedtest Router",
-                            icon: "🚀",
+                            icon: <IconSpeedtest className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" />,
                         },
-                        { id: "firewall", label: "Firewall & NAT", icon: "🛡️" },
-                        { id: "hotspot", label: "Hotspot Aktif", icon: "📡" },
-                        { id: "neighbors", label: "Neighbors", icon: "🔗" },
-                        { id: "system", label: "DNS & Paket", icon: "📦" },
-                        { id: "logs", label: "Log Sistem", icon: "📜" },
+                        { id: "firewall", label: "Firewall & NAT", icon: <IconAlerts className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
+                        { id: "hotspot", label: "Hotspot Aktif", icon: <IconWifi className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
+                        { id: "neighbors", label: "Neighbors", icon: <IconTopology className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
+                        { id: "system", label: "DNS & Paket", icon: <IconMaster className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
+                        { id: "logs", label: "Log Sistem", icon: <IconReports className="h-4 w-4 text-brand-textSecondary" aria-hidden="true" /> },
                     ].map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium transition duration-150 whitespace-nowrap ${
                                 activeTab === tab.id
-                                    ? "bg-brand-primary/20 text-emerald-700 border border-emerald-500/30"
+                                    ? "bg-blue-50 text-blue-700 border border-blue-100"
                                     : "text-brand-textSecondary hover:text-slate-900 hover:bg-brand-cardElevated"
                             }`}
                         >
-                            <span>{tab.icon}</span>
+                            {tab.icon}
                             <span>{tab.label}</span>
                         </button>
                     ))}
@@ -983,7 +997,7 @@ export default function MikrotikExplorer({
                     <div className="space-y-6">
                         {/* Quick Stats Grid */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-brand-card border border-brand-border p-5 rounded-2xl">
+                            <div className="bg-brand-card border border-brand-border p-5 rounded-xl">
                                 <div className="text-xs text-brand-textSecondary uppercase tracking-wider font-semibold">
                                     Router Identity
                                 </div>
@@ -1076,8 +1090,8 @@ export default function MikrotikExplorer({
                                         {formatUptime(metrics?.uptime)}
                                     </div>
                                 </div>
-                                <div className="p-3 bg-brand-cardElevated rounded-xl text-emerald-700">
-                                    ⏱️
+                                <div className="p-3 bg-brand-cardElevated rounded-lg text-slate-500">
+                                    <IconClock className="h-5 w-5" aria-hidden="true" />
                                 </div>
                             </div>
 
@@ -1092,8 +1106,8 @@ export default function MikrotikExplorer({
                                             : "N/A"}
                                     </div>
                                 </div>
-                                <div className="p-3 bg-brand-cardElevated rounded-xl text-amber-700">
-                                    🌡️
+                                <div className="p-3 bg-brand-cardElevated rounded-lg text-amber-600">
+                                    <IconAlerts className="h-5 w-5" aria-hidden="true" />
                                 </div>
                             </div>
 
@@ -1106,8 +1120,8 @@ export default function MikrotikExplorer({
                                         {metrics?.storage ?? "-"}%
                                     </div>
                                 </div>
-                                <div className="p-3 bg-brand-cardElevated rounded-xl text-purple-700">
-                                    💾
+                                <div className="p-3 bg-brand-cardElevated rounded-lg text-slate-500">
+                                    <IconMaster className="h-5 w-5" aria-hidden="true" />
                                 </div>
                             </div>
                         </div>
@@ -1951,7 +1965,7 @@ export default function MikrotikExplorer({
                                             ? "Sedang berjalan…"
                                             : speedtestStarting
                                               ? "Memulai…"
-                                              : "🚀 Mulai Speedtest"}
+                                              : "Mulai Speedtest"}
                                     </button>
 
                                     {/* Stop adalah satu-satunya jalan keluar dari
@@ -1970,7 +1984,7 @@ export default function MikrotikExplorer({
                                     >
                                         {speedtestAction === "stop"
                                             ? "Menghentikan…"
-                                            : "⏹ Stop"}
+                                            : "Stop"}
                                     </button>
 
                                     <button
@@ -2053,7 +2067,7 @@ export default function MikrotikExplorer({
                                                           : "bg-brand-bgSecondary border-brand-border text-brand-textSecondary"
                                                 }`}
                                             >
-                                                {done ? "✓ " : ""}
+                                                {done && <IconCheckCircle className="h-3.5 w-3.5 inline-block mr-1 text-emerald-600" aria-hidden="true" />}
                                                 {stage.label}
                                             </span>
                                         );
@@ -2402,8 +2416,8 @@ export default function MikrotikExplorer({
                                         {speedtestLogLoading
                                             ? "Mengambil…"
                                             : speedtestLog === null
-                                              ? "📄 Tampilkan Log"
-                                              : "↻ Muat Ulang"}
+                                              ? "Tampilkan Log"
+                                              : "Muat Ulang"}
                                     </button>
                                 </div>
 

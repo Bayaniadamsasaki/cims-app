@@ -1,8 +1,11 @@
-import CimsLayout from '@/Layouts/CimsLayout';
-import Modal from '@/Components/Modal';
-import { Head, Link, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
 import { useConfirmation } from '@/Components/ConfirmationModal';
+import DangerButton from '@/Components/DangerButton';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import CimsLayout from '@/Layouts/CimsLayout';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 
 export default function Buildings({ buildings = [] }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,15 +79,12 @@ export default function Buildings({ buildings = [] }) {
                             Konfigurasi zona gedung fisik untuk menempatkan perangkat infrastruktur.
                         </p>
                     </div>
-                    <button
-                        onClick={handleOpenCreateModal}
-                        className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition duration-150"
-                    >
+                    <PrimaryButton onClick={handleOpenCreateModal}>
                         <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                         </svg>
                         Tambah Gedung
-                    </button>
+                    </PrimaryButton>
                 </div>
             }
         >
@@ -138,25 +138,15 @@ export default function Buildings({ buildings = [] }) {
                                                 </td>
                                                 <td className="whitespace-nowrap py-4 pl-3 pr-6 text-right text-sm font-medium">
                                                     <div className="flex justify-end space-x-2">
-                                                        <button
-                                                             onClick={() => setSelectedLayoutBuilding(building)}
-                                                             type="button"
-                                                             className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
-                                                         >
-                                                             View Layout
-                                                         </button>
-                                                         <button
-                                                            onClick={() => handleOpenEditModal(building)}
-                                                            className="rounded-lg bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white px-3 py-1.5 text-xs font-semibold transition"
-                                                        >
+                                                        <SecondaryButton className="px-3 py-1.5 text-xs" onClick={() => setSelectedLayoutBuilding(building)}>
+                                                            Lihat denah
+                                                        </SecondaryButton>
+                                                        <SecondaryButton className="px-3 py-1.5 text-xs" onClick={() => handleOpenEditModal(building)}>
                                                             Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(building.id)}
-                                                            className="rounded-lg bg-rose-500/10 border border-rose-500/20 text-red-700 hover:bg-rose-600 hover:text-white px-3 py-1.5 text-xs font-semibold transition"
-                                                        >
-                                                            Delete
-                                                        </button>
+                                                        </SecondaryButton>
+                                                        <DangerButton className="px-3 py-1.5 text-xs" onClick={() => handleDelete(building.id)}>
+                                                            Hapus
+                                                        </DangerButton>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -182,21 +172,10 @@ export default function Buildings({ buildings = [] }) {
                 title={editingBuilding ? 'Modify Building Info' : 'Register New Building Zone'}
                 footer={
                     <div className="flex justify-end gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setIsModalOpen(false)}
-                            className="rounded-xl border border-brand-border hover:bg-brand-bgSecondary px-4 py-2.5 text-sm font-semibold text-brand-textSecondary transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            form="building-form"
-                            disabled={processing}
-                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-4 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
-                        >
-                            {editingBuilding ? 'Save Changes' : 'Register Zone'}
-                        </button>
+                        <SecondaryButton onClick={() => setIsModalOpen(false)}>Batal</SecondaryButton>
+                        <PrimaryButton type="submit" form="building-form" disabled={processing}>
+                            {editingBuilding ? 'Simpan perubahan' : 'Tambah gedung'}
+                        </PrimaryButton>
                     </div>
                 }
             >
@@ -260,7 +239,7 @@ export default function Buildings({ buildings = [] }) {
                         <button
                             type="button"
                             onClick={() => setSelectedLayoutBuilding(null)}
-                            className="rounded-xl bg-brand-primary hover:bg-brand-primaryHover px-5 py-2.5 text-sm font-bold text-white transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
+                            className="rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-primaryHover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus-visible:ring-offset-2"
                         >
                             Close Layout
                         </button>
